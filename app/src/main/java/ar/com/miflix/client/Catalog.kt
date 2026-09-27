@@ -46,6 +46,11 @@ class CatalogRepository(private val context: Context) {
     private val cache get() = File(context.filesDir, "catalogo.json")
 
     suspend fun load(url: String): CatalogLoad = withContext(Dispatchers.IO) {
+        if (url.isBlank()) {
+            val cached = runCatching { parseCatalog(cache.readText()) }.getOrNull()
+            return@withContext if (cached != null) CatalogLoad(cached, "Copia local")
+            else CatalogLoad(Catalog("1.2.0"), "Configurá el catálogo")
+        }
         try {
             require(url.startsWith("https://", true)) { "Usá una dirección HTTPS del catálogo." }
             val request = Request.Builder().url(url).header("Cache-Control", "no-cache").build()
@@ -69,7 +74,8 @@ class CatalogRepository(private val context: Context) {
     }
 
     companion object {
-        const val DEFAULT_URL = "https://small-breeze-e454.deviadario.workers.dev/"
+        // Se configura cuando exista una URL estable que realmente publique catalogo.json.
+        const val DEFAULT_URL = ""
 
         fun parseCatalog(raw: String): Catalog {
             val root = JsonParser.parseString(raw).asJsonObject
