@@ -1,13 +1,14 @@
 # MiFlix cliente · Android celular
 
-Aplicación cliente separada del administrador. Su identificador es `ar.com.miflix.client`, por lo que no reemplaza la instalación de Mi Videoteca. Usa Kotlin y Jetpack Compose. Lee `catalogo.json` remoto (`schema_version` 1.x), muestra películas, series y anime, permite buscar, abrir fichas y conserva la última copia válida para uso sin conexión. Si el servidor devuelve HTML, un estado HTTP de error o un JSON inválido, mantiene esa copia y muestra el motivo.
+Aplicación cliente separada del administrador. Su identificador es `ar.com.miflix.client`, por lo que no reemplaza la instalación de Mi Videoteca. Usa Kotlin y Jetpack Compose. Lee `catalogo.json` remoto (`schema_version` 1.x y formato 2 del Worker de anime), muestra películas, series y anime, permite buscar, abrir fichas y conserva la última copia válida para uso sin conexión. Si el servidor devuelve HTML, un estado HTTP de error o un JSON inválido, mantiene esa copia y muestra el motivo.
 
-## Estado funcional (0.2.0)
+## Estado funcional (0.2.1)
 
 - Portada destacada, filas horizontales de carátulas, búsqueda, categorías y fichas: implementadas.
 - Ícono de MiFlix aportado por el propietario del proyecto.
 - El enlace privado de invitación al canal se guarda en el teléfono. Cada usuario se une desde Telegram con su propia cuenta. Se abren allí las publicaciones de películas y episodios.
 - La URL HTTPS del catálogo se configura una vez en cada instalación; al abrir/volver a la app y cada 30 minutos mientras está abierta, se comprueba la versión remota y se guarda la última copia válida.
+- El índice de anime del Worker usa `schema_version: 2` y `telegram_publicaciones`: se convierten en enlaces navegables bajo cada título sin alterar el JSON publicado. Los títulos sin enlace se ven en el catálogo, pero no tienen botón para abrir Telegram.
 - Inicio de sesión Telegram dentro de MiFlix y reproducción dentro de la app: **pendientes**. Un `t.me/c/...` es un enlace a un mensaje, no una URL directa del archivo de video. No se puede reproducir como video sin autenticar la cuenta y obtener el archivo mediante la API de Telegram.
 - Esta versión requiere compilar un nuevo APK; el APK 0.1.0 anterior no contiene los cambios.
 
