@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mivideoteca.local/catalogo.schema.json",
+  "title": "Catálogo de Mi Videoteca",
+  "type": "object",
+  "required": ["schema_version", "items"],
+  "properties": {
+    "schema_version": { "type": "string", "pattern": "^1(\\.[0-9]+){0,2}$" },
+    "actualizado_en": { "type": ["string", "null"], "format": "date-time" },
+    "items": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/item" }
+    }
+  },
+  "$defs": {
+    "item": {
+      "type": "object",
+      "required": ["id", "tipo", "titulo"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "tipo": { "enum": ["pelicula", "serie", "anime"] },
+        "titulo": { "type": "string", "minLength": 1 },
+        "titulo_original": { "type": ["string", "null"] },
+        "titulos_alternativos": { "type": "array", "items": { "type": "string" } },
+        "year": { "type": ["integer", "null"], "minimum": 1888 },
+        "generos": { "type": "array", "items": { "type": "string" } },
+        "tmdb_id": { "type": ["integer", "null"], "minimum": 1 },
+        "anilist_id": { "type": ["integer", "null"], "minimum": 1 },
+        "telegram_url": { "type": ["string", "null"], "format": "uri" },
+        "poster_url": { "type": ["string", "null"], "format": "uri" },
+        "backdrop_url": { "type": ["string", "null"], "format": "uri" },
+        "trailer_url": { "type": ["string", "null"], "format": "uri" },
+        "fecha_agregado": { "type": ["string", "null"], "format": "date-time" },
+        "temporadas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["numero", "episodios"],
+            "properties": {
+              "numero": { "type": "integer", "minimum": 0 },
+              "titulo": { "type": ["string", "null"] },
+              "episodios": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "numero"],
+                  "properties": {
+                    "id": { "type": "string", "minLength": 1 },
+                    "numero": { "type": "integer", "minimum": 0 },
+                    "titulo": { "type": ["string", "null"] },
+                    "duracion": { "type": ["string", "null"] },
+                    "thumbnail_url": { "type": ["string", "null"], "format": "uri" },
+                    "telegram_url": { "type": ["string", "null"], "format": "uri" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
