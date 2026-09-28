@@ -143,6 +143,8 @@ private fun ClientApp(
     val searchScroll = rememberLazyGridState()
     val sectionsScroll = rememberLazyGridState()
     val context = LocalContext.current
+    val telegramSession = remember { TelegramSession.get(context) }
+    val telegramState by telegramSession.state.collectAsState()
     val scope = rememberCoroutineScope()
     val owner = LocalLifecycleOwner.current
     val titles = catalog.items.orEmpty()
@@ -329,10 +331,22 @@ private fun ClientApp(
                     problem = problem,
                     busy = busy,
                     count = titles.size,
+                    telegramState = telegramState,
                     onUrlChange = { editUrl = it },
                     onInviteChange = { editInvite = it },
                     onRefresh = ::refresh,
                     onJoin = { openTelegram(context, editInvite) },
+                    onDisconnectTelegram = {
+                        if (telegramState is TelegramSession.State.Ready) {
+                            scope.launch {
+                                try {
+                                    telegramSession.logout()
+                                } catch (_: Exception) {
+                                    telegramSession.reset()
+                                }
+                            }
+                        } else telegramSession.reset()
+                    },
                     onSave = {
                         val nextUrl = editUrl.trim()
                         val nextInvite = editInvite.trim()
@@ -576,8 +590,10 @@ private fun EmptyState(
 private fun SettingsScreen(
     modifier: Modifier, url: String, invite: String, source: String,
     problem: String?, busy: Boolean, count: Int,
+    telegramState: TelegramSession.State,
     onUrlChange: (String) -> Unit, onInviteChange: (String) -> Unit,
-    onRefresh: () -> Unit, onJoin: () -> Unit, onSave: () -> Unit
+    onRefresh: () -> Unit, onJoin: () -> Unit,
+    onDisconnectTelegram: () -> Unit, onSave: () -> Unit
 ) {
     val urlOk = url.isBlank() || runCatching {
         val uri = Uri.parse(url.trim())
@@ -607,6 +623,22 @@ private fun SettingsScreen(
             isError = !inviteOk, singleLine = true, modifier = Modifier.fillMaxWidth()) }
         if (invite.isNotBlank() && inviteOk) item {
             TextButton(onClick = onJoin) { Text("Entrar al canal en Telegram") }
+        }
+        if (telegramState !is TelegramSession.State.NeedsApi) {
+            item { SectionHeading("Sesión en MiFlix") }
+            item {
+                Text(
+                    if (telegramState is TelegramSession.State.Ready) "Cuenta Telegram conectada"
+                    else "Sesión Telegram pendiente de autorización",
+                    color = MiFlixStyle.secondaryText
+                )
+            }
+            item {
+                TextButton(onClick = onDisconnectTelegram) {
+                    Text(if (telegramState is TelegramSession.State.Ready)
+                        "Cerrar sesión Telegram" else "Cambiar credenciales Telegram")
+                }
+            }
         }
         item { Button(onClick = onSave, enabled = urlOk && inviteOk,
             modifier = Modifier.fillMaxWidth()) { Text("Guardar y actualizar") } }

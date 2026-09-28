@@ -8,6 +8,7 @@ Aplicación cliente independiente de MiFlix Admin. Lee el catálogo público de 
 - TDLib resuelve el enlace al mensaje con la cuenta de Telegram que inicia sesión dentro de MiFlix. Un enlace de mensaje no es una URL directa de video. El mensaje debe contener un video o un archivo de tipo video.
 - MiFlix descarga el archivo completo en el almacenamiento privado de la app; cuando termina, Media3/ExoPlayer lo reproduce dentro de MiFlix. Puede tardar según tamaño del video y conexión. La copia local del catálogo no implica que todos los videos estén disponibles sin conexión.
 - La cuenta debe pertenecer al canal. Cada instalación usa la cuenta de esa persona. Si Telegram pide correo, código o contraseña de dos pasos, la app los solicita. No se incluyen tokens de sesión ni el API ID/hash en GitHub ni en Cloudflare.
+- Configuración permite cerrar la sesión de Telegram en MiFlix o corregir las credenciales de la aplicación en este teléfono.
 - Los archivos descargados quedan en la caché administrada por TDLib. Esta versión aún no tiene botón para limitar o vaciar esa caché.
 
 ## Dependencia de TDLib

@@ -40,6 +40,7 @@ internal class TelegramSession private constructor(private val context: Context)
     private val mutableProgress = MutableStateFlow(0)
     val progress = mutableProgress.asStateFlow()
     private var client: Client? = null
+    @Volatile private var generation = 0
     private var apiId = 0
     private var apiHash = ""
 
@@ -64,15 +65,18 @@ internal class TelegramSession private constructor(private val context: Context)
         mutableState.value = State.Starting
         try {
             System.loadLibrary("tdjni")
+            val myGeneration = ++generation
             client = Client.create({ update ->
-                when (update) {
-                    is TdApi.UpdateAuthorizationState -> handleAuthorization(update.authorizationState)
-                    is TdApi.UpdateFile -> {
-                        val file = update.file
-                        val size = file.expectedSize.takeIf { it > 0 } ?: file.size
-                        if (activeFileId == file.id && size > 0) {
-                            mutableProgress.value = (file.local.downloadedSize.toLong() * 100L / size)
-                                .toInt().coerceIn(0, 100)
+                if (generation == myGeneration) {
+                    when (update) {
+                        is TdApi.UpdateAuthorizationState -> handleAuthorization(update.authorizationState)
+                        is TdApi.UpdateFile -> {
+                            val file = update.file
+                            val size = file.expectedSize.takeIf { it > 0 } ?: file.size
+                            if (activeFileId == file.id && size > 0) {
+                                mutableProgress.value = (file.local.downloadedSize.toLong() * 100L / size)
+                                    .toInt().coerceIn(0, 100)
+                            }
                         }
                     }
                 }
@@ -175,6 +179,20 @@ internal class TelegramSession private constructor(private val context: Context)
 
     suspend fun logout() {
         if (client != null) request(TdApi.LogOut())
+        reset()
+    }
+
+    @Synchronized
+    fun reset() {
+        generation++
+        val old = client
+        client = null
+        old?.send(TdApi.Close(), { _ -> })
+        preferences.edit().clear().apply()
+        apiId = 0
+        apiHash = ""
+        activeFileId = null
+        mutableState.value = State.NeedsApi
     }
 
     private suspend fun <T : TdApi.Object> request(function: TdApi.Function<T>): T =

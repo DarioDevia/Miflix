@@ -166,6 +166,7 @@ private fun TelegramLogin(
             }
             is TelegramSession.State.Failed -> {
                 Text(state.message, color = MaterialTheme.colorScheme.error)
+                Button(onClick = { session.reset() }) { Text("Cambiar credenciales Telegram") }
             }
             TelegramSession.State.Ready -> Unit
         }
