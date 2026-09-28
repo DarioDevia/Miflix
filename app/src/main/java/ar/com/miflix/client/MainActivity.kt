@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -191,6 +192,7 @@ private fun ClientApp(
         screen = Screen.SETTINGS
     }
     fun goBack() {
+        Log.d("MiFlixPlayback", "NAV_BACK screen=$screen selectedId=$selectedId")
         when (screen) {
             Screen.PLAYER -> screen = Screen.DETAIL
             Screen.DETAIL -> {
@@ -313,6 +315,7 @@ private fun ClientApp(
                     title = selected,
                     modifier = Modifier.padding(padding),
                     onPlay = { link, name ->
+                        Log.d("MiFlixPlayback", "NAV_PLAY title=$name telegram_url=$link")
                         playbackLink = link
                         playbackTitle = name
                         screen = Screen.PLAYER

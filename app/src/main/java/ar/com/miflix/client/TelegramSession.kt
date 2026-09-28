@@ -2,6 +2,7 @@ package ar.com.miflix.client
 
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,6 +22,8 @@ import kotlin.coroutines.resumeWithException
  * never Telegram session tokens or direct file addresses.
  */
 internal class TelegramSession private constructor(private val context: Context) {
+    private val playbackTag = "MiFlixPlayback"
+    @Volatile private var diagnosticFileId: Int? = null
     sealed interface State {
         data object NeedsApi : State
         data object Starting : State
@@ -69,6 +72,13 @@ internal class TelegramSession private constructor(private val context: Context)
                 if (generation == myGeneration) {
                     when (update) {
                         is TdApi.UpdateAuthorizationState -> handleAuthorization(update.authorizationState)
+                        is TdApi.UpdateFile -> if (update.file.id == diagnosticFileId) {
+                            val local = update.file.local
+                            Log.d(playbackTag, "TD_UPDATE fileId=${update.file.id} " +
+                                "offset=${local.downloadOffset} prefix=${local.downloadedPrefixSize} " +
+                                "downloadedSize=${local.downloadedSize} active=${local.isDownloadingActive} " +
+                                "complete=${local.isDownloadingCompleted} path=${local.path}")
+                        }
                     }
                 }
             }, { error -> mutableState.value = State.Failed(error.message ?: "Error de Telegram") },
@@ -136,7 +146,9 @@ internal class TelegramSession private constructor(private val context: Context)
 
     suspend fun obtainVideo(link: String): TelegramVideo {
         require(state.value is State.Ready) { "Primero iniciá sesión en Telegram." }
+        Log.d(playbackTag, "RESOLVE_START telegram_url=$link state=${state.value}")
         val info = request(TdApi.GetMessageLinkInfo(link))
+        Log.d(playbackTag, "RESOLVE_RESULT message=${info.message?.id} content=${info.message?.content?.javaClass?.simpleName}")
         val message = info.message ?: error(
             "Este enlace abre un tema o una publicación que no contiene un mensaje accesible."
         )
@@ -154,16 +166,28 @@ internal class TelegramSession private constructor(private val context: Context)
         val size = file.size.toLong().takeIf { it > 0 }
             ?: file.expectedSize.toLong().takeIf { it > 0 }
             ?: error("Telegram no informó el tamaño del video; no se puede avanzar por rangos.")
+        Log.d(playbackTag, "VIDEO_FILE fileId=${file.id} size=${file.size} expectedSize=${file.expectedSize} " +
+            "remoteIdPresent=${file.remote.id.isNotBlank()} localPath=${file.local.path} " +
+            "completed=${file.local.isDownloadingCompleted}")
         return TelegramVideo(file.id, size, this)
     }
 
     internal suspend fun downloadRange(fileId: Int, offset: Long, count: Int): ByteArray {
         require(state.value is State.Ready) { "Se cerró la sesión de Telegram." }
+        val started = android.os.SystemClock.elapsedRealtime()
+        diagnosticFileId = fileId
+        Log.d(playbackTag, "RANGE_REQUEST fileId=$fileId offset=$offset limit=$count synchronous=true")
         try {
             val result = withTimeout(45_000) {
                 request(TdApi.DownloadFile(fileId, 16, offset, count.toLong(), true))
             }
             val local = result.local
+            val disk = local.path.takeIf { it.isNotBlank() }?.let { File(it) }
+            Log.d(playbackTag, "RANGE_RESULT fileId=$fileId elapsedMs=${android.os.SystemClock.elapsedRealtime() - started} " +
+                "offset=${local.downloadOffset} prefix=${local.downloadedPrefixSize} " +
+                "downloadedSize=${local.downloadedSize} active=${local.isDownloadingActive} " +
+                "complete=${local.isDownloadingCompleted} canDelete=${local.canBeDeleted} " +
+                "path=${local.path} exists=${disk?.exists()} fileLength=${disk?.length()}")
             val available = local.isDownloadingCompleted ||
                 (local.downloadOffset <= offset &&
                     local.downloadOffset + local.downloadedPrefixSize >= offset + count)
@@ -172,12 +196,27 @@ internal class TelegramSession private constructor(private val context: Context)
             }
             return java.io.RandomAccessFile(local.path, "r").use { input ->
                 input.seek(offset)
-                ByteArray(count).also { input.readFully(it) }
+                ByteArray(count).also {
+                    input.readFully(it)
+                    Log.d(playbackTag, "RANGE_READ fileId=$fileId offset=$offset bytes=${it.size} " +
+                        "header=${if (offset == 0L) it.take(16).joinToString("") { b -> "%02x".format(b) } else "n/a"}")
+                }
             }
+        } catch (failure: Throwable) {
+            Log.e(playbackTag, "RANGE_ERROR fileId=$fileId offset=$offset limit=$count", failure)
+            throw failure
         } finally {
             // TDLib can keep sparse partial files between seeks. Drop each temporary copy
             // after moving the requested range into the bounded playback cache.
-            withTimeout(5_000) { request(TdApi.DeleteFile(fileId)) }
+            try {
+                withTimeout(5_000) { request(TdApi.DeleteFile(fileId)) }
+                Log.d(playbackTag, "RANGE_DELETE fileId=$fileId success")
+            } catch (failure: Throwable) {
+                Log.e(playbackTag, "RANGE_DELETE_ERROR fileId=$fileId", failure)
+                throw failure
+            } finally {
+                diagnosticFileId = null
+            }
         }
     }
 
@@ -188,6 +227,7 @@ internal class TelegramSession private constructor(private val context: Context)
 
     @Synchronized
     fun reset() {
+        Log.w(playbackTag, "SESSION_RESET", Throwable("Caller stack"))
         generation++
         val old = client
         client = null
@@ -205,6 +245,12 @@ internal class TelegramSession private constructor(private val context: Context)
                 return@suspendCancellableCoroutine
             }
             current.send(function, { response ->
+                if (response is TdApi.Error &&
+                    (function is TdApi.GetMessageLinkInfo || function is TdApi.DownloadFile ||
+                        function is TdApi.DeleteFile)) {
+                    Log.e(playbackTag, "TD_ERROR function=${function.javaClass.simpleName} " +
+                        "code=${response.code} message=${response.message}")
+                }
                 if (!continuation.isActive) return@send
                 if (response is TdApi.Error) continuation.resumeWithException(
                     IllegalStateException(response.message)

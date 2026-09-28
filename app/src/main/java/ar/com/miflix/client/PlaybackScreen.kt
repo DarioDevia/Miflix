@@ -1,6 +1,7 @@
 package ar.com.miflix.client
 
 import android.net.Uri
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -31,6 +32,7 @@ internal fun PlaybackScreen(
     title: String,
     onOpenTelegram: () -> Unit
 ) {
+    val tag = "MiFlixPlayback"
     val context = LocalContext.current
     val session = remember { TelegramSession.get(context) }
     val state by session.state.collectAsState()
@@ -40,12 +42,15 @@ internal fun PlaybackScreen(
     var attempt by remember(link) { mutableIntStateOf(0) }
 
     LaunchedEffect(link, state is TelegramSession.State.Ready, attempt) {
+        Log.d(tag, "SCREEN_EFFECT_START link=$link state=$state attempt=$attempt videoId=${video?.fileId}")
         if (state is TelegramSession.State.Ready && video == null) {
             downloading = true
             failure = null
             try {
                 video = session.obtainVideo(link)
+                Log.d(tag, "SCREEN_VIDEO_READY fileId=${video?.fileId} size=${video?.size}")
             } catch (error: Exception) {
+                Log.e(tag, "SCREEN_RESOLVE_ERROR", error)
                 failure = error.message ?: "No se pudo obtener el video de Telegram."
             } finally {
                 downloading = false
@@ -54,7 +59,11 @@ internal fun PlaybackScreen(
     }
 
     DisposableEffect(video) {
-        onDispose { video?.clear() }
+        Log.d(tag, "SCREEN_VIDEO_EFFECT_ENTER fileId=${video?.fileId}")
+        onDispose {
+            Log.w(tag, "SCREEN_VIDEO_EFFECT_DISPOSE fileId=${video?.fileId}", Throwable("Dispose caller stack"))
+            video?.clear()
+        }
     }
 
     when {
@@ -179,15 +188,18 @@ private fun TelegramLogin(
 
 @Composable
 private fun VideoPlayer(video: TelegramVideo, title: String) {
+    val tag = "MiFlixPlayback"
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     val player = remember(video) {
+        Log.d(tag, "PLAYER_CREATE fileId=${video.fileId} size=${video.size}")
         ExoPlayer.Builder(context).build().apply {
             setMediaSource(ProgressiveMediaSource.Factory(video.factory()).createMediaSource(
                 MediaItem.fromUri(Uri.parse("miflix://telegram/${video.fileId}"))
             ))
             prepare()
             playWhenReady = true
+            Log.d(tag, "PLAYER_PREPARE state=$playbackState duration=$duration")
         }
     }
     var error by remember(video) { mutableStateOf<String?>(null) }
@@ -195,18 +207,30 @@ private fun VideoPlayer(video: TelegramVideo, title: String) {
     DisposableEffect(player, owner) {
         val listener = object : Player.Listener {
             override fun onPlayerError(exception: PlaybackException) {
+                Log.e(tag, "PLAYER_ERROR code=${exception.errorCode} name=${exception.errorCodeName} " +
+                    "state=${player.playbackState} duration=${player.duration} position=${player.currentPosition}", exception)
                 error = exception.cause?.message ?: exception.message ?: "No se pudo reproducir el video."
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
+                Log.d(tag, "PLAYER_STATE state=$playbackState duration=${player.duration} " +
+                    "position=${player.currentPosition} buffered=${player.bufferedPosition}")
                 buffering = playbackState == Player.STATE_BUFFERING
+            }
+            override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+                Log.d(tag, "PLAYER_TIMELINE reason=$reason windows=${timeline.windowCount} " +
+                    "duration=${player.duration} seekable=${player.isCurrentMediaItemSeekable}")
             }
         }
         val observer = LifecycleEventObserver { _, event ->
+            Log.d(tag, "PLAYER_LIFECYCLE event=$event state=${player.playbackState}")
             if (event == Lifecycle.Event.ON_STOP) player.pause()
         }
         player.addListener(listener)
+        Log.d(tag, "PLAYER_LISTENER_ATTACHED state=${player.playbackState} duration=${player.duration}")
         owner.lifecycle.addObserver(observer)
         onDispose {
+            Log.w(tag, "PLAYER_DISPOSE state=${player.playbackState} duration=${player.duration}",
+                Throwable("Dispose caller stack"))
             owner.lifecycle.removeObserver(observer)
             player.removeListener(listener)
             player.release()
