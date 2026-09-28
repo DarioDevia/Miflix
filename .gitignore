@@ -7,8 +7,6 @@
 #Symbols folder
 .alpackages/
 #Snapshots folder
-.snapshots/
-#Testing Output folder
 .output/
 #Extension App-file
 *.app
@@ -21,3 +19,9 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+
+# Android local configuration and generated files
+telegram.local.properties
+local.properties
+.gradle/
+**/build/

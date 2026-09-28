@@ -26,6 +26,10 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Home
@@ -55,7 +59,6 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import coil.compose.AsyncImage
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -78,7 +81,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             ClientApp(
                 repository = repository,
-                initialUrl = preferences.getString("catalog_url", CatalogRepository.DEFAULT_URL).orEmpty(),
+                initialUrl = preferences.getString("catalog_url", null)
+                    ?.takeIf { it.isNotBlank() } ?: CatalogRepository.DEFAULT_URL,
                 initialInvite = preferences.getString("channel_invite", "").orEmpty(),
                 saveSettings = { url, invite ->
                     preferences.edit().putString("catalog_url", url).putString("channel_invite", invite).apply()
@@ -97,7 +101,7 @@ private object MiFlixStyle {
     val secondaryText = Color(0xFFB8BEC9)
 }
 
-private enum class Screen { HOME, SEARCH, SECTIONS, DETAIL, PLAYER, SETTINGS }
+private enum class Screen { HOME, SEARCH, SECTIONS, DETAIL, PLAYER, SETTINGS, CONNECT }
 private val categories = listOf("Todos", "Películas", "Series", "Anime")
 
 private fun Title.matchesCategory(category: String) = category == "Todos" || tipo == when (category) {
@@ -158,10 +162,17 @@ private fun ClientApp(
     var category by rememberSaveable { mutableStateOf("Todos") }
     var query by rememberSaveable { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    var cacheLoaded by remember { mutableStateOf(false) }
     val homeScroll = rememberLazyListState()
     val searchScroll = rememberLazyGridState()
     val sectionsScroll = rememberLazyGridState()
     val context = LocalContext.current
+    val refreshPreferences = remember(context) {
+        context.getSharedPreferences("miflix_client", Context.MODE_PRIVATE)
+    }
+    var lastSuccessfulUpdate by remember {
+        mutableLongStateOf(refreshPreferences.getLong("catalog_last_success", 0L))
+    }
     val telegramSession = remember { TelegramSession.get(context) }
     val telegramState by telegramSession.state.collectAsState()
     val scope = rememberCoroutineScope()
@@ -169,14 +180,25 @@ private fun ClientApp(
     val activity = context as? ComponentActivity
     val titles = catalog.items.orEmpty()
     val selected = titles.firstOrNull { it.id == selectedId }
+    LaunchedEffect(screen, telegramState) {
+        if (screen == Screen.CONNECT && telegramState is TelegramSession.State.Ready)
+            screen = Screen.HOME
+    }
 
     fun refresh() {
         if (busy) return
         busy = true
+        refreshPreferences.edit().putLong("catalog_last_check", System.currentTimeMillis()).apply()
         scope.launch {
             try {
                 val loaded = repository.load(url)
-                catalog = loaded.catalog
+                if (loaded.source == "En línea") {
+                    lastSuccessfulUpdate = System.currentTimeMillis()
+                    refreshPreferences.edit().putLong("catalog_last_success", lastSuccessfulUpdate).apply()
+                }
+                if (loaded.source == "En línea" || loaded.source == "Copia local") {
+                    catalog = loaded.catalog
+                }
                 source = loaded.source
                 problem = loaded.error
             } finally {
@@ -184,16 +206,22 @@ private fun ClientApp(
             }
         }
     }
-    LaunchedEffect(url) {
-        refresh()
-        while (true) {
-            delay(30 * 60 * 1000L)
-            if (url.isNotBlank()) refresh()
-        }
+    fun refreshIfDue() {
+        if (url.isNotBlank() && CatalogRepository.shouldAutoCheck(
+                System.currentTimeMillis(), refreshPreferences.getLong("catalog_last_check", 0L)
+            )) refresh()
     }
-    DisposableEffect(owner, url) {
+    LaunchedEffect(url) {
+        repository.loadCached()?.let { catalog = it; source = "Copia local" }
+        cacheLoaded = true
+    }
+    LaunchedEffect(screen, cacheLoaded, url) {
+        if (cacheLoaded && screen == Screen.HOME) refreshIfDue()
+    }
+    DisposableEffect(owner, url, screen, cacheLoaded) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && url.isNotBlank()) refresh()
+            if (event == Lifecycle.Event.ON_RESUME && cacheLoaded && screen == Screen.HOME)
+                refreshIfDue()
         }
         owner.lifecycle.addObserver(observer)
         onDispose { owner.lifecycle.removeObserver(observer) }
@@ -223,6 +251,7 @@ private fun ClientApp(
                 selectedId = null
             }
             Screen.SETTINGS -> screen = returnScreen
+            Screen.CONNECT -> screen = Screen.HOME
             else -> screen = Screen.HOME
         }
     }
@@ -270,6 +299,7 @@ private fun ClientApp(
                                 Screen.SETTINGS -> "Configuración"
                                 Screen.DETAIL -> selected?.titulo.orEmpty()
                                 Screen.PLAYER -> playbackTitle
+                                Screen.CONNECT -> "Conectar con Telegram"
                             },
                             color = if (screen == Screen.HOME) MiFlixStyle.accent else MiFlixStyle.primaryText,
                             fontWeight = FontWeight.Bold,
@@ -278,7 +308,8 @@ private fun ClientApp(
                         )
                     },
                     navigationIcon = {
-                        if (screen == Screen.DETAIL || screen == Screen.PLAYER || screen == Screen.SETTINGS) {
+                        if (screen == Screen.DETAIL || screen == Screen.PLAYER ||
+                            screen == Screen.SETTINGS || screen == Screen.CONNECT) {
                             IconButton(onClick = ::goBack) {
                                 Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
                             }
@@ -332,6 +363,9 @@ private fun ClientApp(
                     titles = titles,
                     problem = problem,
                     busy = busy,
+                    onRefresh = { refresh() },
+                    telegramConnected = telegramState is TelegramSession.State.Ready,
+                    onConnect = { screen = Screen.CONNECT },
                     onSelect = ::openDetail,
                     onSetup = ::openSettings,
                     onBrowse = { category = it; screen = Screen.SECTIONS }
@@ -370,6 +404,7 @@ private fun ClientApp(
                     onFullscreenToggle = { fullscreen = !fullscreen },
                     onOpenTelegram = { openTelegram(context, playbackLink) }
                 )
+                Screen.CONNECT -> Box(Modifier.padding(padding)) { TelegramConnectScreen() }
                 Screen.SETTINGS -> SettingsScreen(
                     modifier = Modifier.padding(padding),
                     url = editUrl,
@@ -378,10 +413,11 @@ private fun ClientApp(
                     problem = problem,
                     busy = busy,
                     count = titles.size,
+                    lastSuccessfulUpdate = lastSuccessfulUpdate,
                     telegramState = telegramState,
                     onUrlChange = { editUrl = it },
                     onInviteChange = { editInvite = it },
-                    onRefresh = ::refresh,
+                    onRefresh = { refresh() },
                     onJoin = { openTelegram(context, editInvite) },
                     onDisconnectTelegram = {
                         if (telegramState is TelegramSession.State.Ready) {
@@ -402,6 +438,8 @@ private fun ClientApp(
                         invite = nextInvite
                         saveSettings(nextUrl, nextInvite)
                         screen = returnScreen
+                        if (nextUrl != previousUrl) refreshPreferences.edit()
+                            .remove("catalog_last_check").apply()
                         if (nextUrl == previousUrl) refresh()
                     }
                 )
@@ -410,6 +448,7 @@ private fun ClientApp(
     }
 }
 
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 private fun HomeScreen(
     modifier: Modifier,
@@ -417,6 +456,9 @@ private fun HomeScreen(
     titles: List<Title>,
     problem: String?,
     busy: Boolean,
+    onRefresh: () -> Unit,
+    telegramConnected: Boolean,
+    onConnect: () -> Unit,
     onSelect: (Title) -> Unit,
     onSetup: () -> Unit,
     onBrowse: (String) -> Unit
@@ -424,12 +466,24 @@ private fun HomeScreen(
     val featured = titles.firstOrNull { !it.backdropUrl.isNullOrBlank() }
         ?: titles.firstOrNull { !it.posterUrl.isNullOrBlank() }
         ?: titles.firstOrNull()
+    val pullState = rememberPullRefreshState(refreshing = busy, onRefresh = onRefresh)
+    Box(modifier.fillMaxSize().pullRefresh(pullState)) {
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         state = scrollState,
         contentPadding = PaddingValues(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
+        if (!telegramConnected) item {
+            Surface(color = MiFlixStyle.surface, shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Conectá tu cuenta de Telegram para reproducir",
+                        Modifier.weight(1f), color = MiFlixStyle.primaryText, fontSize = 14.sp)
+                    TextButton(onClick = onConnect) { Text("Conectar") }
+                }
+            }
+        }
         if (problem != null && titles.isNotEmpty()) {
             item {
                 Surface(
@@ -449,9 +503,9 @@ private fun HomeScreen(
                     message = when {
                         busy -> "Buscando novedades de MiFlix."
                         problem != null -> "No pudimos cargar el catálogo. " + problem
-                        else -> "Conectá la dirección de tu catálogo en Configuración."
+                        else -> "Todavía no hay títulos en el catálogo."
                     },
-                    action = if (busy) null else "Configurar catálogo",
+                    action = if (busy) null else "Configuración",
                     onAction = onSetup
                 )
             }
@@ -468,6 +522,8 @@ private fun HomeScreen(
                 }
             }
         }
+    }
+        PullRefreshIndicator(busy, pullState, Modifier.align(Alignment.TopCenter))
     }
 }
 
@@ -637,11 +693,13 @@ private fun EmptyState(
 private fun SettingsScreen(
     modifier: Modifier, url: String, invite: String, source: String,
     problem: String?, busy: Boolean, count: Int,
+    lastSuccessfulUpdate: Long,
     telegramState: TelegramSession.State,
     onUrlChange: (String) -> Unit, onInviteChange: (String) -> Unit,
     onRefresh: () -> Unit, onJoin: () -> Unit,
     onDisconnectTelegram: () -> Unit, onSave: () -> Unit
 ) {
+    var showAdvanced by rememberSaveable { mutableStateOf(false) }
     val urlOk = url.isBlank() || runCatching {
         val uri = Uri.parse(url.trim())
         uri.scheme.equals("https", true) && !uri.host.isNullOrBlank()
@@ -650,9 +708,14 @@ private fun SettingsScreen(
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item { SectionHeading("Catálogo") }
-        item { Text("La última copia válida queda disponible sin conexión. MiFlix busca cambios al abrir y al volver a la app.", color = MiFlixStyle.secondaryText) }
-        item { OutlinedTextField(url, onUrlChange, label = { Text("URL HTTPS del catálogo") },
-            isError = !urlOk, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+        item { Text("La última copia válida queda disponible sin conexión. MiFlix busca cambios al abrir y al volver a Inicio.", color = MiFlixStyle.secondaryText) }
+        item {
+            Text(if (lastSuccessfulUpdate > 0L) "Última actualización: " +
+                java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT,
+                    java.text.DateFormat.SHORT).format(java.util.Date(lastSuccessfulUpdate))
+                else "Aún no se actualizó desde Internet", color = MiFlixStyle.secondaryText,
+                fontSize = 13.sp)
+        }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(source + " · " + count + " títulos", Modifier.weight(1f),
@@ -683,9 +746,17 @@ private fun SettingsScreen(
             item {
                 TextButton(onClick = onDisconnectTelegram) {
                     Text(if (telegramState is TelegramSession.State.Ready)
-                        "Cerrar sesión Telegram" else "Cambiar credenciales Telegram")
+                        "Cerrar sesión Telegram" else if (BuildConfig.TELEGRAM_API_ID > 0)
+                        "Reiniciar conexión Telegram" else "Cambiar credenciales Telegram")
                 }
             }
+        }
+        item { TextButton(onClick = { showAdvanced = !showAdvanced }) {
+            Text(if (showAdvanced) "Ocultar opciones avanzadas" else "Opciones avanzadas")
+        } }
+        if (showAdvanced) item {
+            OutlinedTextField(url, onUrlChange, label = { Text("URL HTTPS del catálogo") },
+                isError = !urlOk, singleLine = true, modifier = Modifier.fillMaxWidth())
         }
         item { Button(onClick = onSave, enabled = urlOk && inviteOk,
             modifier = Modifier.fillMaxWidth()) { Text("Guardar y actualizar") } }

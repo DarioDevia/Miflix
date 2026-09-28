@@ -106,10 +106,19 @@ internal fun PlaybackScreen(
 }
 
 @Composable
+internal fun TelegramConnectScreen() {
+    val session = remember { TelegramSession.get(LocalContext.current) }
+    val state by session.state.collectAsState()
+    if (state is TelegramSession.State.Ready) {
+        Text("Cuenta Telegram conectada", modifier = Modifier.padding(24.dp))
+    } else TelegramLogin(session, state, onOpenTelegram = null)
+}
+
+@Composable
 private fun TelegramLogin(
     session: TelegramSession,
     state: TelegramSession.State,
-    onOpenTelegram: () -> Unit
+    onOpenTelegram: (() -> Unit)?
 ) {
     val scope = rememberCoroutineScope()
     var id by remember { mutableStateOf("") }
@@ -126,6 +135,9 @@ private fun TelegramLogin(
         Text("Iniciá sesión con una cuenta que pertenezca al canal. Esta sesión es independiente de la app oficial de Telegram.")
         when (state) {
             TelegramSession.State.NeedsApi -> {
+                if (BuildConfig.TELEGRAM_API_ID > 0 && BuildConfig.TELEGRAM_API_HASH.isNotBlank()) {
+                    CircularProgressIndicator()
+                } else {
                 Text("Primero ingresá el API ID y API hash de tu aplicación de Telegram (my.telegram.org). Se guardan solo en este teléfono.")
                 OutlinedTextField(id, { id = it }, label = { Text("API ID") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -141,6 +153,7 @@ private fun TelegramLogin(
                     }
                 }, enabled = id.toIntOrNull() != null && hash.isNotBlank()) {
                     Text("Conectar")
+                }
                 }
             }
             TelegramSession.State.Starting -> CircularProgressIndicator()
@@ -189,13 +202,20 @@ private fun TelegramLogin(
                 Text("Abrí Telegram en otro teléfono y confirmá la nueva sesión.")
             }
             is TelegramSession.State.Failed -> {
-                Text(state.message, color = MaterialTheme.colorScheme.error)
-                Button(onClick = { session.reset() }) { Text("Cambiar credenciales Telegram") }
+                Text(if (BuildConfig.TELEGRAM_API_ID > 0)
+                    "No pudimos conectar con Telegram. Revisá tu conexión e intentá de nuevo."
+                    else state.message, color = MaterialTheme.colorScheme.error)
+                Button(onClick = { session.reset() }) {
+                    Text(if (BuildConfig.TELEGRAM_API_ID > 0) "Reintentar"
+                        else "Cambiar credenciales Telegram")
+                }
             }
             TelegramSession.State.Ready -> Unit
         }
         if (problem != null) Text(problem!!, color = MaterialTheme.colorScheme.error)
-        TextButton(onClick = onOpenTelegram) { Text("Abrir publicación en Telegram") }
+        if (onOpenTelegram != null) TextButton(onClick = onOpenTelegram) {
+            Text("Abrir publicación en Telegram")
+        }
     }
 }
 

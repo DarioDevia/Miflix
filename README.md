@@ -1,4 +1,19 @@
-# MiFlix Cliente Android 0.5.2
+# MiFlix Cliente Android 0.6.0
+
+## Instalación familiar y actualización del catálogo
+
+El catálogo predeterminado es `https://miflix-catalogo.deviadario.workers.dev/catalogo.json`. Una instalación nueva no requiere configurarlo. MiFlix muestra primero la copia local válida, consulta el remoto en segundo plano al abrir o volver a Inicio si pasaron al menos diez minutos desde la última comprobación, y mantiene la copia anterior ante errores. En Inicio, deslizar hacia abajo fuerza una consulta inmediata; durante reproducción no hay consultas programadas. Configuración muestra la fecha de la última respuesta remota válida y deja la URL manual en Opciones avanzadas.
+
+Para compilar en tu PC una APK familiar, creá **solo en la raíz del proyecto local** el archivo `telegram.local.properties` con estas dos líneas (sustituí los ejemplos por tus datos, nunca los envíes a GitHub):
+
+```properties
+TELEGRAM_API_ID=123456
+TELEGRAM_API_HASH=0123456789abcdef0123456789abcdef
+```
+
+El API ID debe ser un entero positivo y el API hash, 32 caracteres hexadecimales. Android Studio: abrí la raíz del proyecto, creá el archivo junto a `settings.gradle.kts`, sincronizá Gradle (**File > Sync Project with Gradle Files**), elegí la variante `debug` y ejecutá **Build > Build APK(s)**. El APK estará en `app/build/outputs/apk/debug/app-debug.apk`. Instalalo en el teléfono del familiar: MiFlix reconocerá la configuración y ofrecerá conectar su propia cuenta de Telegram con teléfono, código y 2FA cuando corresponda. Cada teléfono crea su propia sesión TDLib.
+
+`telegram.local.properties` y `local.properties` están ignorados por Git. Antes de compartir cambios, verificá `git check-ignore telegram.local.properties` y `git status --short`; nunca uses `git add -f` con ese archivo. No copies `app/build/` ni la base de TDLib a Git. Si falta el archivo privado, Actions y el desarrollo siguen compilando y la app ofrece el ingreso manual de API ID/hash. El APK familiar contiene los identificadores de aplicación y quien tenga el APK podría extraerlos: compartilo solo con familiares autorizados. No incluye la sesión Telegram de quien compila.
 
 La versión 0.5.2 acepta `puntuacion` numérica, texto decimal o texto con sufijo `/10`. Si falta o tiene un formato desconocido, omite solo esa puntuación y conserva el resto del catálogo. No cambia el formato publicado por MiFlix Admin.
 
@@ -22,7 +37,7 @@ Prueba en teléfono: reproducir, doble toque derecho e izquierdo, mover la barra
 
 ## Compilación de diagnóstico
 
-La compilación `0.5.2-diagnostico` conserva las trazas con la etiqueta `MiFlixPlayback` en Logcat. Se conserva el ownership corregido en 0.4.2: `clear()` se ejecuta al liberar el Player. En Android Studio, seleccioná el proceso `ar.com.miflix.client`, filtrá `tag:MiFlixPlayback`, iniciá la reproducción de un video y conservá las líneas desde `NAV_PLAY` hasta `PLAYER_ERROR` o `PLAYER_STATE`. También podés ejecutar `adb logcat -c` y luego `adb logcat -v time -s MiFlixPlayback:D`. El registro incluye el enlace del mensaje y la ruta temporal del video; revisalo antes de compartirlo. Nunca compartas códigos de Telegram, API hash ni datos de inicio de sesión.
+La compilación `0.6.0-diagnostico` conserva las trazas con la etiqueta `MiFlixPlayback` en Logcat. Se conserva el ownership corregido en 0.4.2: `clear()` se ejecuta al liberar el Player. En Android Studio, seleccioná el proceso `ar.com.miflix.client`, filtrá `tag:MiFlixPlayback`, iniciá la reproducción de un video y conservá las líneas desde `NAV_PLAY` hasta `PLAYER_ERROR` o `PLAYER_STATE`. También podés ejecutar `adb logcat -c` y luego `adb logcat -v time -s MiFlixPlayback:D`. El registro incluye el enlace del mensaje y la ruta temporal del video; revisalo antes de compartirlo. Nunca compartas códigos de Telegram, API hash ni datos de inicio de sesión.
 
 Eventos clave: `RESOLVE_RESULT` indica el mensaje; `VIDEO_FILE`, el ID/tamaño; `RANGE_REQUEST` y `RANGE_RESULT`, el rango y el estado de TDLib; `RANGE_READ`, los bytes físicos leídos; `DS_OPEN`/`DS_READ`/`DS_EOF`, los bytes entregados a Media3; `PLAYER_TIMELINE`/`PLAYER_ERROR`, reconocimiento del video y fallo; `PLAYER_DISPOSE`/`PLAYER_RELEASED_CLEAR_VIDEO`/`CACHE_CLEAR`, el cierre en ese orden.
 

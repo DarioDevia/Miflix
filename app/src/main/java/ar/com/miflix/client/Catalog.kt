@@ -48,6 +48,10 @@ class CatalogRepository(private val context: Context) {
     private val client = OkHttpClient.Builder().callTimeout(20, TimeUnit.SECONDS).build()
     private val cache get() = File(context.filesDir, "catalogo.json")
 
+    suspend fun loadCached(): Catalog? = withContext(Dispatchers.IO) {
+        runCatching { parseCatalog(cache.readText()) }.getOrNull()
+    }
+
     suspend fun load(url: String): CatalogLoad = withContext(Dispatchers.IO) {
         if (url.isBlank()) {
             val cached = runCatching { parseCatalog(cache.readText()) }.getOrNull()
@@ -74,8 +78,11 @@ class CatalogRepository(private val context: Context) {
     }
 
     companion object {
-        // Se configura cuando exista una URL estable que realmente publique catalogo.json.
-        const val DEFAULT_URL = ""
+        const val DEFAULT_URL = "https://miflix-catalogo.deviadario.workers.dev/catalogo.json"
+        const val AUTO_CHECK_INTERVAL_MS = 10 * 60 * 1000L
+
+        fun shouldAutoCheck(now: Long, lastCheck: Long): Boolean =
+            lastCheck <= 0L || now < lastCheck || now - lastCheck >= AUTO_CHECK_INTERVAL_MS
 
         private fun parseRating(item: JsonObject): Double? {
             val value = item.get("puntuacion")?.takeIf { it.isJsonPrimitive }?.asJsonPrimitive

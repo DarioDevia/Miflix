@@ -45,11 +45,14 @@ internal class TelegramSession private constructor(private val context: Context)
     @Volatile private var generation = 0
     private var apiId = 0
     private var apiHash = ""
+    private val preconfigured = BuildConfig.TELEGRAM_API_ID > 0 &&
+        BuildConfig.TELEGRAM_API_HASH.isNotBlank()
 
     init {
         val savedId = preferences.getInt("api_id", 0)
         val savedHash = preferences.getString("api_hash", "").orEmpty()
-        if (savedId > 0 && savedHash.isNotBlank()) configure(savedId, savedHash)
+        if (preconfigured) configure(BuildConfig.TELEGRAM_API_ID, BuildConfig.TELEGRAM_API_HASH)
+        else if (savedId > 0 && savedHash.isNotBlank()) configure(savedId, savedHash)
     }
 
     @Synchronized
@@ -63,7 +66,8 @@ internal class TelegramSession private constructor(private val context: Context)
         }
         apiId = id
         apiHash = hash.trim()
-        preferences.edit().putInt("api_id", id).putString("api_hash", apiHash).apply()
+        if (!preconfigured) preferences.edit().putInt("api_id", id)
+            .putString("api_hash", apiHash).apply()
         mutableState.value = State.Starting
         try {
             System.loadLibrary("tdjni")
@@ -125,7 +129,8 @@ internal class TelegramSession private constructor(private val context: Context)
                 mutableState.value = State.Starting
             is TdApi.AuthorizationStateClosed -> {
                 client = null
-                mutableState.value = State.NeedsApi
+                if (preconfigured) configure(BuildConfig.TELEGRAM_API_ID, BuildConfig.TELEGRAM_API_HASH)
+                else mutableState.value = State.NeedsApi
             }
         }
     }
@@ -222,12 +227,21 @@ internal class TelegramSession private constructor(private val context: Context)
 
     suspend fun logout() {
         if (client != null) request(TdApi.LogOut())
-        reset()
+        if (!preconfigured) reset()
     }
 
     @Synchronized
     fun reset() {
         Log.w(playbackTag, "SESSION_RESET", Throwable("Caller stack"))
+        if (preconfigured) {
+            preferences.edit().clear().apply()
+            if (client == null) configure(BuildConfig.TELEGRAM_API_ID, BuildConfig.TELEGRAM_API_HASH)
+            else {
+                mutableState.value = State.Starting
+                client?.send(TdApi.Close(), { _ -> })
+            }
+            return
+        }
         generation++
         val old = client
         client = null

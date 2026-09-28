@@ -5,6 +5,19 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class CatalogTest {
+    @Test fun automaticChecksAreLimitedToTenMinutes() {
+        val now = 1_700_000_000_000L
+        assertEquals(true, CatalogRepository.shouldAutoCheck(now, 0L))
+        assertEquals(false, CatalogRepository.shouldAutoCheck(now, now - 9 * 60_000L))
+        assertEquals(true, CatalogRepository.shouldAutoCheck(now, now - 10 * 60_000L))
+        assertEquals(true, CatalogRepository.shouldAutoCheck(now, now + 60_000L))
+    }
+
+    @Test fun catalogUrlIsAvailableOnFreshInstall() {
+        assertEquals("https://miflix-catalogo.deviadario.workers.dev/catalogo.json",
+            CatalogRepository.DEFAULT_URL)
+    }
+
     @Test fun existingCatalogContractParsesEpisodes() {
         val json = """{"schema_version":"1.2.0","items":[{"id":"a1","tipo":"anime","titulo":"Ejemplo","temporadas":[{"numero":1,"episodios":[{"id":"e1","numero":1,"telegram_url":"https://t.me/c/123/45"}]}]}]}"""
         val catalog = CatalogRepository.parseCatalog(json)
