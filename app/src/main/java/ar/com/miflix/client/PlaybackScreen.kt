@@ -107,7 +107,8 @@ internal fun PlaybackScreen(
 
 @Composable
 internal fun TelegramConnectScreen() {
-    val session = remember { TelegramSession.get(LocalContext.current) }
+    val context = LocalContext.current
+    val session = remember { TelegramSession.get(context) }
     val state by session.state.collectAsState()
     if (state is TelegramSession.State.Ready) {
         Text("Cuenta Telegram conectada", modifier = Modifier.padding(24.dp))
