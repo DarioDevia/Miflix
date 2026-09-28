@@ -2,13 +2,23 @@ package ar.com.miflix.client
 
 import android.net.Uri
 import android.util.Log
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.input.KeyboardType
@@ -19,17 +29,22 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.MediaItem
+import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import java.util.Locale
 
 @Composable
 internal fun PlaybackScreen(
     link: String,
     title: String,
+    fullscreen: Boolean,
+    onFullscreenToggle: () -> Unit,
     onOpenTelegram: () -> Unit
 ) {
     val tag = "MiFlixPlayback"
@@ -40,6 +55,8 @@ internal fun PlaybackScreen(
     var failure by remember(link) { mutableStateOf<String?>(null) }
     var downloading by remember(link) { mutableStateOf(false) }
     var attempt by remember(link) { mutableIntStateOf(0) }
+    var resumePosition by rememberSaveable(link) { mutableStateOf(0L) }
+    var resumePlay by rememberSaveable(link) { mutableStateOf(true) }
 
     LaunchedEffect(link, state is TelegramSession.State.Ready, attempt) {
         Log.d(tag, "SCREEN_EFFECT_START link=$link state=$state attempt=$attempt videoId=${video?.fileId}")
@@ -59,7 +76,11 @@ internal fun PlaybackScreen(
     }
 
     when {
-        video != null -> VideoPlayer(video!!, title)
+        video != null -> VideoPlayer(video!!, title, fullscreen, onFullscreenToggle,
+            resumePosition, resumePlay) { position, play ->
+            resumePosition = position
+            resumePlay = play
+        }
         state is TelegramSession.State.Ready -> {
             Column(Modifier.fillMaxSize().padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -179,23 +200,73 @@ private fun TelegramLogin(
 }
 
 @Composable
-private fun VideoPlayer(video: TelegramVideo, title: String) {
+private fun VideoPlayer(
+    video: TelegramVideo,
+    title: String,
+    fullscreen: Boolean,
+    onFullscreenToggle: () -> Unit,
+    resumePosition: Long,
+    resumePlay: Boolean,
+    onCheckpoint: (Long, Boolean) -> Unit
+) {
     val tag = "MiFlixPlayback"
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     val player = remember(video) {
-        Log.d(tag, "PLAYER_CREATE fileId=${video.fileId} size=${video.size}")
+        Log.d(tag, "PLAYER_CREATE fileId=${video.fileId} size=${video.size} " +
+            "resumePosition=$resumePosition playWhenReady=$resumePlay")
         ExoPlayer.Builder(context).build().apply {
             setMediaSource(ProgressiveMediaSource.Factory(video.factory()).createMediaSource(
                 MediaItem.fromUri(Uri.parse("miflix://telegram/${video.fileId}"))
             ))
+            if (resumePosition > 0) seekTo(resumePosition)
+            playWhenReady = resumePlay
             prepare()
-            playWhenReady = true
             Log.d(tag, "PLAYER_PREPARE state=$playbackState duration=$duration")
         }
     }
     var error by remember(video) { mutableStateOf<String?>(null) }
     var buffering by remember(video) { mutableStateOf(true) }
+    var playing by remember(video) { mutableStateOf(player.isPlaying) }
+    var currentPosition by remember(video) { mutableLongStateOf(player.currentPosition) }
+    var duration by remember(video) { mutableLongStateOf(player.duration) }
+    var controlsVisible by remember(video) { mutableStateOf(true) }
+    var indication by remember(video) { mutableStateOf<String?>(null) }
+    var dragging by remember(video) { mutableStateOf(false) }
+    var draggedFraction by remember(video) { mutableFloatStateOf(0f) }
+    val checkpoint by rememberUpdatedState(onCheckpoint)
+
+    fun seekToPosition(requested: Long, source: String) {
+        val from = player.currentPosition
+        val target = requested.coerceAtLeast(0L).let {
+            if (player.duration > 0) it.coerceAtMost(player.duration) else it
+        }
+        Log.d(tag, "SEEK source=$source from=$from requested=$target")
+        player.seekTo(target)
+        currentPosition = target
+        checkpoint(target, player.playWhenReady)
+    }
+
+    LaunchedEffect(player) {
+        while (true) {
+            currentPosition = player.currentPosition
+            duration = player.duration
+            checkpoint(currentPosition, player.playWhenReady)
+            delay(500)
+        }
+    }
+    LaunchedEffect(controlsVisible, playing) {
+        if (controlsVisible && playing) {
+            delay(3_000)
+            controlsVisible = false
+        }
+    }
+    LaunchedEffect(indication) {
+        if (indication != null) {
+            delay(750)
+            indication = null
+        }
+    }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onPlayerError(exception: PlaybackException) {
@@ -207,6 +278,11 @@ private fun VideoPlayer(video: TelegramVideo, title: String) {
                 Log.d(tag, "PLAYER_STATE state=$playbackState duration=${player.duration} " +
                     "position=${player.currentPosition} buffered=${player.bufferedPosition}")
                 buffering = playbackState == Player.STATE_BUFFERING
+                duration = player.duration
+            }
+            override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                checkpoint(player.currentPosition, playWhenReady)
             }
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
                 Log.d(tag, "PLAYER_TIMELINE reason=$reason windows=${timeline.windowCount} " +
@@ -223,6 +299,7 @@ private fun VideoPlayer(video: TelegramVideo, title: String) {
         onDispose {
             Log.w(tag, "PLAYER_DISPOSE state=${player.playbackState} duration=${player.duration}",
                 Throwable("Dispose caller stack"))
+            checkpoint(player.currentPosition, player.playWhenReady)
             owner.lifecycle.removeObserver(observer)
             player.removeListener(listener)
             player.release()
@@ -232,15 +309,79 @@ private fun VideoPlayer(video: TelegramVideo, title: String) {
         }
     }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-        AndroidView(factory = { PlayerView(it).apply { this.player = player } },
-            update = { it.player = player },
-            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f))
-        Text(title, Modifier.padding(16.dp), style = MaterialTheme.typography.titleLarge)
-        if (buffering && error == null) {
-            LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp))
-            Text("Cargando fragmento desde Telegram…", Modifier.padding(16.dp))
+        Box(if (fullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+            AndroidView(
+                factory = { PlayerView(it).apply { useController = false; this.player = player } },
+                update = { it.player = player },
+                modifier = Modifier.fillMaxSize()
+            )
+            Box(Modifier.matchParentSize().pointerInput(player) {
+                detectTapGestures(
+                    onTap = { controlsVisible = !controlsVisible },
+                    onDoubleTap = { tap ->
+                        val forward = tap.x >= size.width / 2f
+                        val jump = if (forward) 10_000L else -10_000L
+                        seekToPosition(player.currentPosition + jump,
+                            if (forward) "double_right" else "double_left")
+                        indication = if (forward) "10 s »" else "« 10 s"
+                        controlsVisible = true
+                    }
+                )
+            })
+            if (indication != null) {
+                Text(indication!!, Modifier.align(Alignment.Center)
+                    .background(Color.Black.copy(alpha = .65f)).padding(16.dp),
+                    color = Color.White, style = MaterialTheme.typography.headlineMedium)
+            }
+            if (buffering && error == null) {
+                CircularProgressIndicator(Modifier.align(Alignment.Center), color = Color.White)
+            }
+            if (controlsVisible) {
+                Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                    .background(Color.Black.copy(alpha = .72f)).padding(horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { if (player.isPlaying) player.pause() else player.play() }) {
+                        Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (playing) "Pausar" else "Reproducir", tint = Color.White)
+                    }
+                    Text(formatPlaybackTime(if (dragging && duration > 0)
+                        (draggedFraction * duration).toLong() else currentPosition),
+                        color = Color.White)
+                    Slider(
+                        value = if (dragging) draggedFraction else
+                            if (duration > 0) (currentPosition.toFloat() / duration).coerceIn(0f, 1f)
+                            else 0f,
+                        onValueChange = { draggedFraction = it; dragging = true },
+                        onValueChangeFinished = {
+                            if (duration > 0) seekToPosition((draggedFraction * duration).toLong(), "slider")
+                            dragging = false
+                        },
+                        enabled = duration > 0,
+                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                    )
+                    Text(formatPlaybackTime(duration), color = Color.White)
+                    IconButton(onClick = onFullscreenToggle) {
+                        Icon(if (fullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                            contentDescription = if (fullscreen) "Salir de pantalla completa" else "Pantalla completa",
+                            tint = Color.White)
+                    }
+                }
+            }
         }
-        if (error != null) Text(error!!, Modifier.padding(horizontal = 16.dp),
-            color = MaterialTheme.colorScheme.error)
+        if (!fullscreen) {
+            Text(title, Modifier.padding(16.dp), style = MaterialTheme.typography.titleLarge)
+            if (error != null) Text(error!!, Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.error)
+        } else if (error != null) {
+            Text(error!!, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error)
+        }
     }
+}
+
+private fun formatPlaybackTime(milliseconds: Long): String {
+    if (milliseconds < 0) return "00:00"
+    val seconds = milliseconds / 1_000
+    return if (seconds >= 3_600) String.format(Locale.US, "%d:%02d:%02d",
+        seconds / 3_600, seconds / 60 % 60, seconds % 60)
+    else String.format(Locale.US, "%02d:%02d", seconds / 60, seconds % 60)
 }

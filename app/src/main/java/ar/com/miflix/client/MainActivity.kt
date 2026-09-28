@@ -1,8 +1,10 @@
 package ar.com.miflix.client
 
 import android.content.ActivityNotFoundException
+import android.content.pm.ActivityInfo
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -49,11 +51,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        Log.d("MiFlixPlayback", "ORIENTATION_CHANGE orientation=${newConfig.orientation} " +
+            "activity=${System.identityHashCode(this)}")
+    }
+
+    override fun onDestroy() {
+        Log.d("MiFlixPlayback", "ACTIVITY_DESTROY changingConfigurations=$isChangingConfigurations " +
+            "activity=${System.identityHashCode(this)}")
+        super.onDestroy()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val preferences = getSharedPreferences("miflix_client", MODE_PRIVATE)
@@ -137,6 +154,7 @@ private fun ClientApp(
     var detailReturnScreen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var playbackLink by rememberSaveable { mutableStateOf("") }
     var playbackTitle by rememberSaveable { mutableStateOf("") }
+    var fullscreen by rememberSaveable { mutableStateOf(false) }
     var category by rememberSaveable { mutableStateOf("Todos") }
     var query by rememberSaveable { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -148,6 +166,7 @@ private fun ClientApp(
     val telegramState by telegramSession.state.collectAsState()
     val scope = rememberCoroutineScope()
     val owner = LocalLifecycleOwner.current
+    val activity = context as? ComponentActivity
     val titles = catalog.items.orEmpty()
     val selected = titles.firstOrNull { it.id == selectedId }
 
@@ -193,6 +212,10 @@ private fun ClientApp(
     }
     fun goBack() {
         Log.d("MiFlixPlayback", "NAV_BACK screen=$screen selectedId=$selectedId")
+        if (screen == Screen.PLAYER && fullscreen) {
+            fullscreen = false
+            return
+        }
         when (screen) {
             Screen.PLAYER -> screen = Screen.DETAIL
             Screen.DETAIL -> {
@@ -204,6 +227,24 @@ private fun ClientApp(
         }
     }
     BackHandler(enabled = screen != Screen.HOME) { goBack() }
+    DisposableEffect(fullscreen, screen, activity) {
+        if (screen == Screen.PLAYER && fullscreen && activity != null) {
+            val previousOrientation = activity.requestedOrientation
+            Log.d("MiFlixPlayback", "FULLSCREEN_ENTER previousOrientation=$previousOrientation")
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            WindowCompat.setDecorFitsSystemWindows(activity.window, false)
+            val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+            controller.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            onDispose {
+                Log.d("MiFlixPlayback", "FULLSCREEN_EXIT restoreOrientation=$previousOrientation")
+                controller.show(WindowInsetsCompat.Type.systemBars())
+                WindowCompat.setDecorFitsSystemWindows(activity.window, true)
+                activity.requestedOrientation = previousOrientation
+            }
+        } else onDispose { }
+    }
     if (screen == Screen.DETAIL && selected == null && source != "Cargando…" && !busy) {
         LaunchedEffect(selectedId, catalog) { goBack() }
     }
@@ -219,7 +260,7 @@ private fun ClientApp(
         Scaffold(
             containerColor = MiFlixStyle.background,
             topBar = {
-                TopAppBar(
+                if (!(screen == Screen.PLAYER && fullscreen)) TopAppBar(
                     title = {
                         Text(
                             when (screen) {
@@ -316,6 +357,7 @@ private fun ClientApp(
                     modifier = Modifier.padding(padding),
                     onPlay = { link, name ->
                         Log.d("MiFlixPlayback", "NAV_PLAY title=$name telegram_url=$link")
+                        fullscreen = false
                         playbackLink = link
                         playbackTitle = name
                         screen = Screen.PLAYER
@@ -324,6 +366,8 @@ private fun ClientApp(
                 Screen.PLAYER -> PlaybackScreen(
                     link = playbackLink,
                     title = playbackTitle,
+                    fullscreen = fullscreen,
+                    onFullscreenToggle = { fullscreen = !fullscreen },
                     onOpenTelegram = { openTelegram(context, playbackLink) }
                 )
                 Screen.SETTINGS -> SettingsScreen(
