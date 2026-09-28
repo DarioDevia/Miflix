@@ -2,6 +2,7 @@ package ar.com.miflix.client
 
 import android.content.Context
 import com.google.gson.Gson
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.Dispatchers
@@ -76,6 +77,16 @@ class CatalogRepository(private val context: Context) {
         // Se configura cuando exista una URL estable que realmente publique catalogo.json.
         const val DEFAULT_URL = ""
 
+        private fun parseRating(item: JsonObject): Double? {
+            val value = item.get("puntuacion")?.takeIf { it.isJsonPrimitive }?.asJsonPrimitive
+                ?: return null
+            val raw = value.asString.trim()
+            val number = if (value.isNumber) raw else
+                Regex("""^(\d+(?:[.,]\d+)?)(?:\s*/\s*10)?$""")
+                    .matchEntire(raw)?.groupValues?.get(1)?.replace(',', '.') ?: return null
+            return number.toDoubleOrNull()?.takeIf { it.isFinite() && it in 0.0..10.0 }
+        }
+
         fun parseCatalog(raw: String): Catalog {
             val root = JsonParser.parseString(raw).asJsonObject
             val version = root.get("schema_version")?.asString ?: error("Falta schema_version.")
@@ -90,6 +101,10 @@ class CatalogRepository(private val context: Context) {
                 require(id.isNotEmpty() && ids.add(id)) { "ID vacío o repetido: $id" }
                 require(item.get("titulo")?.asString?.isNotBlank() == true) { "Falta título en $id" }
                 require(item.get("tipo")?.asString in setOf("pelicula", "serie", "anime")) { "Tipo inválido en $id" }
+                // Este campo es opcional: un formato desconocido no invalida el catálogo.
+                val rating = parseRating(item)
+                if (rating == null) item.remove("puntuacion")
+                else item.addProperty("puntuacion", rating)
             }
             if (version != "2") return Gson().fromJson(root, Catalog::class.java)
 

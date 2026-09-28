@@ -62,4 +62,25 @@ class CatalogTest {
             assertEquals(listOf("Actriz", "Actor"), title.reparto)
         }
     }
+
+    @Test fun ratingFormatsAndMissingValuesNeverBreakEitherCatalogVersion() {
+        val cases = listOf(
+            "6.9" to 6.9,
+            "\"6.9\"" to 6.9,
+            "\"6.9/10\"" to 6.9,
+            null to null,
+            "null" to null,
+            "\"\"" to null,
+            "\"desconocida\"" to null
+        )
+        for (version in listOf("1.2.0", "2")) {
+            for ((ratingJson, expected) in cases) {
+                val field = ratingJson?.let { ",\"puntuacion\":$it" }.orEmpty()
+                val json = """{"schema_version":"$version","items":[{"id":"a","tipo":"pelicula","titulo":"Ejemplo","telegram_url":"https://t.me/c/1/2"$field}]}"""
+                val title = CatalogRepository.parseCatalog(json).items.single()
+                assertEquals("version=$version rating=$ratingJson", expected, title.puntuacion)
+                assertEquals("https://t.me/c/1/2", title.telegramUrl)
+            }
+        }
+    }
 }
