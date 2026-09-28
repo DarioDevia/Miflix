@@ -58,14 +58,6 @@ internal fun PlaybackScreen(
         }
     }
 
-    DisposableEffect(video) {
-        Log.d(tag, "SCREEN_VIDEO_EFFECT_ENTER fileId=${video?.fileId}")
-        onDispose {
-            Log.w(tag, "SCREEN_VIDEO_EFFECT_DISPOSE fileId=${video?.fileId}", Throwable("Dispose caller stack"))
-            video?.clear()
-        }
-    }
-
     when {
         video != null -> VideoPlayer(video!!, title)
         state is TelegramSession.State.Ready -> {
@@ -204,7 +196,7 @@ private fun VideoPlayer(video: TelegramVideo, title: String) {
     }
     var error by remember(video) { mutableStateOf<String?>(null) }
     var buffering by remember(video) { mutableStateOf(true) }
-    DisposableEffect(player, owner) {
+    DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onPlayerError(exception: PlaybackException) {
                 Log.e(tag, "PLAYER_ERROR code=${exception.errorCode} name=${exception.errorCodeName} " +
@@ -234,6 +226,9 @@ private fun VideoPlayer(video: TelegramVideo, title: String) {
             owner.lifecycle.removeObserver(observer)
             player.removeListener(listener)
             player.release()
+            Log.d(tag, "PLAYER_RELEASED_CLEAR_VIDEO fileId=${video.fileId} " +
+                "videoIdentity=${System.identityHashCode(video)}")
+            video.clear()
         }
     }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
