@@ -10,8 +10,8 @@ android {
         applicationId = "ar.com.miflix.client"
         minSdk = 26
         targetSdk = 34
-        versionCode = 4
-        versionName = "0.3.0"
+        versionCode = 5
+        versionName = "0.4.0"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -34,6 +34,10 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.6.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.code.gson:gson:2.10.1")
+    // JNI precompilado de TDLib; la sesión se autoriza en el teléfono de cada usuario.
+    implementation("io.github.tdlib-android:core:0.1.1")
+    implementation("androidx.media3:media3-exoplayer:1.3.1")
+    implementation("androidx.media3:media3-ui:1.3.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
 }

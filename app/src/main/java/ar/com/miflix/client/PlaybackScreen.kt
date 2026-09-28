@@ -1,0 +1,214 @@
+package ar.com.miflix.client
+
+import android.net.Uri
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
+import kotlinx.coroutines.launch
+import java.io.File
+
+@Composable
+internal fun PlaybackScreen(
+    link: String,
+    title: String,
+    onOpenTelegram: () -> Unit
+) {
+    val context = LocalContext.current
+    val session = remember { TelegramSession.get(context) }
+    val state by session.state.collectAsState()
+    val progress by session.progress.collectAsState()
+    var video by remember(link) { mutableStateOf<File?>(null) }
+    var failure by remember(link) { mutableStateOf<String?>(null) }
+    var downloading by remember(link) { mutableStateOf(false) }
+    var attempt by remember(link) { mutableIntStateOf(0) }
+
+    LaunchedEffect(link, state is TelegramSession.State.Ready, attempt) {
+        if (state is TelegramSession.State.Ready && video == null) {
+            downloading = true
+            failure = null
+            try {
+                video = session.obtainVideo(link)
+            } catch (error: Exception) {
+                failure = error.message ?: "No se pudo obtener el video de Telegram."
+            } finally {
+                downloading = false
+            }
+        }
+    }
+
+    when {
+        video != null -> VideoPlayer(video!!, title)
+        state is TelegramSession.State.Ready -> {
+            Column(Modifier.fillMaxSize().padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(if (downloading) "Descargando video…" else "No se pudo reproducir",
+                    style = MaterialTheme.typography.titleLarge)
+                if (downloading) {
+                    LinearProgressIndicator(progress = progress.coerceIn(0, 100) / 100f,
+                        modifier = Modifier.fillMaxWidth())
+                    Text(progress.toString() + "% · La reproducción comienza al terminar la descarga.")
+                }
+                if (failure != null) {
+                    Text(failure!!, color = MaterialTheme.colorScheme.error)
+                    Button(onClick = { attempt++ }) { Text("Reintentar") }
+                    TextButton(onClick = onOpenTelegram) { Text("Abrir publicación en Telegram") }
+                }
+            }
+        }
+        else -> TelegramLogin(
+            session = session,
+            state = state,
+            onOpenTelegram = onOpenTelegram
+        )
+    }
+}
+
+@Composable
+private fun TelegramLogin(
+    session: TelegramSession,
+    state: TelegramSession.State,
+    onOpenTelegram: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var id by remember { mutableStateOf("") }
+    var hash by remember { mutableStateOf("") }
+    var input by remember(state) { mutableStateOf("") }
+    var problem by remember(state) { mutableStateOf<String?>(null) }
+    var submitting by remember { mutableStateOf(false) }
+
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text("Conectar Telegram", style = MaterialTheme.typography.headlineSmall)
+        Text("Iniciá sesión con una cuenta que pertenezca al canal. Esta sesión es independiente de la app oficial de Telegram.")
+        when (state) {
+            TelegramSession.State.NeedsApi -> {
+                Text("Primero ingresá el API ID y API hash de tu aplicación de Telegram (my.telegram.org). Se guardan solo en este teléfono.")
+                OutlinedTextField(id, { id = it }, label = { Text("API ID") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(hash, { hash = it }, label = { Text("API hash") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true, modifier = Modifier.fillMaxWidth())
+                Button(onClick = {
+                    try {
+                        session.configure(id.trim().toInt(), hash)
+                    } catch (error: Exception) {
+                        problem = error.message ?: "API ID o hash inválidos."
+                    }
+                }, enabled = id.toIntOrNull() != null && hash.isNotBlank()) {
+                    Text("Conectar")
+                }
+            }
+            TelegramSession.State.Starting -> CircularProgressIndicator()
+            TelegramSession.State.Phone,
+            TelegramSession.State.Email,
+            TelegramSession.State.EmailCode,
+            TelegramSession.State.Code,
+            TelegramSession.State.Password -> {
+                val label = when (state) {
+                    TelegramSession.State.Phone -> "Número con código de país (por ejemplo, +54…)"
+                    TelegramSession.State.Email -> "Correo solicitado por Telegram"
+                    TelegramSession.State.EmailCode -> "Código enviado por correo"
+                    TelegramSession.State.Code -> "Código enviado por Telegram"
+                    else -> "Contraseña de verificación en dos pasos"
+                }
+                OutlinedTextField(
+                    value = input, onValueChange = { input = it },
+                    label = { Text(label) },
+                    singleLine = true,
+                    visualTransformation = if (state is TelegramSession.State.Password)
+                        PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = if (state is TelegramSession.State.Phone) KeyboardType.Phone
+                        else KeyboardType.Text
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Button(onClick = {
+                    submitting = true
+                    problem = null
+                    scope.launch {
+                        try {
+                            session.submit(input)
+                            input = ""
+                        } catch (error: Exception) {
+                            problem = error.message ?: "Telegram rechazó el dato."
+                        } finally {
+                            submitting = false
+                        }
+                    }
+                }, enabled = input.isNotBlank() && !submitting) { Text("Continuar") }
+            }
+            is TelegramSession.State.OtherDevice -> {
+                Text("Telegram pide confirmar el inicio de sesión en otro dispositivo:")
+                Text(state.link, color = MaterialTheme.colorScheme.primary)
+                Text("Abrí Telegram en otro teléfono y confirmá la nueva sesión.")
+            }
+            is TelegramSession.State.Failed -> {
+                Text(state.message, color = MaterialTheme.colorScheme.error)
+            }
+            TelegramSession.State.Ready -> Unit
+        }
+        if (problem != null) Text(problem!!, color = MaterialTheme.colorScheme.error)
+        TextButton(onClick = onOpenTelegram) { Text("Abrir publicación en Telegram") }
+    }
+}
+
+@Composable
+private fun VideoPlayer(file: File, title: String) {
+    val context = LocalContext.current
+    val owner = LocalLifecycleOwner.current
+    val player = remember(file.absolutePath) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(Uri.fromFile(file)))
+            prepare()
+            playWhenReady = true
+        }
+    }
+    var error by remember(file.absolutePath) { mutableStateOf<String?>(null) }
+    DisposableEffect(player, owner) {
+        val listener = object : Player.Listener {
+            override fun onPlayerError(exception: PlaybackException) {
+                error = "Android no pudo reproducir este archivo: " + exception.message
+            }
+        }
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) player.pause()
+        }
+        player.addListener(listener)
+        owner.lifecycle.addObserver(observer)
+        onDispose {
+            owner.lifecycle.removeObserver(observer)
+            player.removeListener(listener)
+            player.release()
+        }
+    }
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+        AndroidView(factory = { PlayerView(it).apply { this.player = player } },
+            update = { it.player = player },
+            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+        Text(title, Modifier.padding(16.dp), style = MaterialTheme.typography.titleLarge)
+        if (error != null) Text(error!!, Modifier.padding(horizontal = 16.dp),
+            color = MaterialTheme.colorScheme.error)
+    }
+}

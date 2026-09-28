@@ -35,4 +35,10 @@ class CatalogTest {
         assertEquals("https://t.me/c/123/1", titles.first().telegramUrl)
         assertEquals(null, titles.last().telegramUrl)
     }
+
+    @Test fun adminMessageLinkWithTopicIsKeptForTdlibResolution() {
+        val json = """{"schema_version":1,"items":[{"id":"dune","tipo":"pelicula","titulo":"Dune","telegram_url":"https://t.me/c/1973601153/506211/547791","temporadas":[]}]}"""
+        val title = CatalogRepository.parseCatalog(json).items.single()
+        assertEquals("https://t.me/c/1973601153/506211/547791", title.telegramUrl)
+    }
 }

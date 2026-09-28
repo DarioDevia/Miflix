@@ -79,7 +79,7 @@ private object MiFlixStyle {
     val secondaryText = Color(0xFFB8BEC9)
 }
 
-private enum class Screen { HOME, SEARCH, SECTIONS, DETAIL, SETTINGS }
+private enum class Screen { HOME, SEARCH, SECTIONS, DETAIL, PLAYER, SETTINGS }
 private val categories = listOf("Todos", "Películas", "Series", "Anime")
 
 private fun Title.matchesCategory(category: String) = category == "Todos" || tipo == when (category) {
@@ -133,6 +133,9 @@ private fun ClientApp(
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var returnScreen by rememberSaveable { mutableStateOf(Screen.HOME) }
+    var detailReturnScreen by rememberSaveable { mutableStateOf(Screen.HOME) }
+    var playbackLink by rememberSaveable { mutableStateOf("") }
+    var playbackTitle by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf("Todos") }
     var query by rememberSaveable { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -175,7 +178,7 @@ private fun ClientApp(
     }
 
     fun openDetail(title: Title) {
-        returnScreen = screen
+        detailReturnScreen = screen
         selectedId = title.id
         screen = Screen.DETAIL
     }
@@ -186,8 +189,15 @@ private fun ClientApp(
         screen = Screen.SETTINGS
     }
     fun goBack() {
-        screen = if (screen == Screen.DETAIL || screen == Screen.SETTINGS) returnScreen else Screen.HOME
-        selectedId = null
+        when (screen) {
+            Screen.PLAYER -> screen = Screen.DETAIL
+            Screen.DETAIL -> {
+                screen = detailReturnScreen
+                selectedId = null
+            }
+            Screen.SETTINGS -> screen = returnScreen
+            else -> screen = Screen.HOME
+        }
     }
     BackHandler(enabled = screen != Screen.HOME) { goBack() }
     if (screen == Screen.DETAIL && selected == null && source != "Cargando…" && !busy) {
@@ -214,6 +224,7 @@ private fun ClientApp(
                                 Screen.SECTIONS -> "Secciones"
                                 Screen.SETTINGS -> "Configuración"
                                 Screen.DETAIL -> selected?.titulo.orEmpty()
+                                Screen.PLAYER -> playbackTitle
                             },
                             color = if (screen == Screen.HOME) MiFlixStyle.accent else MiFlixStyle.primaryText,
                             fontWeight = FontWeight.Bold,
@@ -222,7 +233,7 @@ private fun ClientApp(
                         )
                     },
                     navigationIcon = {
-                        if (screen == Screen.DETAIL || screen == Screen.SETTINGS) {
+                        if (screen == Screen.DETAIL || screen == Screen.PLAYER || screen == Screen.SETTINGS) {
                             IconButton(onClick = ::goBack) {
                                 Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
                             }
@@ -296,9 +307,20 @@ private fun ClientApp(
                     onCategoryChange = { category = it },
                     onSelect = ::openDetail
                 )
-                Screen.DETAIL -> {
-                    if (selected != null) Detail(selected, Modifier.padding(padding))
-                }
+                Screen.DETAIL -> if (selected != null) Detail(
+                    title = selected,
+                    modifier = Modifier.padding(padding),
+                    onPlay = { link, name ->
+                        playbackLink = link
+                        playbackTitle = name
+                        screen = Screen.PLAYER
+                    }
+                )
+                Screen.PLAYER -> PlaybackScreen(
+                    link = playbackLink,
+                    title = playbackTitle,
+                    onOpenTelegram = { openTelegram(context, playbackLink) }
+                )
                 Screen.SETTINGS -> SettingsScreen(
                     modifier = Modifier.padding(padding),
                     url = editUrl,
@@ -597,7 +619,7 @@ private fun SectionHeading(text: String) {
 }
 
 @Composable
-private fun Detail(title: Title, modifier: Modifier = Modifier) {
+private fun Detail(title: Title, modifier: Modifier = Modifier, onPlay: (String, String) -> Unit) {
     val context = LocalContext.current
     val seasons = title.temporadas.orEmpty()
     var selectedSeason by remember(title.id) { mutableIntStateOf(0) }
@@ -622,14 +644,17 @@ private fun Detail(title: Title, modifier: Modifier = Modifier) {
                 val info = title.metadata()
                 if (info.isNotBlank()) Text(info, color = MiFlixStyle.secondaryText, fontSize = 14.sp)
                 title.telegramUrl?.takeIf(::validTelegramLink)?.let { link ->
-                    Button(onClick = { openTelegram(context, link) },
+                    Button(onClick = { onPlay(link, title.titulo) },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MiFlixStyle.primaryText,
                             contentColor = MiFlixStyle.background)) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Abrir en Telegram", fontWeight = FontWeight.Bold)
+                        Text("Reproducir en MiFlix", fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(onClick = { openTelegram(context, link) }) {
+                        Text("Abrir publicación en Telegram")
                     }
                 }
                 title.sinopsis?.takeIf { it.isNotBlank() }?.let {
@@ -664,7 +689,7 @@ private fun Detail(title: Title, modifier: Modifier = Modifier) {
             val episodes = seasons.getOrNull(selectedSeason)?.episodios.orEmpty()
             items(episodes, key = { it.id }) { episode ->
                 EpisodeCard(episode, onClick = {
-                    episode.telegramUrl?.let { openTelegram(context, it) }
+                    episode.telegramUrl?.let { onPlay(it, episode.titulo ?: title.titulo) }
                 })
             }
         }
@@ -684,11 +709,11 @@ private fun EpisodeCard(episode: Episode, onClick: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text(episode.titulo?.takeIf { it.isNotBlank() } ?: "Episodio " + episode.numero,
                     color = MiFlixStyle.primaryText, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(if (playable) "Abrir en Telegram" else "Sin enlace disponible",
+                Text(if (playable) "Reproducir en MiFlix" else "Sin enlace disponible",
                     color = MiFlixStyle.secondaryText, fontSize = 12.sp)
             }
             if (playable) Icon(Icons.Default.PlayArrow,
-                contentDescription = "Abrir episodio en Telegram", tint = MiFlixStyle.primaryText)
+                contentDescription = "Reproducir episodio", tint = MiFlixStyle.primaryText)
         }
     }
 }
