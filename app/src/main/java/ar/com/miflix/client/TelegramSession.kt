@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
 import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
 import java.io.File
@@ -37,8 +38,6 @@ internal class TelegramSession private constructor(private val context: Context)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutableState = MutableStateFlow<State>(State.NeedsApi)
     val state = mutableState.asStateFlow()
-    private val mutableProgress = MutableStateFlow(0)
-    val progress = mutableProgress.asStateFlow()
     private var client: Client? = null
     @Volatile private var generation = 0
     private var apiId = 0
@@ -70,14 +69,6 @@ internal class TelegramSession private constructor(private val context: Context)
                 if (generation == myGeneration) {
                     when (update) {
                         is TdApi.UpdateAuthorizationState -> handleAuthorization(update.authorizationState)
-                        is TdApi.UpdateFile -> {
-                            val file = update.file
-                            val size = file.expectedSize.takeIf { it > 0 } ?: file.size
-                            if (activeFileId == file.id && size > 0) {
-                                mutableProgress.value = (file.local.downloadedSize.toLong() * 100L / size)
-                                    .toInt().coerceIn(0, 100)
-                            }
-                        }
                     }
                 }
             }, { error -> mutableState.value = State.Failed(error.message ?: "Error de Telegram") },
@@ -88,8 +79,6 @@ internal class TelegramSession private constructor(private val context: Context)
             )
         }
     }
-
-    @Volatile private var activeFileId: Int? = null
 
     private fun handleAuthorization(state: TdApi.AuthorizationState) {
         when (state) {
@@ -145,7 +134,7 @@ internal class TelegramSession private constructor(private val context: Context)
         }
     }
 
-    suspend fun obtainVideo(link: String): File {
+    suspend fun obtainVideo(link: String): TelegramVideo {
         require(state.value is State.Ready) { "Primero iniciá sesión en Telegram." }
         val info = request(TdApi.GetMessageLinkInfo(link))
         val message = info.message ?: error(
@@ -162,18 +151,33 @@ internal class TelegramSession private constructor(private val context: Context)
             is TdApi.MessageAnimation -> content.animation.animation
             else -> error("La publicación no contiene un video. Revisá su enlace en MiFlix Admin.")
         }
-        activeFileId = file.id
-        mutableProgress.value = 0
+        val size = file.size.toLong().takeIf { it > 0 }
+            ?: file.expectedSize.toLong().takeIf { it > 0 }
+            ?: error("Telegram no informó el tamaño del video; no se puede avanzar por rangos.")
+        return TelegramVideo(file.id, size, this)
+    }
+
+    internal suspend fun downloadRange(fileId: Int, offset: Long, count: Int): ByteArray {
+        require(state.value is State.Ready) { "Se cerró la sesión de Telegram." }
         try {
-            val downloaded = if (file.local.isDownloadingCompleted) file
-                else request(TdApi.DownloadFile(file.id, 16, 0L, 0L, true))
-            val path = downloaded.local.path
-            require(downloaded.local.isDownloadingCompleted && path.isNotBlank()) {
-                "No se completó la descarga del video."
+            val result = withTimeout(45_000) {
+                request(TdApi.DownloadFile(fileId, 16, offset, count.toLong(), true))
             }
-            return File(path).also { require(it.isFile) { "No se encontró el video descargado." } }
+            val local = result.local
+            val available = local.isDownloadingCompleted ||
+                (local.downloadOffset <= offset &&
+                    local.downloadOffset + local.downloadedPrefixSize >= offset + count)
+            require(available && local.path.isNotBlank()) {
+                "Telegram no entregó el fragmento solicitado."
+            }
+            return java.io.RandomAccessFile(local.path, "r").use { input ->
+                input.seek(offset)
+                ByteArray(count).also { input.readFully(it) }
+            }
         } finally {
-            activeFileId = null
+            // TDLib can keep sparse partial files between seeks. Drop each temporary copy
+            // after moving the requested range into the bounded playback cache.
+            withTimeout(5_000) { request(TdApi.DeleteFile(fileId)) }
         }
     }
 
@@ -191,7 +195,6 @@ internal class TelegramSession private constructor(private val context: Context)
         preferences.edit().clear().apply()
         apiId = 0
         apiHash = ""
-        activeFileId = null
         mutableState.value = State.NeedsApi
     }
 

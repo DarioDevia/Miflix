@@ -21,9 +21,9 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.launch
-import java.io.File
 
 @Composable
 internal fun PlaybackScreen(
@@ -34,8 +34,7 @@ internal fun PlaybackScreen(
     val context = LocalContext.current
     val session = remember { TelegramSession.get(context) }
     val state by session.state.collectAsState()
-    val progress by session.progress.collectAsState()
-    var video by remember(link) { mutableStateOf<File?>(null) }
+    var video by remember(link) { mutableStateOf<TelegramVideo?>(null) }
     var failure by remember(link) { mutableStateOf<String?>(null) }
     var downloading by remember(link) { mutableStateOf(false) }
     var attempt by remember(link) { mutableIntStateOf(0) }
@@ -54,17 +53,20 @@ internal fun PlaybackScreen(
         }
     }
 
+    DisposableEffect(video) {
+        onDispose { video?.clear() }
+    }
+
     when {
         video != null -> VideoPlayer(video!!, title)
         state is TelegramSession.State.Ready -> {
             Column(Modifier.fillMaxSize().padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(if (downloading) "Descargando video…" else "No se pudo reproducir",
+                Text(if (downloading) "Preparando video…" else "No se pudo reproducir",
                     style = MaterialTheme.typography.titleLarge)
                 if (downloading) {
-                    LinearProgressIndicator(progress = progress.coerceIn(0, 100) / 100f,
-                        modifier = Modifier.fillMaxWidth())
-                    Text(progress.toString() + "% · La reproducción comienza al terminar la descarga.")
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    Text("Conectando con Telegram. La reproducción empieza con el primer fragmento.")
                 }
                 if (failure != null) {
                     Text(failure!!, color = MaterialTheme.colorScheme.error)
@@ -176,21 +178,27 @@ private fun TelegramLogin(
 }
 
 @Composable
-private fun VideoPlayer(file: File, title: String) {
+private fun VideoPlayer(video: TelegramVideo, title: String) {
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
-    val player = remember(file.absolutePath) {
+    val player = remember(video) {
         ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(Uri.fromFile(file)))
+            setMediaSource(ProgressiveMediaSource.Factory(video.factory()).createMediaSource(
+                MediaItem.fromUri(Uri.parse("miflix://telegram/${video.fileId}"))
+            ))
             prepare()
             playWhenReady = true
         }
     }
-    var error by remember(file.absolutePath) { mutableStateOf<String?>(null) }
+    var error by remember(video) { mutableStateOf<String?>(null) }
+    var buffering by remember(video) { mutableStateOf(true) }
     DisposableEffect(player, owner) {
         val listener = object : Player.Listener {
             override fun onPlayerError(exception: PlaybackException) {
-                error = "Android no pudo reproducir este archivo: " + exception.message
+                error = exception.cause?.message ?: exception.message ?: "No se pudo reproducir el video."
+            }
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                buffering = playbackState == Player.STATE_BUFFERING
             }
         }
         val observer = LifecycleEventObserver { _, event ->
@@ -209,6 +217,10 @@ private fun VideoPlayer(file: File, title: String) {
             update = { it.player = player },
             modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f))
         Text(title, Modifier.padding(16.dp), style = MaterialTheme.typography.titleLarge)
+        if (buffering && error == null) {
+            LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp))
+            Text("Cargando fragmento desde Telegram…", Modifier.padding(16.dp))
+        }
         if (error != null) Text(error!!, Modifier.padding(horizontal = 16.dp),
             color = MaterialTheme.colorScheme.error)
     }
