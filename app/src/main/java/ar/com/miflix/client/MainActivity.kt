@@ -699,13 +699,12 @@ private fun SectionHeading(text: String) {
 
 @Composable
 private fun Detail(title: Title, modifier: Modifier = Modifier, onPlay: (String, String) -> Unit) {
-    val context = LocalContext.current
     val seasons = title.temporadas.orEmpty()
     var selectedSeason by remember(title.id) { mutableIntStateOf(0) }
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item {
-            Box(Modifier.fillMaxWidth().height(265.dp).background(MiFlixStyle.surface)) {
+            Box(Modifier.fillMaxWidth().height(310.dp).background(MiFlixStyle.surface)) {
                 if (!title.backdropUrl.isNullOrBlank()) AsyncImage(title.backdropUrl, null,
                     contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 else if (!title.posterUrl.isNullOrBlank()) AsyncImage(title.posterUrl, null,
@@ -718,10 +717,16 @@ private fun Detail(title: Title, modifier: Modifier = Modifier, onPlay: (String,
         item {
             Column(Modifier.padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text(title.titulo, color = MiFlixStyle.primaryText, fontSize = 28.sp,
-                    lineHeight = 32.sp, fontWeight = FontWeight.Bold)
-                val info = title.metadata()
+                Text(title.titulo, color = MiFlixStyle.primaryText, fontSize = 30.sp,
+                    lineHeight = 35.sp, fontWeight = FontWeight.Bold)
+                val rating = title.puntuacion?.takeIf { it.isFinite() && it in 0.0..10.0 }
+                    ?.let { "★ " + java.text.DecimalFormat("0.0").format(it) }
+                val info = listOfNotNull(title.metadata().takeIf(String::isNotBlank), rating)
+                    .joinToString(" · ")
                 if (info.isNotBlank()) Text(info, color = MiFlixStyle.secondaryText, fontSize = 14.sp)
+                val genres = title.generos.orEmpty().filter { it.isNotBlank() }
+                if (genres.isNotEmpty()) Text(genres.joinToString(" · "),
+                    color = MiFlixStyle.secondaryText, fontSize = 14.sp)
                 title.telegramUrl?.takeIf(::validTelegramLink)?.let { link ->
                     Button(onClick = { onPlay(link, title.titulo) },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
@@ -730,21 +735,22 @@ private fun Detail(title: Title, modifier: Modifier = Modifier, onPlay: (String,
                             contentColor = MiFlixStyle.background)) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Reproducir en MiFlix", fontWeight = FontWeight.Bold)
-                    }
-                    TextButton(onClick = { openTelegram(context, link) }) {
-                        Text("Abrir publicación en Telegram")
+                        Text("Reproducir", fontWeight = FontWeight.Bold)
                     }
                 }
                 title.sinopsis?.takeIf { it.isNotBlank() }?.let {
-                    Text(it, color = MiFlixStyle.primaryText, fontSize = 16.sp, lineHeight = 23.sp)
+                    SectionHeading("Sinopsis")
+                    Text(it, color = MiFlixStyle.secondaryText, fontSize = 16.sp, lineHeight = 24.sp)
                 }
-                val genres = title.generos.orEmpty().filter { it.isNotBlank() }
-                if (genres.isNotEmpty()) Text(genres.joinToString(" · "),
-                    color = MiFlixStyle.secondaryText, fontSize = 14.sp)
+                title.director?.takeIf { it.isNotBlank() }?.let {
+                    DetailCredit("Dirección", it)
+                }
+                title.reparto.orEmpty().filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }?.let {
+                    DetailCredit("Reparto", it.joinToString(" · "))
+                }
                 if (title.telegramUrl.isNullOrBlank() &&
                     seasons.none { season -> season.episodios.orEmpty().any { !it.telegramUrl.isNullOrBlank() } }) {
-                    Text("Todavía no disponible para abrir en Telegram.",
+                    Text("Todavía no disponible para reproducir.",
                         color = MiFlixStyle.secondaryText, fontSize = 14.sp)
                 }
             }
@@ -772,6 +778,14 @@ private fun Detail(title: Title, modifier: Modifier = Modifier, onPlay: (String,
                 })
             }
         }
+    }
+}
+
+@Composable
+private fun DetailCredit(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, color = MiFlixStyle.secondaryText, fontSize = 13.sp)
+        Text(value, color = MiFlixStyle.primaryText, fontSize = 15.sp, lineHeight = 21.sp)
     }
 }
 

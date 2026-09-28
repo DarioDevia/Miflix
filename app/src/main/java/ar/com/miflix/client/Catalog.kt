@@ -26,6 +26,9 @@ data class Title(
     val calidad: String? = null,
     val duracion: String? = null,
     val sinopsis: String? = null,
+    val puntuacion: Double? = null,
+    val director: String? = null,
+    val reparto: List<String> = emptyList(),
     @SerializedName("poster_url") val posterUrl: String? = null,
     @SerializedName("backdrop_url") val backdropUrl: String? = null,
     @SerializedName("telegram_url") val telegramUrl: String? = null,
@@ -55,9 +58,6 @@ class CatalogRepository(private val context: Context) {
             val request = Request.Builder().url(url).header("Cache-Control", "no-cache").build()
             val raw = client.newCall(request).execute().use { response ->
                 check(response.isSuccessful) { "El servidor respondió ${response.code}." }
-                check(response.header("Content-Type").orEmpty().contains("json", true)) {
-                    "El servidor devolvió una página en vez de JSON."
-                }
                 response.body?.string() ?: error("La respuesta está vacía.")
             }
             val catalog = parseCatalog(raw)
@@ -119,6 +119,16 @@ class CatalogRepository(private val context: Context) {
                     id = id,
                     tipo = item.get("tipo").asString,
                     titulo = item.get("titulo").asString,
+                    year = item.get("year")?.takeUnless { it.isJsonNull }?.asInt,
+                    generos = item.getAsJsonArray("generos")?.map { it.asString }.orEmpty(),
+                    calidad = item.get("calidad")?.takeUnless { it.isJsonNull }?.asString,
+                    duracion = item.get("duracion")?.takeUnless { it.isJsonNull }?.asString,
+                    sinopsis = item.get("sinopsis")?.takeUnless { it.isJsonNull }?.asString,
+                    puntuacion = item.get("puntuacion")?.takeUnless { it.isJsonNull }?.asDouble,
+                    director = item.get("director")?.takeUnless { it.isJsonNull }?.asString,
+                    reparto = item.getAsJsonArray("reparto")?.map { it.asString }.orEmpty(),
+                    posterUrl = item.get("poster_url")?.takeUnless { it.isJsonNull }?.asString,
+                    backdropUrl = item.get("backdrop_url")?.takeUnless { it.isJsonNull }?.asString,
                     telegramUrl = directLink ?: publications.firstOrNull()?.telegramUrl,
                     temporadas = if (publications.size > 1) listOf(
                         Season(numero = 0, titulo = "Publicaciones", episodios = publications)

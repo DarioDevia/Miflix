@@ -1,4 +1,14 @@
-# MiFlix Cliente Android 0.5.0
+# MiFlix Cliente Android 0.5.1
+
+## Ficha y barra de estado
+
+La barra de estado usa el fondo oscuro de MiFlix y los iconos del sistema claros. El contenido continúa bajo los insets normales; el reproductor conserva su modo inmersivo al entrar en pantalla completa.
+
+La ficha muestra imagen, título, año/duración/calidad, géneros, botón Reproducir y, si existen en el catálogo, sinopsis, puntuación (escala de 0 a 10), dirección y reparto. El enlace de Telegram sigue siendo necesario para reproducir, pero ya no aparece como botón en la ficha normal. Los accesos de respaldo en errores del reproductor permanecen disponibles.
+
+Los campos opcionales nuevos por título son `puntuacion` (número entre 0 y 10), `director` (texto) y `reparto` (lista de textos). Para que aparezcan con datos reales, MiFlix Admin deberá publicarlos en cada item de `catalogo.json`; no se agregan valores de ejemplo a la aplicación ni se modifica Admin aquí. Los catálogos previos siguen funcionando aunque omitan esos campos.
+
+La configuración de Telegram todavía pide API ID/hash; cada teléfono mantiene su propia sesión. Antes de simplificar el acceso familiar hay que decidir cómo distribuir una credencial de aplicación dedicada sin publicarla en este repositorio. No se integran credenciales ni sesiones personales en el APK.
 
 ## Reproductor móvil
 
@@ -10,7 +20,7 @@ Prueba en teléfono: reproducir, doble toque derecho e izquierdo, mover la barra
 
 ## Compilación de diagnóstico
 
-La compilación `0.5.0-diagnostico` conserva las trazas con la etiqueta `MiFlixPlayback` en Logcat. Se conserva el ownership corregido en 0.4.2: `clear()` se ejecuta al liberar el Player. En Android Studio, seleccioná el proceso `ar.com.miflix.client`, filtrá `tag:MiFlixPlayback`, iniciá la reproducción de un video y conservá las líneas desde `NAV_PLAY` hasta `PLAYER_ERROR` o `PLAYER_STATE`. También podés ejecutar `adb logcat -c` y luego `adb logcat -v time -s MiFlixPlayback:D`. El registro incluye el enlace del mensaje y la ruta temporal del video; revisalo antes de compartirlo. Nunca compartas códigos de Telegram, API hash ni datos de inicio de sesión.
+La compilación `0.5.1-diagnostico` conserva las trazas con la etiqueta `MiFlixPlayback` en Logcat. Se conserva el ownership corregido en 0.4.2: `clear()` se ejecuta al liberar el Player. En Android Studio, seleccioná el proceso `ar.com.miflix.client`, filtrá `tag:MiFlixPlayback`, iniciá la reproducción de un video y conservá las líneas desde `NAV_PLAY` hasta `PLAYER_ERROR` o `PLAYER_STATE`. También podés ejecutar `adb logcat -c` y luego `adb logcat -v time -s MiFlixPlayback:D`. El registro incluye el enlace del mensaje y la ruta temporal del video; revisalo antes de compartirlo. Nunca compartas códigos de Telegram, API hash ni datos de inicio de sesión.
 
 Eventos clave: `RESOLVE_RESULT` indica el mensaje; `VIDEO_FILE`, el ID/tamaño; `RANGE_REQUEST` y `RANGE_RESULT`, el rango y el estado de TDLib; `RANGE_READ`, los bytes físicos leídos; `DS_OPEN`/`DS_READ`/`DS_EOF`, los bytes entregados a Media3; `PLAYER_TIMELINE`/`PLAYER_ERROR`, reconocimiento del video y fallo; `PLAYER_DISPOSE`/`PLAYER_RELEASED_CLEAR_VIDEO`/`CACHE_CLEAR`, el cierre en ese orden.
 
@@ -18,7 +28,7 @@ Aplicación cliente independiente de MiFlix Admin. Lee el catálogo público de 
 
 ## Novedad: reproducción interna
 
-- La ficha ahora ofrece **Reproducir en MiFlix** para una publicación con enlace válido. Permanece **Abrir publicación en Telegram** como alternativa.
+- La ficha ofrece **Reproducir** para una publicación con enlace válido. **Abrir publicación en Telegram** queda disponible como alternativa de diagnóstico en estados del reproductor.
 - TDLib resuelve el enlace al mensaje con la cuenta de Telegram que inicia sesión dentro de MiFlix. Un enlace de mensaje no es una URL directa de video. El mensaje debe contener un video o un archivo de tipo video.
 - Media3 pide los bytes a un DataSource de MiFlix. TDLib descarga solo tramos de 1 MiB usando `downloadFile(fileId, priority, offset, limit, true)`; al hacer seek se solicita la nueva posición. No es necesario esperar el archivo completo. La conexión y el formato del video afectan el tiempo inicial y el buffering.
 - La cuenta debe pertenecer al canal. Cada instalación usa la cuenta de esa persona. Si Telegram pide correo, código o contraseña de dos pasos, la app los solicita. No se incluyen tokens de sesión ni el API ID/hash en GitHub ni en Cloudflare.

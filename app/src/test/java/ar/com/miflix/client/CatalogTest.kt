@@ -41,4 +41,25 @@ class CatalogTest {
         val title = CatalogRepository.parseCatalog(json).items.single()
         assertEquals("https://t.me/c/1973601153/506211/547791", title.telegramUrl)
     }
+
+    @Test fun optionalCreditsDoNotChangeOldCatalogs() {
+        val old = """{"schema_version":"1.2.0","items":[{"id":"a","tipo":"pelicula","titulo":"Ejemplo","telegram_url":"https://t.me/c/1/2"}]}"""
+        val title = CatalogRepository.parseCatalog(old).items.single()
+        assertEquals(null, title.puntuacion)
+        assertEquals(null, title.director)
+        assertEquals(emptyList<String>(), title.reparto.orEmpty())
+        assertEquals("https://t.me/c/1/2", title.telegramUrl)
+    }
+
+    @Test fun optionalCreditsAreReadInBothCatalogVersions() {
+        for (version in listOf("1.2.0", "2")) {
+            val json = """{"schema_version":"$version","items":[{"id":"a","tipo":"pelicula","titulo":"Ejemplo","year":2025,"duracion":"1 h 35 min","puntuacion":7.4,"director":"Directora","reparto":["Actriz","Actor"],"telegram_url":"https://t.me/c/1/2"}]}"""
+            val title = CatalogRepository.parseCatalog(json).items.single()
+            assertEquals(2025, title.year)
+            assertEquals("1 h 35 min", title.duracion)
+            assertEquals(7.4, title.puntuacion!!, 0.0)
+            assertEquals("Directora", title.director)
+            assertEquals(listOf("Actriz", "Actor"), title.reparto)
+        }
+    }
 }
