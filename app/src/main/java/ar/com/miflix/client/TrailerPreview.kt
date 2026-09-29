@@ -228,20 +228,27 @@ private fun WebView.logTrailerGeometry(tag: String) {
 private fun trailerHtml(target: YouTubeTrailer): String = """
 <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #1f375b; }
-#player, iframe { display: block; width: 100%; height: 100%; border: 0; }
+html, body { margin: 0; width: 100vw; height: 100vh; overflow: hidden; background: #1f375b; }
+#player, iframe { position: fixed; top: 0; left: 0; display: block; width: 100vw; height: 100vh; border: 0; }
 </style></head>
 <body><div id="player"></div>
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
 var player;
+function fitTrailerToViewport(videoPlayer) {
+  if (videoPlayer && window.innerWidth > 0 && window.innerHeight > 0) {
+    videoPlayer.setSize(window.innerWidth, window.innerHeight);
+  }
+}
+window.addEventListener('resize', function() { fitTrailerToViewport(player); });
 function onYouTubeIframeAPIReady() {
   player = new YT.Player('player', {
-    width: '100%', height: '100%', videoId: '${target.videoId}',
+    width: window.innerWidth, height: window.innerHeight, videoId: '${target.videoId}',
     playerVars: {playsinline: 1, controls: 1, fs: 0, rel: 0,
                  origin: 'https://ar.com.miflix.client'},
     events: {
       onReady: function(e) {
+        fitTrailerToViewport(e.target);
         console.log('MIFLIX_TRAILER_PLAYER_READY');
         e.target.mute();
         e.target.cueVideoById({videoId: '${target.videoId}', startSeconds: ${target.startSeconds}});
