@@ -47,6 +47,9 @@ internal fun PlaybackScreen(
     progressKey: String,
     startPosition: Long,
     progressStore: PlaybackProgressStore,
+    autoStart: Boolean,
+    nextEpisode: NextEpisode?,
+    onNextEpisode: (NextEpisode) -> Unit,
     fullscreen: Boolean,
     onFullscreenToggle: () -> Unit,
     onOpenTelegram: () -> Unit
@@ -90,15 +93,18 @@ internal fun PlaybackScreen(
 
     when {
         video != null -> VideoPlayer(video!!, title, fullscreen, onFullscreenToggle,
-            resumePosition, resumePlay,
+            resumePosition, resumePlay, nextEpisode, onNextEpisode,
             onCheckpoint = { position, play ->
                 resumePosition = position
                 resumePlay = play
             },
             onProgress = { position, duration -> saveProgress(position, duration, false) },
             onBackground = { position, duration -> saveProgress(position, duration, true) },
-            onExit = { position, duration -> progressStore.finish(progressKey, position, duration,
-                System.currentTimeMillis()) },
+            onExit = { position, duration, started ->
+                // Si la transición no llegó a reproducir, no descartamos progreso anterior.
+                if (!autoStart || started) progressStore.finish(progressKey, position, duration,
+                    System.currentTimeMillis())
+            },
             onCompleted = { progressStore.clear(progressKey) })
         state is TelegramSession.State.Ready -> {
             Column(Modifier.fillMaxSize().padding(24.dp),
@@ -247,10 +253,12 @@ private fun VideoPlayer(
     onFullscreenToggle: () -> Unit,
     resumePosition: Long,
     resumePlay: Boolean,
+    nextEpisode: NextEpisode?,
+    onNextEpisode: (NextEpisode) -> Unit,
     onCheckpoint: (Long, Boolean) -> Unit,
     onProgress: (Long, Long) -> Unit,
     onBackground: (Long, Long) -> Unit,
-    onExit: (Long, Long) -> Unit,
+    onExit: (Long, Long, Boolean) -> Unit,
     onCompleted: () -> Unit
 ) {
     val tag = "MiFlixPlayback"
@@ -278,11 +286,15 @@ private fun VideoPlayer(
     var indication by remember(video) { mutableStateOf<String?>(null) }
     var dragging by remember(video) { mutableStateOf(false) }
     var draggedFraction by remember(video) { mutableFloatStateOf(0f) }
+    var hasPlayed by remember(video) { mutableStateOf(false) }
+    var endState by remember(video) { mutableStateOf(NextEpisodeState.PLAYING) }
+    var countdown by remember(video) { mutableIntStateOf(5) }
     val checkpoint by rememberUpdatedState(onCheckpoint)
     val progress by rememberUpdatedState(onProgress)
     val background by rememberUpdatedState(onBackground)
     val exitProgress by rememberUpdatedState(onExit)
     val completed by rememberUpdatedState(onCompleted)
+    val nextAction by rememberUpdatedState(onNextEpisode)
 
     fun seekToPosition(requested: Long, source: String) {
         val from = player.currentPosition
@@ -317,6 +329,24 @@ private fun VideoPlayer(
             indication = null
         }
     }
+    LaunchedEffect(player, endState) {
+        if (endState == NextEpisodeState.COUNTDOWN) {
+            for (remaining in 5 downTo 1) {
+                delay(1_000)
+                if (endState != NextEpisodeState.COUNTDOWN) return@LaunchedEffect
+                countdown = remaining - 1
+            }
+            // Dejar que el cero sea visible antes del cambio de episodio.
+            delay(200)
+            if (endState != NextEpisodeState.COUNTDOWN) return@LaunchedEffect
+            val target = nextEpisode
+            if (target != null && owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                endState = NextEpisodeState.TRANSITIONING
+                Log.d(tag, "NEXT_EPISODE_TIMEOUT key=${target.progressKey}")
+                nextAction(target)
+            } else endState = NextEpisodeState.CANCELED
+        }
+    }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onPlayerError(exception: PlaybackException) {
@@ -329,9 +359,22 @@ private fun VideoPlayer(
                     "position=${player.currentPosition} buffered=${player.bufferedPosition}")
                 buffering = playbackState == Player.STATE_BUFFERING
                 duration = player.duration
-                if (playbackState == Player.STATE_ENDED) completed()
+                if (playbackState == Player.STATE_ENDED) {
+                    completed()
+                    if (endState == NextEpisodeState.PLAYING) {
+                        if (nextEpisode != null &&
+                            owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                            countdown = 5
+                            endState = NextEpisodeState.COUNTDOWN
+                            Log.d(tag, "NEXT_EPISODE_COUNTDOWN key=${nextEpisode.progressKey}")
+                        } else endState = NextEpisodeState.FINISHED
+                    }
+                }
             }
-            override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                playing = isPlaying
+                if (isPlaying) hasPlayed = true
+            }
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                 checkpoint(player.currentPosition, playWhenReady)
             }
@@ -343,6 +386,10 @@ private fun VideoPlayer(
         val observer = LifecycleEventObserver { _, event ->
             Log.d(tag, "PLAYER_LIFECYCLE event=$event state=${player.playbackState}")
             if (event == Lifecycle.Event.ON_STOP) {
+                if (endState == NextEpisodeState.COUNTDOWN) {
+                    endState = NextEpisodeState.CANCELED
+                    Log.d(tag, "NEXT_EPISODE_CANCEL background")
+                }
                 background(player.currentPosition, player.duration)
                 player.pause()
             }
@@ -355,7 +402,7 @@ private fun VideoPlayer(
                 Throwable("Dispose caller stack"))
             checkpoint(player.currentPosition, player.playWhenReady)
             if (player.playbackState == Player.STATE_ENDED) completed()
-            else exitProgress(player.currentPosition, player.duration)
+            else exitProgress(player.currentPosition, player.duration, hasPlayed)
             owner.lifecycle.removeObserver(observer)
             player.removeListener(listener)
             player.release()
@@ -423,6 +470,31 @@ private fun VideoPlayer(
                     }
                 }
             }
+            if (endState == NextEpisodeState.COUNTDOWN && nextEpisode != null) {
+                Column(Modifier.align(Alignment.Center)
+                    .background(Color.Black.copy(alpha = .9f)).padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Siguiente episodio en $countdown", color = Color.White,
+                        style = MaterialTheme.typography.titleLarge)
+                    Text(nextEpisode.label, color = Color.White,
+                        style = MaterialTheme.typography.bodyLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = {
+                            if (endState == NextEpisodeState.COUNTDOWN &&
+                                owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                                endState = NextEpisodeState.TRANSITIONING
+                                Log.d(tag, "NEXT_EPISODE_NOW key=${nextEpisode.progressKey}")
+                                nextAction(nextEpisode)
+                            }
+                        }) { Text("Reproducir ahora") }
+                        TextButton(onClick = {
+                            endState = NextEpisodeState.CANCELED
+                            Log.d(tag, "NEXT_EPISODE_CANCEL user")
+                        }) { Text("Cancelar") }
+                    }
+                }
+            }
         }
         if (!fullscreen) {
             Text(title, Modifier.padding(16.dp), style = MaterialTheme.typography.titleLarge)
@@ -433,6 +505,8 @@ private fun VideoPlayer(
         }
     }
 }
+
+private enum class NextEpisodeState { PLAYING, COUNTDOWN, CANCELED, TRANSITIONING, FINISHED }
 
 private fun formatPlaybackTime(milliseconds: Long): String {
     if (milliseconds < 0) return "00:00"

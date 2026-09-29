@@ -103,7 +103,7 @@ private object MiFlixStyle {
 
 private enum class Screen { HOME, SEARCH, SECTIONS, DETAIL, PLAYER, SETTINGS, CONNECT }
 private data class PendingResume(val key: String, val link: String, val name: String,
-    val positionMs: Long)
+    val positionMs: Long, val nextEpisode: NextEpisode?)
 private val categories = listOf("Todos", "Películas", "Series", "Anime")
 
 private fun Title.matchesCategory(category: String) = category == "Todos" || tipo == when (category) {
@@ -162,6 +162,8 @@ private fun ClientApp(
     var playbackTitle by rememberSaveable { mutableStateOf("") }
     var playbackKey by rememberSaveable { mutableStateOf("") }
     var playbackStartPosition by rememberSaveable { mutableLongStateOf(0L) }
+    var playbackAutoStart by remember { mutableStateOf(false) }
+    var nextEpisode by remember { mutableStateOf<NextEpisode?>(null) }
     var pendingResume by remember { mutableStateOf<PendingResume?>(null) }
     var fullscreen by rememberSaveable { mutableStateOf(false) }
     var category by rememberSaveable { mutableStateOf("Todos") }
@@ -240,20 +242,24 @@ private fun ClientApp(
         selectedId = title.id
         screen = Screen.DETAIL
     }
-    fun startPlayback(key: String, link: String, name: String, positionMs: Long) {
+    fun startPlayback(key: String, link: String, name: String, positionMs: Long,
+        next: NextEpisode?, automatic: Boolean = false) {
         pendingResume = null
-        if (positionMs == 0L) progressStore.clear(key)
+        // La transición automática conserva el progreso previo hasta que arranque el video.
+        if (positionMs == 0L && !automatic) progressStore.clear(key)
         playbackKey = key
         playbackStartPosition = positionMs
         playbackLink = link
         playbackTitle = name
-        fullscreen = false
+        playbackAutoStart = automatic
+        nextEpisode = next
+        if (!automatic) fullscreen = false
         screen = Screen.PLAYER
     }
-    fun requestPlayback(key: String, link: String, name: String) {
+    fun requestPlayback(key: String, link: String, name: String, next: NextEpisode?) {
         val position = progressStore.resumablePosition(key)
-        if (position == null) startPlayback(key, link, name, 0L)
-        else pendingResume = PendingResume(key, link, name, position)
+        if (position == null) startPlayback(key, link, name, 0L, next)
+        else pendingResume = PendingResume(key, link, name, position, next)
     }
     fun openSettings() {
         returnScreen = screen
@@ -315,10 +321,12 @@ private fun ClientApp(
                 title = { Text("Retomar reproducción") },
                 text = { Text("Este video tiene una reproducción pendiente.") },
                 confirmButton = { TextButton(onClick = {
-                    startPlayback(pending.key, pending.link, pending.name, pending.positionMs)
+                    startPlayback(pending.key, pending.link, pending.name, pending.positionMs,
+                        pending.nextEpisode)
                 }) { Text("Continuar desde " + formatProgressTime(pending.positionMs)) } },
                 dismissButton = { TextButton(onClick = {
-                    startPlayback(pending.key, pending.link, pending.name, 0L)
+                    startPlayback(pending.key, pending.link, pending.name, 0L,
+                        pending.nextEpisode)
                 }) { Text("Empezar desde el principio") } }
             )
         }
@@ -427,16 +435,31 @@ private fun ClientApp(
                     modifier = Modifier.padding(padding),
                     onPlay = ::requestPlayback
                 )
-                Screen.PLAYER -> PlaybackScreen(
+                // Cada episodio posee su Player/TelegramVideo; Dispose libera el anterior
+                // antes de que el efecto del nuevo episodio resuelva su archivo.
+                Screen.PLAYER -> key(playbackKey, playbackLink) { PlaybackScreen(
                     link = playbackLink,
                     title = playbackTitle,
                     progressKey = playbackKey,
                     startPosition = playbackStartPosition,
                     progressStore = progressStore,
+                    autoStart = playbackAutoStart,
+                    nextEpisode = nextEpisode,
+                    onNextEpisode = { target ->
+                        if (screen == Screen.PLAYER && nextEpisode == target) {
+                            val following = selected?.let { selectedTitle ->
+                                findNextPlayableEpisode(selectedTitle, target.seasonIndex,
+                                    target.episodeIndex, ::validTelegramLink)
+                            }
+                            Log.d("MiFlixPlayback", "NEXT_EPISODE_START key=${target.progressKey}")
+                            startPlayback(target.progressKey, target.link, target.name, 0L,
+                                following, automatic = true)
+                        }
+                    },
                     fullscreen = fullscreen,
                     onFullscreenToggle = { fullscreen = !fullscreen },
                     onOpenTelegram = { openTelegram(context, playbackLink) }
-                )
+                ) }
                 Screen.CONNECT -> Box(Modifier.padding(padding)) { TelegramConnectScreen() }
                 Screen.SETTINGS -> SettingsScreen(
                     modifier = Modifier.padding(padding),
@@ -803,7 +826,7 @@ private fun SectionHeading(text: String) {
 
 @Composable
 private fun Detail(title: Title, modifier: Modifier = Modifier,
-    onPlay: (String, String, String) -> Unit) {
+    onPlay: (String, String, String, NextEpisode?) -> Unit) {
     val seasons = title.temporadas.orEmpty()
     var selectedSeason by remember(title.id) { mutableIntStateOf(0) }
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp),
@@ -836,7 +859,7 @@ private fun Detail(title: Title, modifier: Modifier = Modifier,
                     Text("Audio: $audio", color = MiFlixStyle.secondaryText, fontSize = 14.sp)
                 }
                 title.telegramUrl?.takeIf { title.tipo != "serie" && validTelegramLink(it) }?.let { link ->
-                    Button(onClick = { onPlay(ProgressKeys.title(title), link, title.titulo) },
+                    Button(onClick = { onPlay(ProgressKeys.title(title), link, title.titulo, null) },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MiFlixStyle.primaryText,
@@ -891,7 +914,9 @@ private fun Detail(title: Title, modifier: Modifier = Modifier,
                     episode.telegramUrl?.let { link ->
                         seasons.getOrNull(selectedSeason)?.let { season ->
                             onPlay(ProgressKeys.episode(title, season, episode), link,
-                                episode.titulo ?: title.titulo)
+                                episode.titulo ?: title.titulo,
+                                findNextPlayableEpisode(title, selectedSeason, index,
+                                    ::validTelegramLink))
                         }
                     }
                 })
