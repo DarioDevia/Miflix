@@ -832,7 +832,10 @@ private fun Detail(title: Title, modifier: Modifier = Modifier,
                 val genres = title.generos.orEmpty().filter { it.isNotBlank() }
                 if (genres.isNotEmpty()) Text(genres.joinToString(" · "),
                     color = MiFlixStyle.secondaryText, fontSize = 14.sp)
-                title.telegramUrl?.takeIf(::validTelegramLink)?.let { link ->
+                title.audio?.takeIf(String::isNotBlank)?.let { audio ->
+                    Text("Audio: $audio", color = MiFlixStyle.secondaryText, fontSize = 14.sp)
+                }
+                title.telegramUrl?.takeIf { title.tipo != "serie" && validTelegramLink(it) }?.let { link ->
                     Button(onClick = { onPlay(ProgressKeys.title(title), link, title.titulo) },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                         colors = ButtonDefaults.buttonColors(

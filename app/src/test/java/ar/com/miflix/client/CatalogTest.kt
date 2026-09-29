@@ -59,9 +59,35 @@ class CatalogTest {
         val old = """{"schema_version":"1.2.0","items":[{"id":"a","tipo":"pelicula","titulo":"Ejemplo","telegram_url":"https://t.me/c/1/2"}]}"""
         val title = CatalogRepository.parseCatalog(old).items.single()
         assertEquals(null, title.puntuacion)
+        assertEquals(null, title.audio)
         assertEquals(null, title.director)
         assertEquals(emptyList<String>(), title.reparto.orEmpty())
         assertEquals("https://t.me/c/1/2", title.telegramUrl)
+    }
+
+    @Test fun audioIsReadFromCatalogForMoviesSeriesAndAnime() {
+        for (version in listOf("1", "2")) {
+            val json = """{"schema_version":"$version","items":[{"id":"movie","tipo":"pelicula","titulo":"Película","audio":"Español Latino","telegram_url":"https://t.me/c/1/1"},{"id":"series","tipo":"serie","titulo":"The Rain","audio":"Latino","telegram_url":"https://t.me/c/1/2","temporadas":[{"numero":1,"episodios":[{"numero":1,"telegram_url":"https://t.me/c/1/3"}]}]},{"id":"anime","tipo":"anime","titulo":"Anime","audio":"Dual","telegram_url":"https://t.me/c/1/4"}]}"""
+            val items = CatalogRepository.parseCatalog(json).items
+            assertEquals("Español Latino", items[0].audio)
+            assertEquals("Latino", items[1].audio)
+            assertEquals("Dual", items[2].audio)
+            assertEquals("https://t.me/c/1/1", items[0].telegramUrl)
+            if (version == "1") assertEquals("https://t.me/c/1/3",
+                items[1].temporadas[0].episodios[0].telegramUrl)
+            assertEquals("https://t.me/c/1/4", items[2].telegramUrl)
+        }
+    }
+
+    @Test fun nullBlankAndInvalidAudioNeverInvalidateAnOldCatalog() {
+        for (version in listOf("1.2.0", "2")) {
+            for (value in listOf("null", "\"\"", "\"   \"", "{}", "42")) {
+                val json = """{"schema_version":"$version","items":[{"id":"a","tipo":"pelicula","titulo":"Ejemplo","audio":$value,"telegram_url":"https://t.me/c/1/2"}]}"""
+                val title = CatalogRepository.parseCatalog(json).items.single()
+                assertEquals(null, title.audio)
+                assertEquals("https://t.me/c/1/2", title.telegramUrl)
+            }
+        }
     }
 
     @Test fun optionalCreditsAreReadInBothCatalogVersions() {

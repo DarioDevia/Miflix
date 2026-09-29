@@ -1,8 +1,10 @@
-# MiFlix Cliente Android 0.6.1
+# MiFlix Cliente Android 0.6.3
+
+La ficha muestra `Audio: ...` cuando el catálogo trae el campo opcional `audio`, que describe el archivo real y no el idioma original de TMDB. Las series no muestran el botón general Reproducir: se inicia cada episodio desde su tarjeta y su propio `telegram_url`. Películas y anime conservan su botón general cuando el enlace es válido.
 
 ## Progreso de reproducción
 
-MiFlix guarda en el dispositivo la posición, duración conocida y fecha de cada video. Películas sin episodios usan `Title.id`; episodios usan título, temporada y `Episode.id`. Si el botón Reproducir de la ficha apunta a un episodio, comparte su progreso. Las publicaciones del índice de anime, cuyos IDs se generan por posición en la lista, usan una clave derivada de su enlace de mensaje para que reordenarlas no mezcle progresos. Las claves se resumen antes de guardarse en preferencias privadas.
+MiFlix guarda en el dispositivo la posición, duración conocida y fecha de cada video. Películas sin episodios usan `Title.id`; los episodios usan título y temporada, más `tmdb_id` si existe, `Episode.id` antiguo o el enlace como respaldo. Si el botón Reproducir de la ficha apunta a un episodio, comparte su progreso. Las publicaciones del índice de anime, cuyos IDs se generan por posición en la lista, usan una clave derivada de su enlace de mensaje para que reordenarlas no mezcle progresos. Las claves se resumen antes de guardarse en preferencias privadas.
 
 Se escribe como máximo cada 15 segundos de reproducción, al pasar a segundo plano y al salir del reproductor, siempre antes de liberar ExoPlayer. Menos de 30 segundos no generan una opción de continuar. Se borra el progreso cuando resta como máximo el menor valor entre cinco minutos y el 5 % de la duración, o al terminar el video. Al volver a tocar Reproducir, MiFlix ofrece Continuar desde la posición guardada o Empezar desde el principio; esta segunda opción borra la posición antigua. El progreso se excluye de copias de seguridad y transferencias de Android mediante reglas específicas.
 
@@ -27,7 +29,7 @@ La versión 0.5.2 acepta `puntuacion` numérica, texto decimal o texto con sufij
 
 La barra de estado usa el fondo oscuro de MiFlix y los iconos del sistema claros. El contenido continúa bajo los insets normales; el reproductor conserva su modo inmersivo al entrar en pantalla completa.
 
-La ficha muestra imagen, título, año/duración/calidad, géneros, botón Reproducir y, si existen en el catálogo, sinopsis, puntuación (escala de 0 a 10), dirección y reparto. El enlace de Telegram sigue siendo necesario para reproducir, pero ya no aparece como botón en la ficha normal. Los accesos de respaldo en errores del reproductor permanecen disponibles.
+La ficha muestra imagen, título, año/duración/calidad, géneros y, si existen en el catálogo, audio, sinopsis, puntuación (escala de 0 a 10), dirección y reparto. El botón Reproducir general aparece para películas y anime con enlace válido; en series se reproduce desde cada episodio. El enlace de Telegram sigue siendo necesario para reproducir, pero ya no aparece como botón en la ficha normal. Los accesos de respaldo en errores del reproductor permanecen disponibles.
 
 Los campos opcionales nuevos por título son `puntuacion` (número entre 0 y 10), `director` (texto) y `reparto` (lista de textos). Para que aparezcan con datos reales, MiFlix Admin deberá publicarlos en cada item de `catalogo.json`; no se agregan valores de ejemplo a la aplicación ni se modifica Admin aquí. Los catálogos previos siguen funcionando aunque omitan esos campos.
 
@@ -43,7 +45,7 @@ Prueba en teléfono: reproducir, doble toque derecho e izquierdo, mover la barra
 
 ## Compilación de diagnóstico
 
-La compilación `0.6.1-diagnostico` conserva las trazas con la etiqueta `MiFlixPlayback` en Logcat. Se conserva el ownership corregido en 0.4.2: `clear()` se ejecuta al liberar el Player. En Android Studio, seleccioná el proceso `ar.com.miflix.client`, filtrá `tag:MiFlixPlayback`, iniciá la reproducción de un video y conservá las líneas desde `NAV_PLAY` hasta `PLAYER_ERROR` o `PLAYER_STATE`. También podés ejecutar `adb logcat -c` y luego `adb logcat -v time -s MiFlixPlayback:D`. El registro incluye el enlace del mensaje y la ruta temporal del video; revisalo antes de compartirlo. Nunca compartas códigos de Telegram, API hash ni datos de inicio de sesión.
+La compilación `0.6.3-diagnostico` conserva las trazas con la etiqueta `MiFlixPlayback` en Logcat. Se conserva el ownership corregido en 0.4.2: `clear()` se ejecuta al liberar el Player. En Android Studio, seleccioná el proceso `ar.com.miflix.client`, filtrá `tag:MiFlixPlayback`, iniciá la reproducción de un video y conservá las líneas desde `NAV_PLAY` hasta `PLAYER_ERROR` o `PLAYER_STATE`. También podés ejecutar `adb logcat -c` y luego `adb logcat -v time -s MiFlixPlayback:D`. El registro incluye el enlace del mensaje y la ruta temporal del video; revisalo antes de compartirlo. Nunca compartas códigos de Telegram, API hash ni datos de inicio de sesión.
 
 Eventos clave: `RESOLVE_RESULT` indica el mensaje; `VIDEO_FILE`, el ID/tamaño; `RANGE_REQUEST` y `RANGE_RESULT`, el rango y el estado de TDLib; `RANGE_READ`, los bytes físicos leídos; `DS_OPEN`/`DS_READ`/`DS_EOF`, los bytes entregados a Media3; `PLAYER_TIMELINE`/`PLAYER_ERROR`, reconocimiento del video y fallo; `PLAYER_DISPOSE`/`PLAYER_RELEASED_CLEAR_VIDEO`/`CACHE_CLEAR`, el cierre en ese orden.
 
@@ -51,7 +53,7 @@ Aplicación cliente independiente de MiFlix Admin. Lee el catálogo público de 
 
 ## Novedad: reproducción interna
 
-- La ficha ofrece **Reproducir** para una publicación con enlace válido. **Abrir publicación en Telegram** queda disponible como alternativa de diagnóstico en estados del reproductor.
+- La ficha ofrece **Reproducir** para películas y anime con enlace válido. Las series se reproducen desde sus episodios. **Abrir publicación en Telegram** queda disponible como alternativa de diagnóstico en estados del reproductor.
 - TDLib resuelve el enlace al mensaje con la cuenta de Telegram que inicia sesión dentro de MiFlix. Un enlace de mensaje no es una URL directa de video. El mensaje debe contener un video o un archivo de tipo video.
 - Media3 pide los bytes a un DataSource de MiFlix. TDLib descarga solo tramos de 1 MiB usando `downloadFile(fileId, priority, offset, limit, true)`; al hacer seek se solicita la nueva posición. No es necesario esperar el archivo completo. La conexión y el formato del video afectan el tiempo inicial y el buffering.
 - La cuenta debe pertenecer al canal. Cada instalación usa la cuenta de esa persona. Si Telegram pide correo, código o contraseña de dos pasos, la app los solicita. No se incluyen tokens de sesión ni el API ID/hash en GitHub ni en Cloudflare.

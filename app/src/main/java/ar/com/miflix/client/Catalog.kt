@@ -26,6 +26,7 @@ data class Title(
     val generos: List<String> = emptyList(),
     val calidad: String? = null,
     val duracion: String? = null,
+    val audio: String? = null,
     val sinopsis: String? = null,
     val puntuacion: Double? = null,
     val director: String? = null,
@@ -114,6 +115,10 @@ class CatalogRepository(private val context: Context) {
             item.get(field)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
                 ?.asString?.trim()?.takeIf(String::isNotBlank)
 
+        private fun optionalAudio(item: JsonObject): String? =
+            item.get("audio")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+                ?.asString?.takeIf(String::isNotBlank)
+
         private fun optionalInt(item: JsonObject, field: String): Int? =
             item.get(field)?.takeIf { it.isJsonPrimitive }
                 ?.asString?.trim()?.toIntOrNull()
@@ -130,6 +135,7 @@ class CatalogRepository(private val context: Context) {
         }
 
         private fun normalizeAdminFields(item: JsonObject) {
+            if (optionalAudio(item) == null) item.remove("audio")
             val year = optionalInt(item, "year") ?: optionalInt(item, "anio")
             if (year == null) item.remove("year") else item.addProperty("year", year)
             if (optionalText(item, "director") == null) {
@@ -219,6 +225,7 @@ class CatalogRepository(private val context: Context) {
                     generos = item.getAsJsonArray("generos")?.map { it.asString }.orEmpty(),
                     calidad = item.get("calidad")?.takeUnless { it.isJsonNull }?.asString,
                     duracion = item.get("duracion")?.takeUnless { it.isJsonNull }?.asString,
+                    audio = optionalAudio(item),
                     sinopsis = item.get("sinopsis")?.takeUnless { it.isJsonNull }?.asString,
                     puntuacion = item.get("puntuacion")?.takeUnless { it.isJsonNull }?.asDouble,
                     director = item.get("director")?.takeUnless { it.isJsonNull }?.asString,
