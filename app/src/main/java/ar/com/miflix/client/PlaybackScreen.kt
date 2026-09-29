@@ -1,6 +1,7 @@
 package ar.com.miflix.client
 
 import android.net.Uri
+import android.os.SystemClock
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -43,6 +44,9 @@ import java.util.Locale
 internal fun PlaybackScreen(
     link: String,
     title: String,
+    progressKey: String,
+    startPosition: Long,
+    progressStore: PlaybackProgressStore,
     fullscreen: Boolean,
     onFullscreenToggle: () -> Unit,
     onOpenTelegram: () -> Unit
@@ -55,8 +59,17 @@ internal fun PlaybackScreen(
     var failure by remember(link) { mutableStateOf<String?>(null) }
     var downloading by remember(link) { mutableStateOf(false) }
     var attempt by remember(link) { mutableIntStateOf(0) }
-    var resumePosition by rememberSaveable(link) { mutableStateOf(0L) }
+    var resumePosition by rememberSaveable(link) { mutableStateOf(startPosition) }
     var resumePlay by rememberSaveable(link) { mutableStateOf(true) }
+    var lastProgressWrite by remember(progressKey) { mutableLongStateOf(0L) }
+
+    fun saveProgress(position: Long, duration: Long, immediate: Boolean) {
+        val elapsed = SystemClock.elapsedRealtime()
+        if (immediate || elapsed - lastProgressWrite >= ProgressRules.SAVE_INTERVAL_MS) {
+            lastProgressWrite = elapsed
+            progressStore.save(progressKey, position, duration, System.currentTimeMillis())
+        }
+    }
 
     LaunchedEffect(link, state is TelegramSession.State.Ready, attempt) {
         Log.d(tag, "SCREEN_EFFECT_START link=$link state=$state attempt=$attempt videoId=${video?.fileId}")
@@ -77,10 +90,16 @@ internal fun PlaybackScreen(
 
     when {
         video != null -> VideoPlayer(video!!, title, fullscreen, onFullscreenToggle,
-            resumePosition, resumePlay) { position, play ->
-            resumePosition = position
-            resumePlay = play
-        }
+            resumePosition, resumePlay,
+            onCheckpoint = { position, play ->
+                resumePosition = position
+                resumePlay = play
+            },
+            onProgress = { position, duration -> saveProgress(position, duration, false) },
+            onBackground = { position, duration -> saveProgress(position, duration, true) },
+            onExit = { position, duration -> progressStore.finish(progressKey, position, duration,
+                System.currentTimeMillis()) },
+            onCompleted = { progressStore.clear(progressKey) })
         state is TelegramSession.State.Ready -> {
             Column(Modifier.fillMaxSize().padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -228,7 +247,11 @@ private fun VideoPlayer(
     onFullscreenToggle: () -> Unit,
     resumePosition: Long,
     resumePlay: Boolean,
-    onCheckpoint: (Long, Boolean) -> Unit
+    onCheckpoint: (Long, Boolean) -> Unit,
+    onProgress: (Long, Long) -> Unit,
+    onBackground: (Long, Long) -> Unit,
+    onExit: (Long, Long) -> Unit,
+    onCompleted: () -> Unit
 ) {
     val tag = "MiFlixPlayback"
     val context = LocalContext.current
@@ -256,6 +279,10 @@ private fun VideoPlayer(
     var dragging by remember(video) { mutableStateOf(false) }
     var draggedFraction by remember(video) { mutableFloatStateOf(0f) }
     val checkpoint by rememberUpdatedState(onCheckpoint)
+    val progress by rememberUpdatedState(onProgress)
+    val background by rememberUpdatedState(onBackground)
+    val exitProgress by rememberUpdatedState(onExit)
+    val completed by rememberUpdatedState(onCompleted)
 
     fun seekToPosition(requested: Long, source: String) {
         val from = player.currentPosition
@@ -273,6 +300,8 @@ private fun VideoPlayer(
             currentPosition = player.currentPosition
             duration = player.duration
             checkpoint(currentPosition, player.playWhenReady)
+            if (player.playbackState != Player.STATE_ENDED)
+                progress(currentPosition, duration)
             delay(500)
         }
     }
@@ -300,6 +329,7 @@ private fun VideoPlayer(
                     "position=${player.currentPosition} buffered=${player.bufferedPosition}")
                 buffering = playbackState == Player.STATE_BUFFERING
                 duration = player.duration
+                if (playbackState == Player.STATE_ENDED) completed()
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -312,7 +342,10 @@ private fun VideoPlayer(
         }
         val observer = LifecycleEventObserver { _, event ->
             Log.d(tag, "PLAYER_LIFECYCLE event=$event state=${player.playbackState}")
-            if (event == Lifecycle.Event.ON_STOP) player.pause()
+            if (event == Lifecycle.Event.ON_STOP) {
+                background(player.currentPosition, player.duration)
+                player.pause()
+            }
         }
         player.addListener(listener)
         Log.d(tag, "PLAYER_LISTENER_ATTACHED state=${player.playbackState} duration=${player.duration}")
@@ -321,6 +354,8 @@ private fun VideoPlayer(
             Log.w(tag, "PLAYER_DISPOSE state=${player.playbackState} duration=${player.duration}",
                 Throwable("Dispose caller stack"))
             checkpoint(player.currentPosition, player.playWhenReady)
+            if (player.playbackState == Player.STATE_ENDED) completed()
+            else exitProgress(player.currentPosition, player.duration)
             owner.lifecycle.removeObserver(observer)
             player.removeListener(listener)
             player.release()
