@@ -115,6 +115,10 @@ internal fun TrailerPreview(
                         webChromeClient = object : WebChromeClient() {
                             override fun onConsoleMessage(message: ConsoleMessage): Boolean {
                                 if (webView !== view) return false
+                                if (message.message().startsWith("MIFLIX_TRAILER_GEOMETRY_FIX ")) {
+                                    Log.d(tag, message.message().removePrefix("MIFLIX_"))
+                                    return true
+                                }
                                 when (message.message()) {
                                     "MIFLIX_TRAILER_PLAYER_READY" -> {
                                         Log.d(tag, "TRAILER_PLAYER_READY")
@@ -211,16 +215,7 @@ internal fun TrailerPreview(
 }
 
 private fun WebView.logTrailerGeometry(tag: String) {
-    evaluateJavascript("""(function() {
-      function size(element) {
-        if (!element) return 'missing';
-        var rect = element.getBoundingClientRect();
-        return Math.round(rect.width) + 'x' + Math.round(rect.height);
-      }
-      return 'viewport=' + innerWidth + 'x' + innerHeight +
-        ' player=' + size(document.getElementById('player')) +
-        ' iframe=' + size(document.querySelector('iframe'));
-    })()""".trimIndent()) { result ->
+    evaluateJavascript("trailerGeometryReport()") { result ->
         Log.d(tag, "TRAILER_DOM_SIZE $result")
     }
 }
@@ -235,12 +230,61 @@ html, body { margin: 0; width: 100vw; height: 100vh; overflow: hidden; backgroun
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
 var player;
-function fitTrailerToViewport(videoPlayer) {
-  if (videoPlayer && window.innerWidth > 0 && window.innerHeight > 0) {
-    videoPlayer.setSize(window.innerWidth, window.innerHeight);
+function trailerIframe(videoPlayer) {
+  if (videoPlayer && typeof videoPlayer.getIframe === 'function') {
+    return videoPlayer.getIframe();
   }
+  return document.querySelector('iframe#player') || document.querySelector('#player iframe');
 }
-window.addEventListener('resize', function() { fitTrailerToViewport(player); });
+function trailerElementGeometry(element) {
+  if (!element) return {missing: true};
+  var rect = element.getBoundingClientRect();
+  var computed = window.getComputedStyle(element);
+  return {tag: element.tagName, rect: {width: rect.width, height: rect.height},
+    style: {width: element.style.width, height: element.style.height,
+      heightPriority: element.style.getPropertyPriority('height')},
+    attr: {width: element.getAttribute('width'), height: element.getAttribute('height')},
+    computed: {width: computed.width, height: computed.height,
+      display: computed.display, position: computed.position}};
+}
+function trailerGeometryReport(videoPlayer) {
+  return {viewport: {width: window.innerWidth, height: window.innerHeight},
+    player: trailerElementGeometry(document.getElementById('player')),
+    iframe: trailerElementGeometry(trailerIframe(videoPlayer || player)),
+    html: trailerElementGeometry(document.documentElement),
+    body: trailerElementGeometry(document.body)};
+}
+function fixTrailerGeometry(stage, videoPlayer) {
+  var before = trailerGeometryReport(videoPlayer);
+  var width = window.innerWidth;
+  var height = window.innerHeight;
+  var iframe = trailerIframe(videoPlayer);
+  if (iframe && width > 0 && height > 0) {
+    videoPlayer.setSize(width, height);
+    // YT.Player reemplaza el div: dimensionar el nodo generado, no solo el CSS previo.
+    var elements = [document.getElementById('player'), iframe];
+    elements.forEach(function(element) {
+      if (!element) return;
+      element.setAttribute('width', String(width));
+      element.setAttribute('height', String(height));
+      element.style.setProperty('width', width + 'px', 'important');
+      element.style.setProperty('height', height + 'px', 'important');
+      element.style.setProperty('position', 'fixed', 'important');
+      element.style.setProperty('top', '0', 'important');
+      element.style.setProperty('left', '0', 'important');
+      element.style.setProperty('display', 'block', 'important');
+    });
+  }
+  var after = trailerGeometryReport(videoPlayer);
+  var valid = !after.player.missing && !after.iframe.missing &&
+    after.player.rect.height > 0 && after.iframe.rect.height > 0;
+  console.log('MIFLIX_TRAILER_GEOMETRY_FIX ' + JSON.stringify({stage: stage,
+    before: before, after: after, valid: valid}));
+}
+// Solo eventos concretos: sin timers, polling ni reintentos recursivos.
+window.addEventListener('resize', function() {
+  if (player) fixTrailerGeometry('RESIZE', player);
+});
 function onYouTubeIframeAPIReady() {
   player = new YT.Player('player', {
     width: window.innerWidth, height: window.innerHeight, videoId: '${target.videoId}',
@@ -248,14 +292,20 @@ function onYouTubeIframeAPIReady() {
                  origin: 'https://ar.com.miflix.client'},
     events: {
       onReady: function(e) {
-        fitTrailerToViewport(e.target);
+        fixTrailerGeometry('PLAYER_READY', e.target);
         console.log('MIFLIX_TRAILER_PLAYER_READY');
         e.target.mute();
         e.target.cueVideoById({videoId: '${target.videoId}', startSeconds: ${target.startSeconds}});
       },
       onStateChange: function(e) {
-        if (e.data === YT.PlayerState.CUED) console.log('MIFLIX_TRAILER_CUED');
-        if (e.data === YT.PlayerState.PLAYING) console.log('MIFLIX_TRAILER_PLAYING');
+        if (e.data === YT.PlayerState.CUED) {
+          fixTrailerGeometry('CUED', e.target);
+          console.log('MIFLIX_TRAILER_CUED');
+        }
+        if (e.data === YT.PlayerState.PLAYING) {
+          fixTrailerGeometry('PLAYING', e.target);
+          console.log('MIFLIX_TRAILER_PLAYING');
+        }
         if (e.data === YT.PlayerState.ENDED) console.log('MIFLIX_TRAILER_ENDED');
       },
       onError: function(e) { console.log('MIFLIX_TRAILER_ERROR'); },
@@ -263,7 +313,12 @@ function onYouTubeIframeAPIReady() {
     }
   });
 }
-function startTrailer() { if (player) { player.mute(); player.playVideo(); } }
+function startTrailer() {
+  if (player) {
+    fixTrailerGeometry('BEFORE_PLAY', player);
+    player.mute(); player.playVideo();
+  }
+}
 function setTrailerMuted(muted) { if (player) { if (muted) player.mute(); else player.unMute(); } }
 </script></body></html>
 """.trimIndent()
