@@ -81,8 +81,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             ClientApp(
                 repository = repository,
-                initialUrl = preferences.getString("catalog_url", null)
-                    ?.takeIf { it.isNotBlank() } ?: CatalogRepository.DEFAULT_URL,
+                initialUrl = startupCatalogUrl(preferences.getString("catalog_url", null)),
                 initialInvite = preferences.getString("channel_invite", "").orEmpty(),
                 saveSettings = { url, invite ->
                     preferences.edit().putString("catalog_url", url).putString("channel_invite", invite).apply()
@@ -101,7 +100,12 @@ private object MiFlixStyle {
     val secondaryText = Color(0xFFB8BEC9)
 }
 
-private enum class Screen { HOME, SEARCH, SECTIONS, DETAIL, PLAYER, SETTINGS, CONNECT }
+internal enum class Screen { HOME, SEARCH, SECTIONS, DETAIL, PLAYER, SETTINGS, CONNECT }
+internal fun startupCatalogUrl(savedUrl: String?): String =
+    savedUrl?.trim()?.takeIf { it.isNotBlank() } ?: CatalogRepository.DEFAULT_URL
+
+internal fun startupScreen(state: TelegramSession.State): Screen =
+    if (state is TelegramSession.State.Ready) Screen.HOME else Screen.CONNECT
 private data class PendingResume(val key: String, val link: String, val name: String,
     val positionMs: Long, val previousEpisode: EpisodeNavigationTarget?,
     val nextEpisode: EpisodeNavigationTarget?)
@@ -148,6 +152,9 @@ private fun ClientApp(
     initialInvite: String,
     saveSettings: (String, String) -> Unit
 ) {
+    val context = LocalContext.current
+    val telegramSession = remember { TelegramSession.get(context) }
+    val telegramState by telegramSession.state.collectAsState()
     var url by remember { mutableStateOf(initialUrl) }
     var invite by remember { mutableStateOf(initialInvite) }
     var editUrl by remember { mutableStateOf(initialUrl) }
@@ -156,7 +163,7 @@ private fun ClientApp(
     var source by remember { mutableStateOf("Cargando…") }
     var problem by remember { mutableStateOf<String?>(null) }
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
-    var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
+    var screen by rememberSaveable { mutableStateOf(startupScreen(telegramState)) }
     var returnScreen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var detailReturnScreen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var playbackLink by rememberSaveable { mutableStateOf("") }
@@ -175,7 +182,6 @@ private fun ClientApp(
     val homeScroll = rememberLazyListState()
     val searchScroll = rememberLazyGridState()
     val sectionsScroll = rememberLazyGridState()
-    val context = LocalContext.current
     val progressStore = remember(context) {
         PlaybackProgressStore(SharedPreferencesProgressStorage(context))
     }
@@ -188,8 +194,6 @@ private fun ClientApp(
     var lastSuccessfulUpdate by remember {
         mutableLongStateOf(refreshPreferences.getLong("catalog_last_success", 0L))
     }
-    val telegramSession = remember { TelegramSession.get(context) }
-    val telegramState by telegramSession.state.collectAsState()
     val scope = rememberCoroutineScope()
     val owner = LocalLifecycleOwner.current
     val activity = context as? ComponentActivity
@@ -229,6 +233,8 @@ private fun ClientApp(
     LaunchedEffect(url) {
         repository.loadCached()?.let { catalog = it; source = "Copia local" }
         cacheLoaded = true
+        // La primera carga no depende de terminar la autorización de Telegram.
+        if (screen == Screen.HOME || screen == Screen.CONNECT) refreshIfDue()
     }
     LaunchedEffect(screen, cacheLoaded, url) {
         if (cacheLoaded && screen == Screen.HOME) refreshIfDue()
@@ -433,7 +439,6 @@ private fun ClientApp(
                     telegramConnected = telegramState is TelegramSession.State.Ready,
                     onConnect = { screen = Screen.CONNECT },
                     onSelect = ::openDetail,
-                    onSetup = ::openSettings,
                     onBrowse = { category = it; screen = Screen.SECTIONS }
                 )
                 Screen.SEARCH -> SearchScreen(
@@ -541,7 +546,6 @@ private fun HomeScreen(
     telegramConnected: Boolean,
     onConnect: () -> Unit,
     onSelect: (Title) -> Unit,
-    onSetup: () -> Unit,
     onBrowse: (String) -> Unit
 ) {
     val featured = titles.firstOrNull { !it.backdropUrl.isNullOrBlank() }
@@ -586,8 +590,8 @@ private fun HomeScreen(
                         problem != null -> "No pudimos cargar el catálogo. " + problem
                         else -> "Todavía no hay títulos en el catálogo."
                     },
-                    action = if (busy) null else "Configuración",
-                    onAction = onSetup
+                    action = if (!busy && problem != null) "Reintentar" else null,
+                    onAction = onRefresh
                 )
             }
         } else {
@@ -836,8 +840,7 @@ private fun SettingsScreen(
             item {
                 TextButton(onClick = onDisconnectTelegram) {
                     Text(if (telegramState is TelegramSession.State.Ready)
-                        "Cerrar sesión Telegram" else if (BuildConfig.TELEGRAM_API_ID > 0)
-                        "Reiniciar conexión Telegram" else "Cambiar credenciales Telegram")
+                        "Cerrar sesión Telegram" else "Reiniciar conexión Telegram")
                 }
             }
         }

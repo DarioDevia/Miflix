@@ -153,8 +153,6 @@ private fun TelegramLogin(
     onOpenTelegram: (() -> Unit)?
 ) {
     val scope = rememberCoroutineScope()
-    var id by remember { mutableStateOf("") }
-    var hash by remember { mutableStateOf("") }
     var input by remember(state) { mutableStateOf("") }
     var problem by remember(state) { mutableStateOf<String?>(null) }
     var submitting by remember { mutableStateOf(false) }
@@ -170,22 +168,8 @@ private fun TelegramLogin(
                 if (BuildConfig.TELEGRAM_API_ID > 0 && BuildConfig.TELEGRAM_API_HASH.isNotBlank()) {
                     CircularProgressIndicator()
                 } else {
-                Text("Primero ingresá el API ID y API hash de tu aplicación de Telegram (my.telegram.org). Se guardan solo en este teléfono.")
-                OutlinedTextField(id, { id = it }, label = { Text("API ID") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(hash, { hash = it }, label = { Text("API hash") },
-                    visualTransformation = PasswordVisualTransformation(),
-                    singleLine = true, modifier = Modifier.fillMaxWidth())
-                Button(onClick = {
-                    try {
-                        session.configure(id.trim().toInt(), hash)
-                    } catch (error: Exception) {
-                        problem = error.message ?: "API ID o hash inválidos."
-                    }
-                }, enabled = id.toIntOrNull() != null && hash.isNotBlank()) {
-                    Text("Conectar")
-                }
+                    Text("Esta compilación no está preparada para conectar Telegram. Pedile al administrador la APK familiar configurada.")
+                    Text("Diagnóstico de desarrollo: falta la configuración privada de Telegram durante la compilación.")
                 }
             }
             TelegramSession.State.Starting -> CircularProgressIndicator()
@@ -238,8 +222,7 @@ private fun TelegramLogin(
                     "No pudimos conectar con Telegram. Revisá tu conexión e intentá de nuevo."
                     else state.message, color = MaterialTheme.colorScheme.error)
                 Button(onClick = { session.reset() }) {
-                    Text(if (BuildConfig.TELEGRAM_API_ID > 0) "Reintentar"
-                        else "Cambiar credenciales Telegram")
+                    Text("Reintentar")
                 }
             }
             TelegramSession.State.Ready -> Unit

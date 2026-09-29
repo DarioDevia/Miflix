@@ -16,7 +16,9 @@ Se escribe como máximo cada 15 segundos de reproducción, al pasar a segundo pl
 
 ## Instalación familiar y actualización del catálogo
 
-El catálogo predeterminado es `https://miflix-catalogo.deviadario.workers.dev/catalogo.json`. Una instalación nueva no requiere configurarlo. MiFlix muestra primero la copia local válida, consulta el remoto en segundo plano al abrir o volver a Inicio si pasaron al menos diez minutos desde la última comprobación, y mantiene la copia anterior ante errores. En Inicio, deslizar hacia abajo fuerza una consulta inmediata; durante reproducción no hay consultas programadas. Configuración muestra la fecha de la última respuesta remota válida y deja la URL manual en Opciones avanzadas.
+El catálogo predeterminado es `https://miflix-catalogo.deviadario.workers.dev/catalogo.json`. Una instalación nueva no requiere configurarlo. MiFlix carga el catálogo en segundo plano incluso mientras autoriza Telegram. Si no hay una sesión autorizada, abre directamente Conectar Telegram; cuando termina la autorización, abre Inicio. Una sesión ya autorizada entra directamente a Inicio. El usuario introduce su teléfono, el código y la contraseña 2FA si Telegram los solicita; no se piden datos técnicos ni invitación al canal. Si Telegram requiere correo o confirmar en otro dispositivo, se conserva ese flujo de autorización.
+
+MiFlix muestra primero la copia local válida, consulta el remoto al abrir o volver a Inicio si pasaron al menos diez minutos desde la última comprobación, y mantiene la copia anterior ante errores. En Inicio, deslizar hacia abajo fuerza una consulta inmediata; durante reproducción no hay consultas programadas. Si falla la primera carga, ofrece Reintentar. Configuración muestra la fecha de la última respuesta remota válida y deja la URL manual únicamente en Opciones avanzadas.
 
 Para compilar en tu PC una APK familiar, creá **solo en la raíz del proyecto local** el archivo `telegram.local.properties` con estas dos líneas (sustituí los ejemplos por tus datos, nunca los envíes a GitHub):
 
@@ -27,7 +29,7 @@ TELEGRAM_API_HASH=0123456789abcdef0123456789abcdef
 
 El API ID debe ser un entero positivo y el API hash, 32 caracteres hexadecimales. Android Studio: abrí la raíz del proyecto, creá el archivo junto a `settings.gradle.kts`, sincronizá Gradle (**File > Sync Project with Gradle Files**), elegí la variante `debug` y ejecutá **Build > Build APK(s)**. El APK estará en `app/build/outputs/apk/debug/app-debug.apk`. Instalalo en el teléfono del familiar: MiFlix reconocerá la configuración y ofrecerá conectar su propia cuenta de Telegram con teléfono, código y 2FA cuando corresponda. Cada teléfono crea su propia sesión TDLib.
 
-`telegram.local.properties` y `local.properties` están ignorados por Git. Antes de compartir cambios, verificá `git check-ignore telegram.local.properties` y `git status --short`; nunca uses `git add -f` con ese archivo. No copies `app/build/` ni la base de TDLib a Git. Si falta el archivo privado, Actions y el desarrollo siguen compilando y la app ofrece el ingreso manual de API ID/hash. El APK familiar contiene los identificadores de aplicación y quien tenga el APK podría extraerlos: compartilo solo con familiares autorizados. No incluye la sesión Telegram de quien compila.
+`telegram.local.properties` y `local.properties` están ignorados por Git. Antes de compartir cambios, verificá `git check-ignore telegram.local.properties` y `git status --short`; nunca uses `git add -f` con ese archivo. No copies `app/build/` ni la base de TDLib a Git. Si falta el archivo privado, Actions y el desarrollo siguen compilando, pero la conexión muestra un diagnóstico de compilación sin configuración privada; no solicita API ID/hash. El artifact de Actions sirve para validar tests/build y no reemplaza la APK familiar compilada en tu PC con ese archivo. El APK familiar contiene los identificadores de aplicación y quien tenga el APK podría extraerlos: compartilo solo con familiares autorizados. No incluye la sesión Telegram de quien compila.
 
 La versión 0.5.2 acepta `puntuacion` numérica, texto decimal o texto con sufijo `/10`. Si falta o tiene un formato desconocido, omite solo esa puntuación y conserva el resto del catálogo. No cambia el formato publicado por MiFlix Admin.
 
@@ -39,7 +41,7 @@ La ficha muestra imagen, título, año/duración/calidad, géneros y, si existen
 
 Los campos opcionales nuevos por título son `puntuacion` (número entre 0 y 10), `director` (texto) y `reparto` (lista de textos). Para que aparezcan con datos reales, MiFlix Admin deberá publicarlos en cada item de `catalogo.json`; no se agregan valores de ejemplo a la aplicación ni se modifica Admin aquí. Los catálogos previos siguen funcionando aunque omitan esos campos.
 
-La configuración de Telegram todavía pide API ID/hash; cada teléfono mantiene su propia sesión. Antes de simplificar el acceso familiar hay que decidir cómo distribuir una credencial de aplicación dedicada sin publicarla en este repositorio. No se integran credenciales ni sesiones personales en el APK.
+Las credenciales de aplicación se incorporan únicamente durante la compilación privada mediante `telegram.local.properties`. Cada teléfono autoriza su propia cuenta; no se comparte la sesión de quien compila ni se solicitan credenciales técnicas en la interfaz.
 
 ## Reproductor móvil
 
@@ -77,8 +79,8 @@ Usamos el paquete comunitario io.github.tdlib-android:core:0.1.1, que distribuye
 1. Abrí el proyecto con Android Studio, JDK 17 y Android SDK 34. Ejecutá gradlew.bat testDebugUnitTest assembleDebug.
 2. Instalá app/build/outputs/apk/debug/app-debug.apk en Android 8 o superior. La instalación sobre una versión anterior conserva la URL del catálogo cuando está firmada con la misma clave de depuración.
 3. Comprobá que MiFlix sigue mostrando el catálogo. Su endpoint verificado es https://miflix-catalogo.deviadario.workers.dev/catalogo.json y la URL guardada en Configuración sigue vigente.
-4. En Telegram oficial, uní la cuenta al canal privado. En my.telegram.org creá las credenciales API ID y API hash para tu propia aplicación Telegram. **No compartas códigos de inicio de sesión ni contraseña con otras personas.**
-5. Abrí una ficha con enlace a un mensaje de video y tocá Reproducir en MiFlix. Configurá el API ID/hash en ese teléfono y seguí los pasos de autorización de Telegram. Verificá que empieza antes de descargar todo el archivo, pausa, seek cerca del final y regreso a la ficha. La caché parcial necesita conexión para los tramos aún no cargados.
+4. El administrador agrega externamente la cuenta al canal privado desde Telegram. Compilá la APK familiar con el archivo privado indicado arriba. **No compartas códigos de inicio de sesión ni contraseña con otras personas.**
+5. En una instalación limpia, MiFlix abre la conexión de Telegram con teléfono, código y 2FA cuando corresponda, carga el catálogo predeterminado y entra a Inicio al autorizarse. Abrí una ficha con enlace a un mensaje de video y tocá Reproducir en MiFlix. Verificá que empieza antes de descargar todo el archivo, pausa, seek cerca del final y regreso a la ficha. La caché parcial necesita conexión para los tramos aún no cargados.
 6. Si el enlace apunta a un texto o tema sin video, se explica el problema y podés abrir la publicación en Telegram para revisar el enlace exportado desde MiFlix Admin.
 
 ## Arquitectura
