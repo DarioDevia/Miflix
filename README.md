@@ -1,4 +1,4 @@
-# MiFlix Cliente Android 0.7.1
+# MiFlix Cliente Android 0.7.2
 
 Series y anime con publicaciones navegables muestran controles ⏮/⏭ para ir al episodio reproducible anterior o siguiente cuando aparecen los controles del video. La búsqueda sigue el orden del catálogo, cruza temporadas y omite episodios sin enlace válido y temporadas vacías. El destino usa el diálogo habitual **Continuar desde... / Empezar desde el principio** si tiene progreso. El salto antes del final conserva el progreso del episodio actual; un episodio terminado se marca completado. Se retiraron la cuenta regresiva y el inicio automático: los créditos no activan ningún salto. Las películas no muestran controles de episodios.
 
@@ -39,6 +39,8 @@ La configuración de Telegram todavía pide API ID/hash; cada teléfono mantiene
 
 ## Reproductor móvil
 
+Mientras el reproductor está abierto, incluso en pausa, mantiene encendida la pantalla con `View.keepScreenOn`. Al abandonarlo restaura el valor anterior para que Android vuelva a aplicar el tiempo de espera normal; en segundo plano prevalece el comportamiento normal del sistema.
+
 La rotación se maneja en `MainActivity` sin recrear la Activity ni el Player. Al activar pantalla completa se solicita orientación horizontal, se ocultan temporalmente las barras del sistema y se conserva el mismo `ExoPlayer`/`TelegramVideo`; Atrás sale primero de pantalla completa. Como respaldo para otras recreaciones de Activity, se conserva la posición y `playWhenReady` para reanudar la misma publicación. `player.release()` sigue ocurriendo antes de `video.clear()` al abandonar el reproductor.
 
 El reproductor presenta Play/Pausa, tiempo, duración, barra de progreso y botón de pantalla completa. Un toque simple muestra u oculta controles; doble toque en la mitad izquierda retrocede 10 segundos y en la derecha avanza 10 segundos. Tanto la barra como los gestos usan `ExoPlayer.seekTo`, sobre el DataSource por rangos ya validado. Las trazas `MiFlixPlayback` registran `ORIENTATION_CHANGE`, `FULLSCREEN_ENTER`/`FULLSCREEN_EXIT` y `SEEK` sin agregar registros por cada fotograma.
@@ -47,7 +49,7 @@ Prueba en teléfono: reproducir, doble toque derecho e izquierdo, mover la barra
 
 ## Compilación de diagnóstico
 
-La compilación `0.7.1-diagnostico` conserva las trazas con la etiqueta `MiFlixPlayback` en Logcat. Se conserva el ownership corregido en 0.4.2: `clear()` se ejecuta al liberar el Player. En Android Studio, seleccioná el proceso `ar.com.miflix.client`, filtrá `tag:MiFlixPlayback`, iniciá la reproducción de un video y conservá las líneas desde `NAV_PLAY` hasta `PLAYER_ERROR` o `PLAYER_STATE`. También podés ejecutar `adb logcat -c` y luego `adb logcat -v time -s MiFlixPlayback:D`. El registro incluye el enlace del mensaje y la ruta temporal del video; revisalo antes de compartirlo. Nunca compartas códigos de Telegram, API hash ni datos de inicio de sesión.
+La compilación `0.7.2-diagnostico` conserva las trazas con la etiqueta `MiFlixPlayback` en Logcat. Se conserva el ownership corregido en 0.4.2: `clear()` se ejecuta al liberar el Player. En Android Studio, seleccioná el proceso `ar.com.miflix.client`, filtrá `tag:MiFlixPlayback`, iniciá la reproducción de un video y conservá las líneas desde `NAV_PLAY` hasta `PLAYER_ERROR` o `PLAYER_STATE`. También podés ejecutar `adb logcat -c` y luego `adb logcat -v time -s MiFlixPlayback:D`. El registro incluye el enlace del mensaje y la ruta temporal del video; revisalo antes de compartirlo. Nunca compartas códigos de Telegram, API hash ni datos de inicio de sesión.
 
 Eventos clave: `RESOLVE_RESULT` indica el mensaje; `VIDEO_FILE`, el ID/tamaño; `RANGE_REQUEST` y `RANGE_RESULT`, el rango y el estado de TDLib; `RANGE_READ`, los bytes físicos leídos; `DS_OPEN`/`DS_READ`/`DS_EOF`, los bytes entregados a Media3; `PLAYER_TIMELINE`/`PLAYER_ERROR`, reconocimiento del video y fallo; `PLAYER_DISPOSE`/`PLAYER_RELEASED_CLEAR_VIDEO`/`CACHE_CLEAR`, el cierre en ese orden.
 

@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.foundation.text.KeyboardOptions
@@ -58,6 +59,12 @@ internal fun PlaybackScreen(
 ) {
     val tag = "MiFlixPlayback"
     val context = LocalContext.current
+    val view = LocalView.current
+    DisposableEffect(view) {
+        val previousKeepScreenOn = view.keepScreenOn
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = previousKeepScreenOn }
+    }
     val session = remember { TelegramSession.get(context) }
     val state by session.state.collectAsState()
     var video by remember(link) { mutableStateOf<TelegramVideo?>(null) }
