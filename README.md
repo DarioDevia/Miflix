@@ -2,7 +2,7 @@
 
 ## Progreso de reproducción
 
-MiFlix guarda en el dispositivo la posición, duración conocida y fecha de cada video. Películas usan `Title.id`; episodios usan título, temporada y `Episode.id`. Las publicaciones del índice de anime, cuyos IDs se generan por posición en la lista, usan una clave derivada de su enlace de mensaje para que reordenarlas no mezcle progresos. Las claves se resumen antes de guardarse en preferencias privadas.
+MiFlix guarda en el dispositivo la posición, duración conocida y fecha de cada video. Películas sin episodios usan `Title.id`; episodios usan título, temporada y `Episode.id`. Si el botón Reproducir de la ficha apunta a un episodio, comparte su progreso. Las publicaciones del índice de anime, cuyos IDs se generan por posición en la lista, usan una clave derivada de su enlace de mensaje para que reordenarlas no mezcle progresos. Las claves se resumen antes de guardarse en preferencias privadas.
 
 Se escribe como máximo cada 15 segundos de reproducción, al pasar a segundo plano y al salir del reproductor, siempre antes de liberar ExoPlayer. Menos de 30 segundos no generan una opción de continuar. Se borra el progreso cuando resta como máximo el menor valor entre cinco minutos y el 5 % de la duración, o al terminar el video. Al volver a tocar Reproducir, MiFlix ofrece Continuar desde la posición guardada o Empezar desde el principio; esta segunda opción borra la posición antigua. El progreso se excluye de copias de seguridad y transferencias de Android mediante reglas específicas.
 

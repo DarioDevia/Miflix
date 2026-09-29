@@ -14,7 +14,16 @@ internal fun formatProgressTime(positionMs: Long): String {
 }
 
 internal object ProgressKeys {
-    fun title(title: Title): String = "title:${title.id}"
+    fun title(title: Title): String {
+        val matchingEpisode = title.temporadas.orEmpty().asSequence()
+            .flatMap { season -> season.episodios.orEmpty().asSequence().map { season to it } }
+            .firstOrNull { (_, episode) ->
+                !title.telegramUrl.isNullOrBlank() && episode.telegramUrl == title.telegramUrl
+            }
+        return if (matchingEpisode != null)
+            episode(title, matchingEpisode.first, matchingEpisode.second)
+        else "title:${title.id}"
+    }
 
     fun episode(title: Title, season: Season, episode: Episode): String =
         if (episode.id.startsWith("${title.id}-publicacion-") && !episode.telegramUrl.isNullOrBlank()) {

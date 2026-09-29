@@ -77,6 +77,14 @@ class PlaybackProgressTest {
         assertEquals(first, moved)
     }
 
+    @Test fun directTitlePlaybackAndItsEpisodeShareTheSameProgress() {
+        val episode = Episode(id = "anime-publicacion-0", telegramUrl = "https://t.me/c/1/42")
+        val season = Season(numero = 0, episodios = listOf(episode))
+        val title = Title(id = "anime", telegramUrl = episode.telegramUrl,
+            temporadas = listOf(season))
+        assertEquals(ProgressKeys.episode(title, season, episode), ProgressKeys.title(title))
+    }
+
     @Test fun leavingBeforeThresholdRemovesOldProgress() {
         val store = PlaybackProgressStore(MemoryStorage())
         store.save("movie", 900_000L, 3_600_000L, 1L)
