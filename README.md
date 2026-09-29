@@ -1,4 +1,8 @@
-# MiFlix Cliente Android 0.7.2
+# MiFlix Cliente Android 0.8.0
+
+## Tráilers en la ficha
+
+MiFlix usa exclusivamente `trailer_url` del catálogo publicado por Admin. Acepta enlaces HTTPS de YouTube (`watch?v=`, `youtu.be`, `embed` y `shorts`); otros formatos conservan el backdrop. Si está habilitada la opción **Reproducir trailers automáticamente** (activada inicialmente en Configuración), espera aproximadamente dos segundos y prepara el reproductor IFrame oficial de YouTube en un WebView separado del Player de Telegram. Comienza silenciado; el control de sonido está debajo del video. La preferencia se guarda en el teléfono. Al terminar, fallar, perder visibilidad o salir de la ficha, libera el WebView y vuelve al backdrop. El autoplay puede ser bloqueado por YouTube, el navegador o la disponibilidad del video; la ficha sigue funcionando. No se repite el trailer dentro de la misma ficha. La ficha conserva el timeout normal de Android.
 
 Series y anime con publicaciones navegables muestran controles ⏮/⏭ para ir al episodio reproducible anterior o siguiente cuando aparecen los controles del video. La búsqueda sigue el orden del catálogo, cruza temporadas y omite episodios sin enlace válido y temporadas vacías. El destino usa el diálogo habitual **Continuar desde... / Empezar desde el principio** si tiene progreso. El salto antes del final conserva el progreso del episodio actual; un episodio terminado se marca completado. Se retiraron la cuenta regresiva y el inicio automático: los créditos no activan ningún salto. Las películas no muestran controles de episodios.
 
@@ -49,7 +53,7 @@ Prueba en teléfono: reproducir, doble toque derecho e izquierdo, mover la barra
 
 ## Compilación de diagnóstico
 
-La compilación `0.7.2-diagnostico` conserva las trazas con la etiqueta `MiFlixPlayback` en Logcat. Se conserva el ownership corregido en 0.4.2: `clear()` se ejecuta al liberar el Player. En Android Studio, seleccioná el proceso `ar.com.miflix.client`, filtrá `tag:MiFlixPlayback`, iniciá la reproducción de un video y conservá las líneas desde `NAV_PLAY` hasta `PLAYER_ERROR` o `PLAYER_STATE`. También podés ejecutar `adb logcat -c` y luego `adb logcat -v time -s MiFlixPlayback:D`. El registro incluye el enlace del mensaje y la ruta temporal del video; revisalo antes de compartirlo. Nunca compartas códigos de Telegram, API hash ni datos de inicio de sesión.
+La compilación `0.8.0-diagnostico` conserva las trazas con la etiqueta `MiFlixPlayback` en Logcat. Se conserva el ownership corregido en 0.4.2: `clear()` se ejecuta al liberar el Player. En Android Studio, seleccioná el proceso `ar.com.miflix.client`, filtrá `tag:MiFlixPlayback`, iniciá la reproducción de un video y conservá las líneas desde `NAV_PLAY` hasta `PLAYER_ERROR` o `PLAYER_STATE`. También podés ejecutar `adb logcat -c` y luego `adb logcat -v time -s MiFlixPlayback:D`. El registro incluye el enlace del mensaje y la ruta temporal del video; revisalo antes de compartirlo. Nunca compartas códigos de Telegram, API hash ni datos de inicio de sesión.
 
 Eventos clave: `RESOLVE_RESULT` indica el mensaje; `VIDEO_FILE`, el ID/tamaño; `RANGE_REQUEST` y `RANGE_RESULT`, el rango y el estado de TDLib; `RANGE_READ`, los bytes físicos leídos; `DS_OPEN`/`DS_READ`/`DS_EOF`, los bytes entregados a Media3; `PLAYER_TIMELINE`/`PLAYER_ERROR`, reconocimiento del video y fallo; `PLAYER_DISPOSE`/`PLAYER_RELEASED_CLEAR_VIDEO`/`CACHE_CLEAR`, el cierre en ese orden.
 

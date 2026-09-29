@@ -182,6 +182,9 @@ private fun ClientApp(
     val refreshPreferences = remember(context) {
         context.getSharedPreferences("miflix_client", Context.MODE_PRIVATE)
     }
+    var autoplayTrailers by remember {
+        mutableStateOf(refreshPreferences.getBoolean("autoplay_trailers", true))
+    }
     var lastSuccessfulUpdate by remember {
         mutableLongStateOf(refreshPreferences.getLong("catalog_last_success", 0L))
     }
@@ -452,6 +455,7 @@ private fun ClientApp(
                 Screen.DETAIL -> if (selected != null) Detail(
                     title = selected,
                     modifier = Modifier.padding(padding),
+                    autoplayTrailers = autoplayTrailers && pendingResume == null && pendingNavigation == null,
                     onPlay = ::requestPlayback
                 )
                 // Cada episodio posee su Player/TelegramVideo; Dispose libera el anterior
@@ -481,6 +485,11 @@ private fun ClientApp(
                     modifier = Modifier.padding(padding),
                     url = editUrl,
                     invite = editInvite,
+                    autoplayTrailers = autoplayTrailers,
+                    onAutoplayTrailersChange = {
+                        autoplayTrailers = it
+                        refreshPreferences.edit().putBoolean("autoplay_trailers", it).apply()
+                    },
                     source = source,
                     problem = problem,
                     busy = busy,
@@ -765,6 +774,7 @@ private fun EmptyState(
 private fun SettingsScreen(
     modifier: Modifier, url: String, invite: String, source: String,
     problem: String?, busy: Boolean, count: Int,
+    autoplayTrailers: Boolean, onAutoplayTrailersChange: (Boolean) -> Unit,
     lastSuccessfulUpdate: Long,
     telegramState: TelegramSession.State,
     onUrlChange: (String) -> Unit, onInviteChange: (String) -> Unit,
@@ -798,6 +808,14 @@ private fun SettingsScreen(
             }
         }
         if (problem != null) item { Text(problem, color = MaterialTheme.colorScheme.error) }
+        item { SectionHeading("Reproducción") }
+        item {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Reproducir trailers automáticamente", Modifier.weight(1f),
+                    color = MiFlixStyle.primaryText)
+                Switch(checked = autoplayTrailers, onCheckedChange = onAutoplayTrailersChange)
+            }
+        }
         item { SectionHeading("Canal de Telegram") }
         item { Text("Cada persona abre la invitación y se une con su propia cuenta de Telegram.",
             color = MiFlixStyle.secondaryText) }
@@ -841,22 +859,52 @@ private fun SectionHeading(text: String) {
 }
 
 @Composable
-private fun Detail(title: Title, modifier: Modifier = Modifier,
+private fun DetailBackdrop(title: Title) {
+    Box(Modifier.fillMaxWidth().height(310.dp).background(MiFlixStyle.surface)) {
+        if (!title.backdropUrl.isNullOrBlank()) AsyncImage(title.backdropUrl, null,
+            contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        else if (!title.posterUrl.isNullOrBlank()) AsyncImage(title.posterUrl, null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.align(Alignment.Center).fillMaxHeight())
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(
+            listOf(Color.Transparent, MiFlixStyle.background))))
+    }
+}
+
+@Composable
+private fun Detail(title: Title, modifier: Modifier = Modifier, autoplayTrailers: Boolean,
     onPlay: (String, String, String, EpisodeNavigationTarget?, EpisodeNavigationTarget?) -> Unit) {
     val seasons = title.temporadas.orEmpty()
     var selectedSeason by remember(title.id) { mutableIntStateOf(0) }
-    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp),
+    val trailer = remember(title.trailerUrl, autoplayTrailers) {
+        TrailerLink.autoplayTarget(title.trailerUrl, autoplayTrailers)
+    }
+    var delayed by remember(title.id) { mutableStateOf(false) }
+    var trailerFinished by remember(title.id) { mutableStateOf(false) }
+    val detailScroll = rememberLazyListState()
+    val heroVisible by remember(detailScroll) { derivedStateOf {
+        val layout = detailScroll.layoutInfo
+        val hero = layout.visibleItemsInfo.firstOrNull { it.index == 0 }
+        hero != null && hero.size > 0 &&
+            (minOf(hero.offset + hero.size, layout.viewportEndOffset) -
+                maxOf(hero.offset, layout.viewportStartOffset)) * 2 > hero.size
+    } }
+    LaunchedEffect(title.id, trailer) {
+        delayed = false
+        if (trailer != null) {
+            android.util.Log.d("MiFlixTrailer", "TRAILER_DELAY_START id=${trailer.videoId}")
+            kotlinx.coroutines.delay(2_000)
+            delayed = true
+        }
+    }
+    LazyColumn(modifier.fillMaxSize(), state = detailScroll,
+        contentPadding = PaddingValues(bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item {
-            Box(Modifier.fillMaxWidth().height(310.dp).background(MiFlixStyle.surface)) {
-                if (!title.backdropUrl.isNullOrBlank()) AsyncImage(title.backdropUrl, null,
-                    contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                else if (!title.posterUrl.isNullOrBlank()) AsyncImage(title.posterUrl, null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.align(Alignment.Center).fillMaxHeight())
-                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(
-                    listOf(Color.Transparent, MiFlixStyle.background))))
-            }
+            if (delayed && heroVisible && !trailerFinished && trailer != null) {
+                TrailerPreview(trailer, backdrop = { DetailBackdrop(title) },
+                    onFinished = { trailerFinished = true })
+            } else DetailBackdrop(title)
         }
         item {
             Column(Modifier.padding(horizontal = 20.dp),
