@@ -96,4 +96,46 @@ class CatalogTest {
             }
         }
     }
+
+    @Test fun adminNineteenSeriesMapsSeasonsEpisodesAndCredits() {
+        val json = """{"schema_version":1,"items":[{"id":"serie-imdb-tt6656238","tipo":"serie","titulo":"The Rain","anio":"2018","protagonistas":"Alba August, Lucas Lynggaard Tønnesen","direccion":"Directora","trailer_url":"https://example.test/trailer","puntuacion":"7.2/10","telegram_url":"https://t.me/c/1/99","temporadas":[{"numero":1,"nombre":"Temporada 1","cantidad_episodios":null,"fecha_emision":"2018-05-04","poster_url":"https://example.test/season.jpg","episodios":[{"tmdb_id":1458520,"numero":1,"temporada":1,"titulo":"No salgan","sinopsis":"Un virus mortal","duracion":46,"fecha_emision":"2018-05-04","imagen_url":"https://example.test/episode.jpg","telegram_url":"https://t.me/c/1/100"},{"tmdb_id":1482178,"numero":2,"titulo":"Quédense juntos","telegram_url":"https://t.me/c/1/101"}]},{"numero":2,"nombre":"Temporada 2","cantidad_episodios":6,"episodios":[]}]}]}"""
+        val title = CatalogRepository.parseCatalog(json).items.single()
+        assertEquals(2018, title.year)
+        assertEquals(7.2, title.puntuacion!!, 0.0)
+        assertEquals(listOf("Alba August", "Lucas Lynggaard Tønnesen"), title.reparto)
+        assertEquals("Directora", title.director)
+        assertEquals("https://example.test/trailer", title.trailerUrl)
+        assertEquals("Temporada 1", title.temporadas[0].nombre)
+        assertEquals("2018-05-04", title.temporadas[0].fechaEmision)
+        assertEquals("https://example.test/season.jpg", title.temporadas[0].posterUrl)
+        val episode = title.temporadas[0].episodios[0]
+        assertEquals(null, episode.id)
+        assertEquals(1458520L, episode.tmdbId)
+        assertEquals(1, episode.temporada)
+        assertEquals("No salgan", episode.titulo)
+        assertEquals("Un virus mortal", episode.sinopsis)
+        assertEquals(46, episode.duracion)
+        assertEquals("2018-05-04", episode.fechaEmision)
+        assertEquals("https://example.test/episode.jpg", episode.imagenUrl)
+        assertEquals("https://t.me/c/1/100", episode.telegramUrl)
+        assertEquals("https://t.me/c/1/99", title.telegramUrl)
+        assertEquals(2, title.temporadas.size)
+        assertEquals(6, title.temporadas[1].cantidadEpisodios)
+        assertEquals(emptyList<Episode>(), title.temporadas[1].episodios)
+    }
+
+    @Test fun missingOrMalformedOptionalAdminMetadataDoesNotInvalidateCatalog() {
+        val json = """{"schema_version":1,"items":[{"id":"series","tipo":"serie","titulo":"Serie","anio":"desconocido","protagonistas":null,"temporadas":[{"numero":1,"titulo":"Antigua","episodios":[{"id":"old","numero":1,"telegram_url":"https://t.me/c/1/2"},{"numero":2,"tmdb_id":"?","duracion":"?","imagen_url":null,"sinopsis":null,"fecha_emision":null,"telegram_url":"https://t.me/c/1/3"}]}]},{"id":"movie","tipo":"pelicula","titulo":"Película","year":2020,"director":"Director","reparto":["Actor"],"telegram_url":"https://t.me/c/1/4"}]}"""
+        val titles = CatalogRepository.parseCatalog(json).items
+        assertEquals(null, titles[0].year)
+        assertEquals("Antigua", titles[0].temporadas[0].titulo)
+        assertEquals("old", titles[0].temporadas[0].episodios[0].id)
+        val optional = titles[0].temporadas[0].episodios[1]
+        assertEquals(null, optional.tmdbId)
+        assertEquals(null, optional.duracion)
+        assertEquals(null, optional.imagenUrl)
+        assertEquals(2020, titles[1].year)
+        assertEquals("Director", titles[1].director)
+        assertEquals(listOf("Actor"), titles[1].reparto)
+    }
 }

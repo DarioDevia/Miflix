@@ -77,6 +77,36 @@ class PlaybackProgressTest {
         assertEquals(first, moved)
     }
 
+    @Test fun adminEpisodeTmdbIdsSaveIndependentProgressAndTakePrecedenceOverLegacyId() {
+        val storage = MemoryStorage()
+        val store = PlaybackProgressStore(storage)
+        val title = Title(id = "serie-imdb-tt6656238")
+        val season = Season(numero = 1)
+        val first = ProgressKeys.episode(title, season, Episode(tmdbId = 1458520))
+        val second = ProgressKeys.episode(title, season, Episode(tmdbId = 1482178))
+        assertNotEquals(first, second)
+        assertEquals(first, ProgressKeys.episode(title, season,
+            Episode(id = "legacy", tmdbId = 1458520)))
+        store.save(first, 60_000L, 3_000_000L, 1L)
+        store.save(second, 90_000L, 3_000_000L, 2L)
+        assertEquals(60_000L, store.resumablePosition(first))
+        assertEquals(90_000L, store.resumablePosition(second))
+    }
+
+    @Test fun legacyIdsAndMissingIdsKeepSeparateFallbacks() {
+        val title = Title(id = "series")
+        val season = Season(numero = 1)
+        assertEquals("episode:series:1:e1",
+            ProgressKeys.episode(title, season, Episode(id = "e1")))
+        val first = ProgressKeys.episode(title, season,
+            Episode(numero = 1, telegramUrl = "https://t.me/c/1/1"))
+        val second = ProgressKeys.episode(title, season,
+            Episode(numero = 2, telegramUrl = "https://t.me/c/1/2"))
+        assertNotEquals(first, second)
+        assertEquals(first, ProgressKeys.episode(title, season,
+            Episode(numero = 1, telegramUrl = "https://t.me/c/1/1")))
+    }
+
     @Test fun directTitlePlaybackAndItsEpisodeShareTheSameProgress() {
         val episode = Episode(id = "anime-publicacion-0", telegramUrl = "https://t.me/c/1/42")
         val season = Season(numero = 0, episodios = listOf(episode))

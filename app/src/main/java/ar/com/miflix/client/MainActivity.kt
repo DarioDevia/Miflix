@@ -870,14 +870,20 @@ private fun Detail(title: Title, modifier: Modifier = Modifier,
                             val season = seasons[index]
                             FilterChip(selected = index == selectedSeason,
                                 onClick = { selectedSeason = index },
-                                label = { Text(season.titulo ?: "Temporada " + season.numero) })
+                                label = { Text(season.nombre?.takeIf(String::isNotBlank)
+                                    ?: season.titulo?.takeIf(String::isNotBlank)
+                                    ?: "Temporada " + season.numero) })
                         }
-                    } else Text(seasons.first().titulo ?: "Temporada " + seasons.first().numero,
+                    } else Text(seasons.first().nombre?.takeIf(String::isNotBlank)
+                        ?: seasons.first().titulo?.takeIf(String::isNotBlank)
+                        ?: "Temporada " + seasons.first().numero,
                         color = MiFlixStyle.secondaryText)
                 }
             }
             val episodes = seasons.getOrNull(selectedSeason)?.episodios.orEmpty()
-            items(episodes, key = { it.id }) { episode ->
+            // Algunos catálogos de Admin no incluyen Episode.id; el índice evita claves duplicadas.
+            items(episodes.size) { index ->
+                val episode = episodes[index]
                 EpisodeCard(episode, onClick = {
                     episode.telegramUrl?.let { link ->
                         seasons.getOrNull(selectedSeason)?.let { season ->
@@ -907,13 +913,24 @@ private fun EpisodeCard(episode: Episode, onClick: () -> Unit) {
             .then(if (playable) Modifier.clickable(onClick = onClick) else Modifier)) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(episode.numero.toString(), color = MiFlixStyle.secondaryText,
-                fontWeight = FontWeight.Bold)
+            if (!episode.imagenUrl.isNullOrBlank()) {
+                AsyncImage(episode.imagenUrl, contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.width(88.dp).height(52.dp).clip(RoundedCornerShape(6.dp)))
+            }
             Column(Modifier.weight(1f)) {
-                Text(episode.titulo?.takeIf { it.isNotBlank() } ?: "Episodio " + episode.numero,
+                Text("E${episode.numero.toString().padStart(2, '0')} · " +
+                    (episode.titulo?.takeIf { it.isNotBlank() } ?: "Episodio " + episode.numero),
                     color = MiFlixStyle.primaryText, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(if (playable) "Reproducir en MiFlix" else "Sin enlace disponible",
+                val duration = episode.duracion?.takeIf { it > 0 }?.let { "$it min" }
+                Text(listOfNotNull(duration,
+                    if (playable) "Reproducir en MiFlix" else "Sin enlace disponible")
+                    .joinToString(" · "),
                     color = MiFlixStyle.secondaryText, fontSize = 12.sp)
+                episode.sinopsis?.takeIf(String::isNotBlank)?.let {
+                    Text(it, color = MiFlixStyle.secondaryText, fontSize = 12.sp,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
             }
             if (playable) Icon(Icons.Default.PlayArrow,
                 contentDescription = "Reproducir episodio", tint = MiFlixStyle.primaryText)

@@ -26,9 +26,16 @@ internal object ProgressKeys {
     }
 
     fun episode(title: Title, season: Season, episode: Episode): String =
-        if (episode.id.startsWith("${title.id}-publicacion-") && !episode.telegramUrl.isNullOrBlank()) {
+        if (episode.id?.startsWith("${title.id}-publicacion-") == true && !episode.telegramUrl.isNullOrBlank()) {
             "publication:${title.id}:${digest(episode.telegramUrl)}"
-        } else "episode:${title.id}:${season.numero}:${episode.id}"
+        } else if (episode.tmdbId != null && episode.tmdbId > 0L) {
+            "episode:${title.id}:${season.numero}:tmdb:${episode.tmdbId}"
+        } else if (!episode.id.isNullOrBlank()) {
+            // Conserva las claves persistidas por las versiones anteriores.
+            "episode:${title.id}:${season.numero}:${episode.id}"
+        } else if (!episode.telegramUrl.isNullOrBlank()) {
+            "episode:${title.id}:${season.numero}:link:${digest(episode.telegramUrl)}"
+        } else "episode:${title.id}:${season.numero}:number:${episode.numero}:${episode.titulo.orEmpty()}"
 
     private fun digest(value: String): String = MessageDigest.getInstance("SHA-256")
         .digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 0xff) }

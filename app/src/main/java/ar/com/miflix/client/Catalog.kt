@@ -30,15 +30,31 @@ data class Title(
     val puntuacion: Double? = null,
     val director: String? = null,
     val reparto: List<String> = emptyList(),
+    @SerializedName("trailer_url") val trailerUrl: String? = null,
     @SerializedName("poster_url") val posterUrl: String? = null,
     @SerializedName("backdrop_url") val backdropUrl: String? = null,
     @SerializedName("telegram_url") val telegramUrl: String? = null,
     val temporadas: List<Season> = emptyList()
 )
 
-data class Season(val numero: Int = 0, val titulo: String? = null, val episodios: List<Episode> = emptyList())
+data class Season(
+    val numero: Int = 0,
+    val titulo: String? = null,
+    val nombre: String? = null,
+    @SerializedName("cantidad_episodios") val cantidadEpisodios: Int? = null,
+    @SerializedName("fecha_emision") val fechaEmision: String? = null,
+    val sinopsis: String? = null,
+    @SerializedName("poster_url") val posterUrl: String? = null,
+    val episodios: List<Episode> = emptyList()
+)
 data class Episode(
-    val id: String = "", val numero: Int = 0, val titulo: String? = null,
+    val id: String? = null, val numero: Int = 0, val titulo: String? = null,
+    @SerializedName("tmdb_id") val tmdbId: Long? = null,
+    val temporada: Int? = null,
+    val sinopsis: String? = null,
+    val duracion: Int? = null,
+    @SerializedName("fecha_emision") val fechaEmision: String? = null,
+    @SerializedName("imagen_url") val imagenUrl: String? = null,
     @SerializedName("telegram_url") val telegramUrl: String? = null
 )
 data class CatalogLoad(val catalog: Catalog, val source: String, val error: String? = null)
@@ -94,6 +110,63 @@ class CatalogRepository(private val context: Context) {
             return number.toDoubleOrNull()?.takeIf { it.isFinite() && it in 0.0..10.0 }
         }
 
+        private fun optionalText(item: JsonObject, field: String): String? =
+            item.get(field)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+                ?.asString?.trim()?.takeIf(String::isNotBlank)
+
+        private fun optionalInt(item: JsonObject, field: String): Int? =
+            item.get(field)?.takeIf { it.isJsonPrimitive }
+                ?.asString?.trim()?.toIntOrNull()
+
+        private fun normalizeOptionalInt(item: JsonObject, field: String) {
+            val value = optionalInt(item, field)
+            if (value == null) item.remove(field) else item.addProperty(field, value)
+        }
+
+        private fun normalizeOptionalLong(item: JsonObject, field: String) {
+            val value = item.get(field)?.takeIf { it.isJsonPrimitive }
+                ?.asString?.trim()?.toLongOrNull()
+            if (value == null) item.remove(field) else item.addProperty(field, value)
+        }
+
+        private fun normalizeAdminFields(item: JsonObject) {
+            val year = optionalInt(item, "year") ?: optionalInt(item, "anio")
+            if (year == null) item.remove("year") else item.addProperty("year", year)
+            if (optionalText(item, "director") == null) {
+                val director = optionalText(item, "direccion")
+                if (director == null) item.remove("director") else item.addProperty("director", director)
+            }
+            if (item.get("reparto")?.isJsonArray != true) {
+                val cast = optionalText(item, "protagonistas")?.split(',')
+                    ?.map(String::trim)?.filter(String::isNotBlank).orEmpty()
+                item.add("reparto", Gson().toJsonTree(cast))
+            }
+            for (field in listOf("trailer_url")) {
+                if (item.get(field)?.let { !it.isJsonNull && !it.isJsonPrimitive } == true)
+                    item.remove(field)
+            }
+            item.get("temporadas")?.takeIf { it.isJsonArray }?.asJsonArray?.forEach { seasonEntry ->
+                if (!seasonEntry.isJsonObject) return@forEach
+                val season = seasonEntry.asJsonObject
+                normalizeOptionalInt(season, "cantidad_episodios")
+                for (field in listOf("nombre", "fecha_emision", "sinopsis", "poster_url")) {
+                    if (season.get(field)?.let { !it.isJsonNull && !it.isJsonPrimitive } == true)
+                        season.remove(field)
+                }
+                season.get("episodios")?.takeIf { it.isJsonArray }?.asJsonArray?.forEach { episodeEntry ->
+                    if (!episodeEntry.isJsonObject) return@forEach
+                    val episode = episodeEntry.asJsonObject
+                    normalizeOptionalLong(episode, "tmdb_id")
+                    for (field in listOf("temporada", "duracion"))
+                        normalizeOptionalInt(episode, field)
+                    for (field in listOf("id", "titulo", "sinopsis", "fecha_emision", "imagen_url", "telegram_url")) {
+                        if (episode.get(field)?.let { !it.isJsonNull && !it.isJsonPrimitive } == true)
+                            episode.remove(field)
+                    }
+                }
+            }
+        }
+
         fun parseCatalog(raw: String): Catalog {
             val root = JsonParser.parseString(raw).asJsonObject
             val version = root.get("schema_version")?.asString ?: error("Falta schema_version.")
@@ -112,6 +185,7 @@ class CatalogRepository(private val context: Context) {
                 val rating = parseRating(item)
                 if (rating == null) item.remove("puntuacion")
                 else item.addProperty("puntuacion", rating)
+                if (version != "2") normalizeAdminFields(item)
             }
             if (version != "2") return Gson().fromJson(root, Catalog::class.java)
 
