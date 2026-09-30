@@ -67,6 +67,9 @@ internal interface ProgressStorage {
 }
 
 internal class PlaybackProgressStore(private val storage: ProgressStorage) {
+    fun resumableProgress(key: String): SavedProgress? = storage.read(key)
+        ?.takeIf { ProgressRules.resumable(it) != null }
+
     fun resumablePosition(key: String): Long? {
         val saved = storage.read(key)
         val position = ProgressRules.resumable(saved)

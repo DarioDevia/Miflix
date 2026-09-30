@@ -186,6 +186,7 @@ private fun ClientApp(
     val progressStore = remember(context) {
         PlaybackProgressStore(SharedPreferencesProgressStorage(context))
     }
+    var continuing by remember { mutableStateOf(emptyList<ContinueWatchingItem>()) }
     val refreshPreferences = remember(context) {
         context.getSharedPreferences("miflix_client", Context.MODE_PRIVATE)
     }
@@ -240,10 +241,15 @@ private fun ClientApp(
     LaunchedEffect(screen, cacheLoaded, url) {
         if (cacheLoaded && screen == Screen.HOME) refreshIfDue()
     }
-    DisposableEffect(owner, url, screen, cacheLoaded) {
+    LaunchedEffect(screen, catalog) {
+        if (screen == Screen.HOME) continuing = continueWatching(titles, progressStore)
+    }
+    DisposableEffect(owner, url, screen, cacheLoaded, catalog) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && cacheLoaded && screen == Screen.HOME)
+            if (event == Lifecycle.Event.ON_RESUME && cacheLoaded && screen == Screen.HOME) {
                 refreshIfDue()
+                continuing = continueWatching(catalog.items.orEmpty(), progressStore)
+            }
         }
         owner.lifecycle.addObserver(observer)
         onDispose { owner.lifecycle.removeObserver(observer) }
@@ -450,6 +456,19 @@ private fun ClientApp(
                     telegramConnected = telegramState is TelegramSession.State.Ready,
                     onConnect = { screen = Screen.CONNECT },
                     onSelect = ::openDetail,
+                    continuing = continuing,
+                    onContinue = { item ->
+                        openDetail(item.title)
+                        val season = item.seasonIndex
+                        val episode = item.episodeIndex
+                        val link = item.episode?.telegramUrl
+                        if (season != null && episode != null && link != null && validTelegramLink(link)) {
+                            requestPlayback(item.key, link,
+                                item.episode?.titulo?.takeIf { it.isNotBlank() } ?: "Episodio ${item.episode?.numero}",
+                                findPreviousPlayableEpisode(item.title, season, episode, ::validTelegramLink),
+                                findNextPlayableEpisode(item.title, season, episode, ::validTelegramLink))
+                        }
+                    },
                     onBrowse = { category = it; screen = Screen.SECTIONS }
                 )
                 Screen.SEARCH -> SearchScreen(
@@ -564,6 +583,8 @@ private fun HomeScreen(
     telegramConnected: Boolean,
     onConnect: () -> Unit,
     onSelect: (Title) -> Unit,
+    continuing: List<ContinueWatchingItem>,
+    onContinue: (ContinueWatchingItem) -> Unit,
     onBrowse: (String) -> Unit
 ) {
     val featured = titles.firstOrNull { !it.backdropUrl.isNullOrBlank() }
@@ -614,6 +635,24 @@ private fun HomeScreen(
             }
         } else {
             if (featured != null) item { Hero(featured, onClick = { onSelect(featured) }) }
+            if (continuing.isNotEmpty()) item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Continuar viendo", Modifier.padding(horizontal = 16.dp),
+                        fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(continuing, key = { it.key }) { item ->
+                            Column(Modifier.width(126.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                MovieCard(item.title, onClick = { onContinue(item) })
+                                item.label?.let { Text(it, fontSize = 12.sp, maxLines = 2,
+                                    color = MiFlixStyle.secondaryText, overflow = TextOverflow.Ellipsis) }
+                                item.fraction?.let { LinearProgressIndicator(progress = it,
+                                    modifier = Modifier.fillMaxWidth()) }
+                            }
+                        }
+                    }
+                }
+            }
             item {
                 Text("Explorá tu videoteca", Modifier.padding(horizontal = 16.dp),
                     fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MiFlixStyle.primaryText)

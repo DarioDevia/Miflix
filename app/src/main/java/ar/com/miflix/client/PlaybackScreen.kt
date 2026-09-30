@@ -76,6 +76,20 @@ internal fun PlaybackScreen(
     var resumePosition by rememberSaveable(link) { mutableStateOf(startPosition) }
     var resumePlay by rememberSaveable(link) { mutableStateOf(true) }
     var lastProgressWrite by remember(progressKey) { mutableLongStateOf(0L) }
+    val owner = LocalLifecycleOwner.current
+    var foreground by remember(owner) {
+        mutableStateOf(owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+    }
+    DisposableEffect(owner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP || event == Lifecycle.Event.ON_START) {
+                foreground = event == Lifecycle.Event.ON_START
+                Log.d("MiFlixLifecycle", "SCREEN_LIFECYCLE event=$event telegramReady=${session.state.value is TelegramSession.State.Ready}")
+            }
+        }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
 
     fun saveProgress(position: Long, duration: Long, immediate: Boolean) {
         val elapsed = SystemClock.elapsedRealtime()
@@ -85,18 +99,25 @@ internal fun PlaybackScreen(
         }
     }
 
-    LaunchedEffect(link, state is TelegramSession.State.Ready, attempt) {
+    LaunchedEffect(link, state is TelegramSession.State.Ready, attempt, foreground) {
         Log.d(tag, "SCREEN_EFFECT_START link=$link state=$state attempt=$attempt videoId=${video?.fileId}")
-        if (state is TelegramSession.State.Ready && video == null) {
+        if (foreground && state is TelegramSession.State.Ready && video == null) {
             downloading = true
             failure = null
             try {
-                video = session.obtainVideo(link)
+                // The old owner must have finished release → clear before resolving again.
+                withFrameNanos { }
+                if (!owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return@LaunchedEffect
+                Log.d("MiFlixLifecycle", "RESOLVE_PLAYBACK position=$resumePosition playWhenReady=$resumePlay")
+                val resolved = session.obtainVideo(link)
+                if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) video = resolved
+                else resolved.clear() // No Player has ever owned this result.
                 Log.d(tag, "SCREEN_VIDEO_READY fileId=${video?.fileId} size=${video?.size}")
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
                 Log.e(tag, "SCREEN_RESOLVE_ERROR", error)
+                if (!owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return@LaunchedEffect
                 val issue = classifyPlaybackIssue(error)
                 failure = issue
                 onPlaybackFailure(issue)
@@ -107,9 +128,11 @@ internal fun PlaybackScreen(
     }
 
     when {
+        !foreground -> Box(Modifier.fillMaxSize())
         video != null -> VideoPlayer(video!!, title, fullscreen, onFullscreenToggle,
             resumePosition, resumePlay, previousEpisode, nextEpisode, onNavigateEpisode,
             onPlaybackFailure = onPlaybackFailure,
+            onStopped = { video = null },
             onCheckpoint = { position, play ->
                 resumePosition = position
                 resumePlay = play
@@ -263,6 +286,7 @@ private fun VideoPlayer(
     nextEpisode: EpisodeNavigationTarget?,
     onNavigateEpisode: (EpisodeNavigationTarget) -> Unit,
     onPlaybackFailure: (PlaybackIssue) -> Unit,
+    onStopped: () -> Unit,
     onCheckpoint: (Long, Boolean) -> Unit,
     onProgress: (Long, Long) -> Unit,
     onBackground: (Long, Long) -> Unit,
@@ -273,6 +297,7 @@ private fun VideoPlayer(
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     val player = remember(video) {
+        Log.d("MiFlixLifecycle", "PLAYER_CREATE fileId=${video.fileId} position=$resumePosition playWhenReady=$resumePlay")
         Log.d(tag, "PLAYER_CREATE fileId=${video.fileId} size=${video.size} " +
             "resumePosition=$resumePosition playWhenReady=$resumePlay")
         ExoPlayer.Builder(context).build().apply {
@@ -285,6 +310,7 @@ private fun VideoPlayer(
             Log.d(tag, "PLAYER_PREPARE state=$playbackState duration=$duration")
         }
     }
+    var released by remember(player) { mutableStateOf(false) }
     var error by remember(video) { mutableStateOf<String?>(null) }
     var buffering by remember(video) { mutableStateOf(true) }
     var playing by remember(video) { mutableStateOf(player.isPlaying) }
@@ -302,6 +328,7 @@ private fun VideoPlayer(
     val completed by rememberUpdatedState(onCompleted)
     val navigateEpisode by rememberUpdatedState(onNavigateEpisode)
     val playbackFailure by rememberUpdatedState(onPlaybackFailure)
+    val stopped by rememberUpdatedState(onStopped)
 
     fun switchEpisode(target: EpisodeNavigationTarget?) {
         if (target == null || episodeNavigating ||
@@ -323,7 +350,7 @@ private fun VideoPlayer(
     }
 
     LaunchedEffect(player) {
-        while (true) {
+        while (!released) {
             currentPosition = player.currentPosition
             duration = player.duration
             checkpoint(currentPosition, player.playWhenReady)
@@ -362,18 +389,35 @@ private fun VideoPlayer(
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                checkpoint(player.currentPosition, playWhenReady)
+                if (!released) checkpoint(player.currentPosition, playWhenReady)
             }
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
                 Log.d(tag, "PLAYER_TIMELINE reason=$reason windows=${timeline.windowCount} " +
                     "duration=${player.duration} seekable=${player.isCurrentMediaItemSeekable}")
             }
         }
+        fun releasePlayer(backgrounded: Boolean) {
+            if (released) return
+            released = true
+            val position = player.currentPosition
+            val durationMs = player.duration
+            // Capture user intent before release; background is not a user pause.
+            checkpoint(position, player.playWhenReady)
+            if (player.playbackState == Player.STATE_ENDED) completed()
+            else if (backgrounded) background(position, durationMs)
+            else exitProgress(position, durationMs)
+            Log.d("MiFlixLifecycle", "PLAYER_RELEASE reason=${if (backgrounded) "ON_STOP" else "DISPOSE"} position=$position playWhenReady=${player.playWhenReady}")
+            player.removeListener(listener)
+            player.release()
+            Log.d(tag, "PLAYER_RELEASED_CLEAR_VIDEO fileId=${video.fileId}")
+            video.clear()
+            Log.d("MiFlixLifecycle", "PLAYER_RELEASED_CLEAR_VIDEO fileId=${video.fileId}")
+        }
         val observer = LifecycleEventObserver { _, event ->
             Log.d(tag, "PLAYER_LIFECYCLE event=$event state=${player.playbackState}")
-            if (event == Lifecycle.Event.ON_STOP) {
-                background(player.currentPosition, player.duration)
-                player.pause()
+            if (event == Lifecycle.Event.ON_STOP && !released) {
+                releasePlayer(backgrounded = true)
+                stopped()
             }
         }
         player.addListener(listener)
@@ -382,22 +426,15 @@ private fun VideoPlayer(
         onDispose {
             Log.w(tag, "PLAYER_DISPOSE state=${player.playbackState} duration=${player.duration}",
                 Throwable("Dispose caller stack"))
-            checkpoint(player.currentPosition, player.playWhenReady)
-            if (player.playbackState == Player.STATE_ENDED) completed()
-            else exitProgress(player.currentPosition, player.duration)
             owner.lifecycle.removeObserver(observer)
-            player.removeListener(listener)
-            player.release()
-            Log.d(tag, "PLAYER_RELEASED_CLEAR_VIDEO fileId=${video.fileId} " +
-                "videoIdentity=${System.identityHashCode(video)}")
-            video.clear()
+            releasePlayer(backgrounded = false)
         }
     }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
         Box(if (fullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
             AndroidView(
                 factory = { PlayerView(it).apply { useController = false; this.player = player } },
-                update = { it.player = player },
+                update = { it.player = if (released) null else player },
                 modifier = Modifier.fillMaxSize()
             )
             Box(Modifier.matchParentSize().pointerInput(player) {

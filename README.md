@@ -1,4 +1,14 @@
-# MiFlix Cliente Android 0.8.0
+# MiFlix Cliente Android 0.9.0
+
+## 0.9.0 diagnóstico: continuación local y retorno de suspensión
+
+Inicio muestra **Continuar viendo** cuando existen progresos válidos del catálogo actual, del más reciente al más antiguo. Usa las mismas preferencias y claves de PlaybackProgress/ProgressKeys; no crea un historial ni sincroniza dispositivos. Las películas abren su ficha; los episodios muestran temporada/episodio y ofrecen el diálogo habitual para retomar ese episodio, conservando anterior/siguiente. El póster tiene barra de progreso si la duración es conocida. Se excluyen progresos menores a 30 segundos, completados según el umbral existente y contenidos que ya no aparecen en el catálogo. Una publicación de anime mantiene su identidad aunque cambie el orden del catálogo.
+
+La auditoría encontró que ON_STOP solo pausaba ExoPlayer y conservaba Player, DataSource y TelegramVideo sin recuperación en ON_START. Los checkpoints posteriores también podían sustituir la intención previa de reproducción por la pausa de background. Sin Logcat del incidente no se puede atribuir la suspensión real a un recurso específico ni afirmar pérdida de sesión. Ahora ON_STOP guarda inmediatamente posición e intención, libera primero ExoPlayer y después TelegramVideo y no deja reproducción en background. Al volver a STARTED, resuelve de nuevo el mismo enlace con la sesión existente y prepara recursos nuevos en la posición conservada. Una pausa del usuario permanece pausada. El cierre es idempotente: Dispose no vuelve a limpiar recursos ya liberados por ON_STOP. No se modifican TDLib, DataSource, rangos ni trailers; tampoco se agregan permisos, WakeLocks, servicios o polling de background. Rotación/fullscreen siguen usando la configuración existente de Activity.
+
+Logcat: filtrar **MiFlixLifecycle** y **MiFlixPlayback**. Se esperan SCREEN_LIFECYCLE ON_STOP, PLAYER_RELEASE, PLAYER_RELEASED_CLEAR_VIDEO; al volver, ON_START, RESOLVE_PLAYBACK y PLAYER_CREATE con posición e intención anteriores. Las trazas nuevas no incluyen URLs ni credenciales. La liberación conserva el clear sincronizado preexistente: si había una lectura de rango en curso, puede esperar a que finalice o alcance su timeout existente; este trabajo no cambia ese mecanismo.
+
+Validación Samsung pendiente: reproducir varios minutos y volver a Inicio; retomar una película y un episodio; comprobar el umbral de completado; apagar pantalla unos minutos y luego varias horas y retomar sin cierre forzado; repetir pausado, fullscreen y rotación. El progreso es local. Las pruebas JVM verifican selección, orden, umbrales, huérfanos, identidad de películas/episodios y publicaciones reordenadas; no simulan suspensión Android. La APK de Actions compila sin credenciales privadas y no sustituye la APK familiar configurada en Android Studio.
 
 ## Tráilers en la ficha
 
