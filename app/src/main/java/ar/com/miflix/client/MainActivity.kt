@@ -174,6 +174,7 @@ private fun ClientApp(
     var nextEpisode by remember { mutableStateOf<EpisodeNavigationTarget?>(null) }
     var pendingNavigation by remember { mutableStateOf<EpisodeNavigationTarget?>(null) }
     var pendingResume by remember { mutableStateOf<PendingResume?>(null) }
+    var playbackIssue by remember { mutableStateOf<PlaybackIssue?>(null) }
     var fullscreen by rememberSaveable { mutableStateOf(false) }
     var category by rememberSaveable { mutableStateOf("Todos") }
     var query by rememberSaveable { mutableStateOf("") }
@@ -343,6 +344,16 @@ private fun ClientApp(
         onSurface = MiFlixStyle.primaryText,
         onSurfaceVariant = MiFlixStyle.secondaryText
     )) {
+        playbackIssue?.let { issue ->
+            AlertDialog(
+                onDismissRequest = { playbackIssue = null },
+                title = { Text(issue.title) },
+                text = { Text(issue.message) },
+                confirmButton = { TextButton(onClick = { playbackIssue = null }) {
+                    Text("Entendido")
+                } }
+            )
+        }
         pendingResume?.let { pending ->
             AlertDialog(
                 onDismissRequest = { pendingResume = null },
@@ -483,7 +494,14 @@ private fun ClientApp(
                     },
                     fullscreen = fullscreen,
                     onFullscreenToggle = { fullscreen = !fullscreen },
-                    onOpenTelegram = { openTelegram(context, playbackLink) }
+                    onOpenTelegram = { openTelegram(context, playbackLink) },
+                    onPlaybackFailure = { issue ->
+                        if (screen == Screen.PLAYER) {
+                            playbackIssue = issue
+                            fullscreen = false
+                            screen = Screen.DETAIL
+                        }
+                    }
                 ) }
                 Screen.CONNECT -> Box(Modifier.padding(padding)) { TelegramConnectScreen() }
                 Screen.SETTINGS -> SettingsScreen(

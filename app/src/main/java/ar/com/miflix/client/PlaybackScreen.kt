@@ -41,6 +41,7 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import java.util.Locale
 
 @Composable
@@ -55,7 +56,8 @@ internal fun PlaybackScreen(
     onNavigateEpisode: (EpisodeNavigationTarget) -> Unit,
     fullscreen: Boolean,
     onFullscreenToggle: () -> Unit,
-    onOpenTelegram: () -> Unit
+    onOpenTelegram: () -> Unit,
+    onPlaybackFailure: (PlaybackIssue) -> Unit
 ) {
     val tag = "MiFlixPlayback"
     val context = LocalContext.current
@@ -68,7 +70,7 @@ internal fun PlaybackScreen(
     val session = remember { TelegramSession.get(context) }
     val state by session.state.collectAsState()
     var video by remember(link) { mutableStateOf<TelegramVideo?>(null) }
-    var failure by remember(link) { mutableStateOf<String?>(null) }
+    var failure by remember(link) { mutableStateOf<PlaybackIssue?>(null) }
     var downloading by remember(link) { mutableStateOf(false) }
     var attempt by remember(link) { mutableIntStateOf(0) }
     var resumePosition by rememberSaveable(link) { mutableStateOf(startPosition) }
@@ -91,9 +93,13 @@ internal fun PlaybackScreen(
             try {
                 video = session.obtainVideo(link)
                 Log.d(tag, "SCREEN_VIDEO_READY fileId=${video?.fileId} size=${video?.size}")
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (error: Exception) {
                 Log.e(tag, "SCREEN_RESOLVE_ERROR", error)
-                failure = error.message ?: "No se pudo obtener el video de Telegram."
+                val issue = classifyPlaybackIssue(error)
+                failure = issue
+                onPlaybackFailure(issue)
             } finally {
                 downloading = false
             }
@@ -103,6 +109,7 @@ internal fun PlaybackScreen(
     when {
         video != null -> VideoPlayer(video!!, title, fullscreen, onFullscreenToggle,
             resumePosition, resumePlay, previousEpisode, nextEpisode, onNavigateEpisode,
+            onPlaybackFailure = onPlaybackFailure,
             onCheckpoint = { position, play ->
                 resumePosition = position
                 resumePlay = play
@@ -122,7 +129,7 @@ internal fun PlaybackScreen(
                     Text("Conectando con Telegram. La reproducción empieza con el primer fragmento.")
                 }
                 if (failure != null) {
-                    Text(failure!!, color = MaterialTheme.colorScheme.error)
+                    Text(failure!!.message, color = MaterialTheme.colorScheme.error)
                     Button(onClick = { attempt++ }) { Text("Reintentar") }
                     TextButton(onClick = onOpenTelegram) { Text("Abrir publicación en Telegram") }
                 }
@@ -179,24 +186,34 @@ private fun TelegramLogin(
             TelegramSession.State.Code,
             TelegramSession.State.Password -> {
                 val label = when (state) {
-                    TelegramSession.State.Phone -> "Número con código de país (por ejemplo, +54…)"
+                    TelegramSession.State.Phone -> "Número de teléfono"
                     TelegramSession.State.Email -> "Correo solicitado por Telegram"
                     TelegramSession.State.EmailCode -> "Código enviado por correo"
                     TelegramSession.State.Code -> "Código enviado por Telegram"
                     else -> "Contraseña de verificación en dos pasos"
                 }
-                OutlinedTextField(
-                    value = input, onValueChange = { input = it },
-                    label = { Text(label) },
-                    singleLine = true,
-                    visualTransformation = if (state is TelegramSession.State.Password)
-                        PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = if (state is TelegramSession.State.Phone) KeyboardType.Phone
-                        else KeyboardType.Text
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    if (state is TelegramSession.State.Phone) {
+                        Text("+54", modifier = Modifier.padding(end = 12.dp))
+                    }
+                    OutlinedTextField(
+                        value = input, onValueChange = {
+                            if (state !is TelegramSession.State.Phone || isArgentinaPhoneInput(it)) {
+                                input = if (state is TelegramSession.State.Phone)
+                                    it.trimStart().removePrefix("+54") else it
+                            }
+                        },
+                        label = { Text(label) },
+                        singleLine = true,
+                        visualTransformation = if (state is TelegramSession.State.Password)
+                            PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = if (state is TelegramSession.State.Phone) KeyboardType.Phone
+                            else KeyboardType.Text
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
                 Button(onClick = {
                     submitting = true
                     problem = null
@@ -245,6 +262,7 @@ private fun VideoPlayer(
     previousEpisode: EpisodeNavigationTarget?,
     nextEpisode: EpisodeNavigationTarget?,
     onNavigateEpisode: (EpisodeNavigationTarget) -> Unit,
+    onPlaybackFailure: (PlaybackIssue) -> Unit,
     onCheckpoint: (Long, Boolean) -> Unit,
     onProgress: (Long, Long) -> Unit,
     onBackground: (Long, Long) -> Unit,
@@ -283,6 +301,7 @@ private fun VideoPlayer(
     val exitProgress by rememberUpdatedState(onExit)
     val completed by rememberUpdatedState(onCompleted)
     val navigateEpisode by rememberUpdatedState(onNavigateEpisode)
+    val playbackFailure by rememberUpdatedState(onPlaybackFailure)
 
     fun switchEpisode(target: EpisodeNavigationTarget?) {
         if (target == null || episodeNavigating ||
@@ -330,7 +349,9 @@ private fun VideoPlayer(
             override fun onPlayerError(exception: PlaybackException) {
                 Log.e(tag, "PLAYER_ERROR code=${exception.errorCode} name=${exception.errorCodeName} " +
                     "state=${player.playbackState} duration=${player.duration} position=${player.currentPosition}", exception)
-                error = exception.cause?.message ?: exception.message ?: "No se pudo reproducir el video."
+                val issue = classifyPlaybackIssue(exception)
+                error = issue.message
+                playbackFailure(issue)
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
                 Log.d(tag, "PLAYER_STATE state=$playbackState duration=${player.duration} " +

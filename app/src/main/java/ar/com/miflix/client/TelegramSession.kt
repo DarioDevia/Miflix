@@ -138,7 +138,7 @@ internal class TelegramSession private constructor(private val context: Context)
     suspend fun submit(value: String) {
         require(value.isNotBlank()) { "Completá el dato solicitado por Telegram." }
         when (state.value) {
-            State.Phone -> request(TdApi.SetAuthenticationPhoneNumber(value.trim(), null))
+            State.Phone -> request(TdApi.SetAuthenticationPhoneNumber(normalizeArgentinaPhone(value), null))
             State.Email -> request(TdApi.SetAuthenticationEmailAddress(value.trim()))
             State.EmailCode -> request(TdApi.CheckAuthenticationEmailCode(
                 TdApi.EmailAddressAuthenticationCode(value.trim())
@@ -267,7 +267,7 @@ internal class TelegramSession private constructor(private val context: Context)
                 }
                 if (!continuation.isActive) return@send
                 if (response is TdApi.Error) continuation.resumeWithException(
-                    IllegalStateException(response.message)
+                    TelegramRequestException(response.code, response.message, function.javaClass.simpleName)
                 ) else {
                     @Suppress("UNCHECKED_CAST")
                     continuation.resume(response as T)
