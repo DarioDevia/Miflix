@@ -1,4 +1,20 @@
-# MiFlix Cliente Android 0.9.0
+# MiFlix Cliente Android 0.9.1
+
+## 0.9.1 diagnóstico: búsqueda y exploración local
+
+Base exacta: 0.9.0-diagnostico, código 24, commit a24b7fa32900d61a25f9f66e4976baff0a416dda. La entrega incrementa el código a 25. No incorpora cambios experimentales posteriores.
+
+Buscar permite explorar el catálogo completo aun con texto vacío. La entrada busca por título y géneros sin distinguir mayúsculas, acentos ni ñ/n. Una fila horizontal de controles permite combinar Tipo (Todos/Películas/Series/Anime), Género, Año, puntuación mínima (Todas/6+/7+/8+/9+) y Últimos estrenos. Géneros y años salen del catálogo local: los géneros se deduplican por nombre normalizado y se ordenan; los años van del más reciente al más antiguo. Los filtros activos se resaltan y la pantalla muestra cantidad de resultados y orden actual. Limpiar borra texto y filtros, conservando el orden elegido. Las selecciones se conservan al visitar una ficha y regresar. No hay filtro de calidad.
+
+**Últimos estrenos es un filtro:** solo incluye títulos del año máximo presente en el catálogo y del año calendario inmediatamente anterior. No usa el reloj ni un año fijo. Todos los filtros se combinan por intersección, incluso Año y Últimos estrenos: un año fuera de esa ventana produce cero resultados. Si no hay años válidos, el control de Últimos estrenos queda deshabilitado.
+
+**Más recientes es un orden:** conserva todo el conjunto filtrado y lo ordena por año descendente. Los otros órdenes son A-Z, Z-A, Más antiguos y Mejor puntuados. Títulos sin año o puntuación quedan al final en el orden correspondiente; no se excluyen a menos que se active un filtro que requiera ese dato. Los empates se resuelven por título normalizado y ID. Los géneros vacíos y los campos opcionales faltantes son seguros.
+
+CatalogSearchIndex prepara títulos/géneros normalizados, opciones y cinco listas ordenadas una vez por actualización del catálogo. No recorre episodios. remember conserva el índice y los resultados entre recomposiciones; una consulta solo normaliza la entrada y recorre el orden preparado aplicando filtros. No hay consultas remotas, endpoints nuevos ni acceso a TMDB. El modelo y el parser JSON permanecen intactos.
+
+Se agregan 25 pruebas JVM de búsqueda, filtros, combinaciones, cinco órdenes, ventana móvil de estrenos, datos incompletos, esquemas legacy y selección sobre 1000 títulos (sin afirmar un benchmark ni emular una UI real). TDLib, Media3, reproducción, rangos, lifecycle, progreso, episodios, trailers, autenticación y keepScreenOn no cambian.
+
+Validación Samsung pendiente: buscar accion/ACCION/senor con datos reales; combinar Películas + Terror + 7+ sin texto; probar año y todos los órdenes; comparar Más recientes (todos los años) con Últimos estrenos (dos años); abrir una ficha y volver; limpiar; provocar cero resultados; reproducir y verificar controles, Continuar viendo y retorno de suspensión. La instalación y el arranque real requieren dispositivo/emulador. El artifact de Actions se compila sin credenciales privadas; la APK familiar se compila localmente con telegram.local.properties.
 
 ## 0.9.0 diagnóstico: continuación local y retorno de suspensión
 

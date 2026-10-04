@@ -117,10 +117,6 @@ private fun Title.matchesCategory(category: String) = category == "Todos" || tip
     else -> "anime"
 }
 
-private fun Title.matchesQuery(query: String): Boolean =
-    query.isBlank() || titulo.contains(query, ignoreCase = true) ||
-        generos.orEmpty().any { it.contains(query, ignoreCase = true) }
-
 private fun Title.metadata(): String = listOfNotNull(
     year?.toString(), duracion?.takeIf { it.isNotBlank() }, calidad?.takeIf { it.isNotBlank() }
 ).joinToString(" · ")
@@ -178,6 +174,12 @@ private fun ClientApp(
     var fullscreen by rememberSaveable { mutableStateOf(false) }
     var category by rememberSaveable { mutableStateOf("Todos") }
     var query by rememberSaveable { mutableStateOf("") }
+    var searchType by rememberSaveable { mutableStateOf<String?>(null) }
+    var searchGenre by rememberSaveable { mutableStateOf<String?>(null) }
+    var searchYear by rememberSaveable { mutableStateOf<Int?>(null) }
+    var searchRating by rememberSaveable { mutableStateOf<Int?>(null) }
+    var searchLatest by rememberSaveable { mutableStateOf(false) }
+    var searchOrder by rememberSaveable { mutableStateOf(SearchOrder.AZ) }
     var busy by remember { mutableStateOf(false) }
     var cacheLoaded by remember { mutableStateOf(false) }
     val homeScroll = rememberLazyListState()
@@ -200,6 +202,9 @@ private fun ClientApp(
     val owner = LocalLifecycleOwner.current
     val activity = context as? ComponentActivity
     val titles = catalog.items.orEmpty()
+    val searchIndex = remember(titles) { CatalogSearchIndex(titles) }
+    LaunchedEffect(searchIndex, query, searchType, searchGenre, searchYear, searchRating,
+        searchLatest, searchOrder) { searchScroll.scrollToItem(0) }
     val selected = titles.firstOrNull { it.id == selectedId }
     LaunchedEffect(screen, telegramState) {
         if (screen == Screen.CONNECT && telegramState is TelegramSession.State.Ready)
@@ -473,10 +478,20 @@ private fun ClientApp(
                 )
                 Screen.SEARCH -> SearchScreen(
                     modifier = Modifier.padding(padding),
-                    titles = titles,
+                    index = searchIndex,
                     scrollState = searchScroll,
                     query = query,
                     onQueryChange = { query = it },
+                    filters = SearchFilters(searchType, searchGenre, searchYear, searchRating, searchLatest),
+                    onFiltersChange = {
+                        searchType = it.type
+                        searchGenre = it.genre
+                        searchYear = it.year
+                        searchRating = it.minimumRating
+                        searchLatest = it.latestReleases
+                    },
+                    order = searchOrder,
+                    onOrderChange = { searchOrder = it },
                     onSelect = ::openDetail
                 )
                 Screen.SECTIONS -> SectionsScreen(
@@ -753,12 +768,17 @@ private fun MovieCard(title: Title, modifier: Modifier = Modifier, onClick: () -
 
 @Composable
 private fun SearchScreen(
-    modifier: Modifier, titles: List<Title>, scrollState: LazyGridState, query: String,
-    onQueryChange: (String) -> Unit, onSelect: (Title) -> Unit
+    modifier: Modifier, index: CatalogSearchIndex, scrollState: LazyGridState, query: String,
+    onQueryChange: (String) -> Unit, filters: SearchFilters,
+    onFiltersChange: (SearchFilters) -> Unit, order: SearchOrder,
+    onOrderChange: (SearchOrder) -> Unit, onSelect: (Title) -> Unit
 ) {
-    val results = remember(titles, query) {
-        if (query.isBlank()) emptyList() else titles.filter { it.matchesQuery(query.trim()) }
+    val results = remember(index, query, filters, order) {
+        index.search(query, filters, order)
     }
+    val types = listOf(null to "Todos", "pelicula" to "Películas", "serie" to "Series", "anime" to "Anime")
+    val genreOptions = remember(index) { listOf(null to "Todos") + index.genres.map { it.key to it.label } }
+    val yearOptions = remember(index) { listOf(null to "Todos") + index.years.map { it to it.toString() } }
     Column(modifier.fillMaxSize()) {
         OutlinedTextField(query, onQueryChange,
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
@@ -766,15 +786,57 @@ private fun SearchScreen(
             singleLine = true, modifier = Modifier.fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             shape = RoundedCornerShape(12.dp))
-        if (query.isBlank()) {
-            EmptyState("¿Qué querés ver?", "Buscá un título o un género del catálogo.")
-        } else if (results.isEmpty()) {
-            EmptyState("Sin resultados", "Probá con otro título o género.")
-        } else {
-            Text(results.size.toString() + " resultados",
-                Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            item { SearchChoice("Tipo", filters.type, types, filters.type != null) {
+                onFiltersChange(filters.copy(type = it))
+            } }
+            item { SearchChoice("Género", filters.genre, genreOptions, filters.genre != null) {
+                onFiltersChange(filters.copy(genre = it))
+            } }
+            item { SearchChoice("Año", filters.year, yearOptions, filters.year != null) {
+                onFiltersChange(filters.copy(year = it))
+            } }
+            item { SearchChoice("Puntuación", filters.minimumRating,
+                listOf(null to "Todas", 6 to "6+", 7 to "7+", 8 to "8+", 9 to "9+"),
+                filters.minimumRating != null) { onFiltersChange(filters.copy(minimumRating = it)) } }
+            item { FilterChip(selected = filters.latestReleases,
+                enabled = index.latestYear != null,
+                onClick = { onFiltersChange(filters.copy(latestReleases = !filters.latestReleases)) },
+                label = { Text(if (filters.latestReleases && index.latestYear != null)
+                    "Últimos estrenos (${index.latestYear - 1}–${index.latestYear})" else "Últimos estrenos") }) }
+            item { SearchChoice("Orden", order, SearchOrder.entries.map { it to it.label }, false,
+                onOrderChange) }
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("${results.size} resultados · ${order.label}", Modifier.weight(1f),
                 color = MiFlixStyle.secondaryText, fontSize = 13.sp)
-            MovieGrid(results, onSelect, Modifier.weight(1f), scrollState)
+            if (filters.active || query.isNotBlank()) TextButton(onClick = {
+                onQueryChange("")
+                onFiltersChange(SearchFilters())
+            }) { Text("Limpiar") }
+        }
+        if (query.isBlank() && !filters.active) Text("Explorá por filtros o buscá un título o género.",
+            Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            color = MiFlixStyle.secondaryText, fontSize = 13.sp)
+        if (results.isEmpty()) EmptyState("Sin resultados", "Probá con otro texto o cambiá los filtros.")
+        else MovieGrid(results, onSelect, Modifier.weight(1f), scrollState)
+    }
+}
+
+@Composable
+private fun <T> SearchChoice(label: String, value: T, options: List<Pair<T, String>>,
+    active: Boolean, onSelect: (T) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        FilterChip(selected = active, onClick = { expanded = true },
+            label = { Text("$label: ${options.firstOrNull { it.first == value }?.second ?: value}") })
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false },
+            modifier = Modifier.heightIn(max = 280.dp)) {
+            options.forEach { (option, name) ->
+                DropdownMenuItem(text = { Text(if (option == value) "$name ✓" else name) },
+                    onClick = { expanded = false; onSelect(option) })
+            }
         }
     }
 }
