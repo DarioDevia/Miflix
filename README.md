@@ -1,6 +1,14 @@
-# MiFlix Cliente Android 0.9.1
+# MiFlix Cliente Android 0.9.2-diagnostico
 
-## 0.9.1 diagnóstico: búsqueda y exploración local
+**Versión actual:** MiFlix `0.9.2-diagnostico` · `versionName = "0.9.2-diagnostico"` · `versionCode = 26`.
+
+## 0.9.2 diagnóstico: fullscreen entre episodios y Destacado por sesión
+
+El reproductor conserva fullscreen y la orientación al cambiar de episodio mediante **Anterior/Siguiente**, incluidos los saltos entre temporadas. Si el usuario estaba en modo vertical/no fullscreen, conserva ese modo. Atrás sigue saliendo primero de fullscreen.
+
+El **Destacado de Inicio** se selecciona aleatoriamente entre títulos aptos al comenzar una nueva sesión y permanece estable durante navegación y recomposiciones. Un refresh conserva la selección mientras el título siga existiendo y siendo apto; si deja de serlo, se selecciona otro. Una nueva sesión puede repetir legítimamente el mismo título. No se agregan recomendaciones ni persistencia permanente del Destacado.
+
+## 0.9.1 diagnóstico: búsqueda y exploración local (histórico)
 
 Base exacta: 0.9.0-diagnostico, código 24, commit a24b7fa32900d61a25f9f66e4976baff0a416dda. La entrega incrementa el código a 25. No incorpora cambios experimentales posteriores.
 
@@ -85,7 +93,7 @@ Prueba en teléfono: reproducir, doble toque derecho e izquierdo, mover la barra
 
 ## Compilación de diagnóstico
 
-La compilación `0.8.0-diagnostico` conserva las trazas con la etiqueta `MiFlixPlayback` en Logcat. Se conserva el ownership corregido en 0.4.2: `clear()` se ejecuta al liberar el Player. En Android Studio, seleccioná el proceso `ar.com.miflix.client`, filtrá `tag:MiFlixPlayback`, iniciá la reproducción de un video y conservá las líneas desde `NAV_PLAY` hasta `PLAYER_ERROR` o `PLAYER_STATE`. También podés ejecutar `adb logcat -c` y luego `adb logcat -v time -s MiFlixPlayback:D`. El registro incluye el enlace del mensaje y la ruta temporal del video; revisalo antes de compartirlo. Nunca compartas códigos de Telegram, API hash ni datos de inicio de sesión.
+La compilación actual `0.9.2-diagnostico` (`versionCode = 26`) conserva las trazas con la etiqueta `MiFlixPlayback` en Logcat. Se conserva el ownership corregido en 0.4.2: `clear()` se ejecuta al liberar el Player. En Android Studio, seleccioná el proceso `ar.com.miflix.client`, filtrá `tag:MiFlixPlayback`, iniciá la reproducción de un video y conservá las líneas desde `NAV_PLAY` hasta `PLAYER_ERROR` o `PLAYER_STATE`. También podés ejecutar `adb logcat -c` y luego `adb logcat -v time -s MiFlixPlayback:D`. El registro incluye el enlace del mensaje y la ruta temporal del video; revisalo antes de compartirlo. Nunca compartas códigos de Telegram, API hash ni datos de inicio de sesión.
 
 Eventos clave: `RESOLVE_RESULT` indica el mensaje; `VIDEO_FILE`, el ID/tamaño; `RANGE_REQUEST` y `RANGE_RESULT`, el rango y el estado de TDLib; `RANGE_READ`, los bytes físicos leídos; `DS_OPEN`/`DS_READ`/`DS_EOF`, los bytes entregados a Media3; `PLAYER_TIMELINE`/`PLAYER_ERROR`, reconocimiento del video y fallo; `PLAYER_DISPOSE`/`PLAYER_RELEASED_CLEAR_VIDEO`/`CACHE_CLEAR`, el cierre en ese orden.
 

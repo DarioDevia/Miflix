@@ -1,5 +1,7 @@
 # MiFlix cliente · Android celular
 
+> Documento histórico del estado 0.1.0. Para la versión y el estado actuales, consultá [README.md](README.md).
+
 Aplicación cliente separada del administrador. Su identificador es `ar.com.miflix.client`, por lo que no reemplaza la instalación de Mi Videoteca. Usa Kotlin y Jetpack Compose. Lee `catalogo.json` remoto (`schema_version` 1.x), muestra películas, series y anime, permite buscar, abrir fichas y conserva la última copia válida para uso sin conexión. Si el servidor devuelve HTML, un estado HTTP de error o un JSON inválido, mantiene esa copia y muestra el motivo.
 
 ## Estado funcional (0.1.0)
