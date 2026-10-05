@@ -46,6 +46,7 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.CaptionStyleCompat
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.CancellationException
@@ -304,6 +305,13 @@ private fun VideoPlayer(
     val tag = "MiFlixPlayback"
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
+    val subtitlePreferences = remember(context) {
+        context.getSharedPreferences("miflix_client", android.content.Context.MODE_PRIVATE)
+    }
+    var subtitleSize by remember(subtitlePreferences) {
+        mutableStateOf(SubtitleSize.fromStored(
+            subtitlePreferences.getString(SubtitleSize.PREFERENCE_KEY, null)))
+    }
     val player = remember(video) {
         Log.d("MiFlixLifecycle", "PLAYER_CREATE fileId=${video.fileId} position=$resumePosition playWhenReady=$resumePlay")
         Log.d(tag, "PLAYER_CREATE fileId=${video.fileId} size=${video.size} " +
@@ -539,6 +547,18 @@ private fun VideoPlayer(
                             !textDisabled && option.group.isTrackSelected(option.trackIndex),
                             enabled = option.group.isTrackSupported(option.trackIndex)) { selectTrack(option) }
                     }
+                    Text("Tamaño del subtítulo", Modifier.padding(top = 20.dp, bottom = 8.dp),
+                        style = MaterialTheme.typography.titleMedium)
+                    SubtitleSize.values().forEach { size ->
+                        TrackChoiceRow(size.label, subtitleSize == size) {
+                            if (subtitleSize != size) {
+                                subtitleSize = size
+                                subtitlePreferences.edit()
+                                    .putString(SubtitleSize.PREFERENCE_KEY, size.name).apply()
+                                Log.d("MiFlixTracks", "SUBTITLE_SIZE_CHANGED size=${size.name}")
+                            }
+                        }
+                    }
                 }
                 Spacer(Modifier.height(24.dp))
             }
@@ -547,8 +567,32 @@ private fun VideoPlayer(
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
         Box(if (fullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
             AndroidView(
-                factory = { PlayerView(it).apply { useController = false; this.player = player } },
-                update = { it.player = if (released) null else player },
+                factory = { PlayerView(it).apply {
+                    useController = false
+                    this.player = player
+                    subtitleView?.apply {
+                        // Own presentation: embedded cue backgrounds/font sizes must not override it.
+                        setApplyEmbeddedStyles(false)
+                        setStyle(CaptionStyleCompat(
+                            android.graphics.Color.WHITE,
+                            android.graphics.Color.TRANSPARENT,
+                            android.graphics.Color.TRANSPARENT,
+                            CaptionStyleCompat.EDGE_TYPE_OUTLINE,
+                            android.graphics.Color.BLACK,
+                            null
+                        ))
+                        setFractionalTextSize(subtitleSize.fractionOfHeight)
+                    }
+                    this.tag = subtitleSize
+                } },
+                update = {
+                    it.player = if (released) null else player
+                    // Updating the existing View redraws current cues without touching the Player.
+                    if (it.tag != subtitleSize) {
+                        it.subtitleView?.setFractionalTextSize(subtitleSize.fractionOfHeight)
+                        it.tag = subtitleSize
+                    }
+                },
                 modifier = Modifier.fillMaxSize()
             )
             Box(Modifier.matchParentSize().pointerInput(player) {
