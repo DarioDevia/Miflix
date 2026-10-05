@@ -101,6 +101,9 @@ private object MiFlixStyle {
 }
 
 internal enum class Screen { HOME, SEARCH, SECTIONS, DETAIL, PLAYER, SETTINGS, CONNECT }
+internal fun playbackFullscreenActive(screen: Screen, fullscreen: Boolean, episodeTransition: Boolean): Boolean =
+    fullscreen && (screen == Screen.PLAYER || (screen == Screen.DETAIL && episodeTransition))
+
 internal fun startupCatalogUrl(savedUrl: String?): String =
     savedUrl?.trim()?.takeIf { it.isNotBlank() } ?: CatalogRepository.DEFAULT_URL
 
@@ -169,6 +172,7 @@ private fun ClientApp(
     var previousEpisode by remember { mutableStateOf<EpisodeNavigationTarget?>(null) }
     var nextEpisode by remember { mutableStateOf<EpisodeNavigationTarget?>(null) }
     var pendingNavigation by remember { mutableStateOf<EpisodeNavigationTarget?>(null) }
+    var episodeTransition by remember { mutableStateOf(false) }
     var pendingResume by remember { mutableStateOf<PendingResume?>(null) }
     var playbackIssue by remember { mutableStateOf<PlaybackIssue?>(null) }
     var fullscreen by rememberSaveable { mutableStateOf(false) }
@@ -202,6 +206,9 @@ private fun ClientApp(
     val owner = LocalLifecycleOwner.current
     val activity = context as? ComponentActivity
     val titles = catalog.items.orEmpty()
+    val featuredSession = remember { FeaturedSession() }
+    val featured = remember(titles) { featuredSession.select(titles) }
+    val fullscreenActive = playbackFullscreenActive(screen, fullscreen, episodeTransition)
     val searchIndex = remember(titles) { CatalogSearchIndex(titles) }
     LaunchedEffect(searchIndex, query, searchType, searchGenre, searchYear, searchRating,
         searchLatest, searchOrder) { searchScroll.scrollToItem(0) }
@@ -275,8 +282,9 @@ private fun ClientApp(
         playbackTitle = name
         previousEpisode = previous
         nextEpisode = next
-        fullscreen = false
+        if (!episodeTransition) fullscreen = false
         screen = Screen.PLAYER
+        episodeTransition = false
     }
     fun requestPlayback(key: String, link: String, name: String,
         previous: EpisodeNavigationTarget?, next: EpisodeNavigationTarget?) {
@@ -309,9 +317,14 @@ private fun ClientApp(
     }
     fun goBack() {
         Log.d("MiFlixPlayback", "NAV_BACK screen=$screen selectedId=$selectedId")
-        if (screen == Screen.PLAYER && fullscreen) {
+        if (fullscreenActive) {
             fullscreen = false
             return
+        }
+        if (episodeTransition) {
+            pendingNavigation = null
+            pendingResume = null
+            episodeTransition = false
         }
         when (screen) {
             Screen.PLAYER -> screen = Screen.DETAIL
@@ -325,8 +338,8 @@ private fun ClientApp(
         }
     }
     BackHandler(enabled = screen != Screen.HOME) { goBack() }
-    DisposableEffect(fullscreen, screen, activity) {
-        if (screen == Screen.PLAYER && fullscreen && activity != null) {
+    DisposableEffect(fullscreenActive, activity) {
+        if (fullscreenActive && activity != null) {
             val previousOrientation = activity.requestedOrientation
             Log.d("MiFlixPlayback", "FULLSCREEN_ENTER previousOrientation=$previousOrientation")
             activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
@@ -367,7 +380,13 @@ private fun ClientApp(
         }
         pendingResume?.let { pending ->
             AlertDialog(
-                onDismissRequest = { pendingResume = null },
+                onDismissRequest = {
+                    pendingResume = null
+                    if (episodeTransition) {
+                        episodeTransition = false
+                        fullscreen = false
+                    }
+                },
                 title = { Text("Retomar reproducción") },
                 text = { Text("Este video tiene una reproducción pendiente.") },
                 confirmButton = { TextButton(onClick = {
@@ -383,7 +402,7 @@ private fun ClientApp(
         Scaffold(
             containerColor = MiFlixStyle.background,
             topBar = {
-                if (!(screen == Screen.PLAYER && fullscreen)) TopAppBar(
+                if (!fullscreenActive) TopAppBar(
                     title = {
                         Text(
                             when (screen) {
@@ -455,6 +474,7 @@ private fun ClientApp(
                     modifier = Modifier.padding(padding),
                     scrollState = homeScroll,
                     titles = titles,
+                    featured = featured,
                     problem = problem,
                     busy = busy,
                     onRefresh = { refresh() },
@@ -522,6 +542,7 @@ private fun ClientApp(
                         if (screen == Screen.PLAYER && pendingNavigation == null &&
                             (target == previousEpisode || target == nextEpisode)) {
                             Log.d("MiFlixPlayback", "EPISODE_NAV_REQUEST key=${target.progressKey}")
+                            episodeTransition = true
                             pendingNavigation = target
                             screen = Screen.DETAIL
                         }
@@ -592,6 +613,7 @@ private fun HomeScreen(
     modifier: Modifier,
     scrollState: LazyListState,
     titles: List<Title>,
+    featured: Title?,
     problem: String?,
     busy: Boolean,
     onRefresh: () -> Unit,
@@ -602,9 +624,6 @@ private fun HomeScreen(
     onContinue: (ContinueWatchingItem) -> Unit,
     onBrowse: (String) -> Unit
 ) {
-    val featured = titles.firstOrNull { !it.backdropUrl.isNullOrBlank() }
-        ?: titles.firstOrNull { !it.posterUrl.isNullOrBlank() }
-        ?: titles.firstOrNull()
     val pullState = rememberPullRefreshState(refreshing = busy, onRefresh = onRefresh)
     Box(modifier.fillMaxSize().pullRefresh(pullState)) {
     LazyColumn(
