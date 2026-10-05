@@ -30,6 +30,20 @@ android {
         buildConfigField("int", "TELEGRAM_API_ID", telegramId.toString())
         buildConfigField("String", "TELEGRAM_API_HASH", "\"$telegramHash\"")
     }
+    flavorDimensions += "device"
+    productFlavors {
+        create("mobile") {
+            dimension = "device"
+            buildConfigField("boolean", "IS_TV", "false")
+        }
+        create("tv") {
+            dimension = "device"
+            applicationIdSuffix = ".tv"
+            versionCode = 1
+            versionName = "0.1.0-diagnostico"
+            buildConfigField("boolean", "IS_TV", "true")
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

@@ -3,6 +3,11 @@ package ar.com.miflix.client
 import android.net.Uri
 import android.os.SystemClock
 import android.util.Log
+import androidx.compose.foundation.border
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -194,9 +199,18 @@ private fun TelegramLogin(
     var input by remember(state) { mutableStateOf("") }
     var problem by remember(state) { mutableStateOf<String?>(null) }
     var submitting by remember { mutableStateOf(false) }
+    val inputFocus = remember { FocusRequester() }
+    var inputFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(state) {
+        if (BuildConfig.IS_TV && (state == TelegramSession.State.Phone ||
+            state == TelegramSession.State.Code || state == TelegramSession.State.Password ||
+            state == TelegramSession.State.Email || state == TelegramSession.State.EmailCode))
+            inputFocus.requestFocus()
+    }
 
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            .padding(if (BuildConfig.IS_TV) 48.dp else 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text("Conectar Telegram", style = MaterialTheme.typography.headlineSmall)
@@ -242,10 +256,13 @@ private fun TelegramLogin(
                             keyboardType = if (state is TelegramSession.State.Phone) KeyboardType.Phone
                             else KeyboardType.Text
                         ),
-                        modifier = Modifier.weight(1f)
+                        modifier = if (BuildConfig.IS_TV) Modifier.weight(1f)
+                            .focusRequester(inputFocus).onFocusChanged { inputFocused = it.isFocused }
+                            .border(if (inputFocused) 3.dp else 0.dp, if (inputFocused) Color.White
+                                else Color.Transparent, RoundedCornerShape(8.dp)) else Modifier.weight(1f)
                     )
                 }
-                Button(onClick = {
+                val submit: () -> Unit = {
                     submitting = true
                     problem = null
                     scope.launch {
@@ -258,7 +275,10 @@ private fun TelegramLogin(
                             submitting = false
                         }
                     }
-                }, enabled = input.isNotBlank() && !submitting) { Text("Continuar") }
+                }
+                if (BuildConfig.IS_TV) TvAction("Continuar", enabled = input.isNotBlank() && !submitting,
+                    onClick = submit)
+                else Button(onClick = submit, enabled = input.isNotBlank() && !submitting) { Text("Continuar") }
             }
             is TelegramSession.State.OtherDevice -> {
                 Text("Telegram pide confirmar el inicio de sesión en otro dispositivo:")
@@ -435,7 +455,7 @@ private fun VideoPlayer(
         }
     }
     LaunchedEffect(controlsVisible, playing, showTracksPanel, dragging) {
-        if (controlsVisible && playing && !showTracksPanel && !dragging) {
+        if (!BuildConfig.IS_TV && controlsVisible && playing && !showTracksPanel && !dragging) {
             delay(3_000)
             controlsVisible = false
         }
@@ -569,6 +589,7 @@ private fun VideoPlayer(
             AndroidView(
                 factory = { PlayerView(it).apply {
                     useController = false
+                    if (BuildConfig.IS_TV) { isFocusable = false; isFocusableInTouchMode = false }
                     this.player = player
                     subtitleView?.apply {
                         // Own presentation: embedded cue backgrounds/font sizes must not override it.
@@ -595,7 +616,7 @@ private fun VideoPlayer(
                 },
                 modifier = Modifier.fillMaxSize()
             )
-            Box(Modifier.matchParentSize().pointerInput(player) {
+            if (!BuildConfig.IS_TV) Box(Modifier.matchParentSize().pointerInput(player) {
                 detectTapGestures(
                     onTap = { controlsVisible = !controlsVisible },
                     onDoubleTap = { tap ->
@@ -616,7 +637,14 @@ private fun VideoPlayer(
             if (buffering && error == null) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center), color = Color.White)
             }
-            if (controlsVisible) {
+            if (BuildConfig.IS_TV && !released) TvPlaybackControls(
+                title, playing, currentPosition, duration, controlsVisible,
+                { controlsVisible = it },
+                { if (player.isPlaying) player.pause() else player.play() },
+                { player.play() }, { player.pause() },
+                { seekToPosition(player.currentPosition + it, "tv_remote") },
+                hasTrackChoice, { showTracksPanel = true })
+            if (controlsVisible && !BuildConfig.IS_TV) {
                 if (hasTrackChoice) {
                     TextButton(onClick = { showTracksPanel = true }, enabled = !released,
                         modifier = Modifier.align(Alignment.TopEnd)
@@ -676,7 +704,7 @@ private fun VideoPlayer(
             }
         }
         if (!fullscreen) {
-            if (controlsVisible && (previousEpisode != null || nextEpisode != null)) {
+            if (!BuildConfig.IS_TV && controlsVisible && (previousEpisode != null || nextEpisode != null)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     EpisodeControls(previousEpisode, nextEpisode, episodeNavigating, ::switchEpisode)
                 }
@@ -714,6 +742,10 @@ private fun selectableMediaTracks(tracks: Tracks): List<PlayerTrackOption> = bui
 @Composable
 private fun TrackChoiceRow(name: String, selected: Boolean, enabled: Boolean = true,
     selectable: Boolean = true, onClick: () -> Unit) {
+    if (BuildConfig.IS_TV) {
+        TvAction((if (selected) "✓ " else "") + name, Modifier.fillMaxWidth(), enabled, onClick)
+        return
+    }
     Row(Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick)
         .padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         if (selectable) RadioButton(selected = selected, onClick = null, enabled = enabled)

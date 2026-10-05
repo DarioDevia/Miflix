@@ -1,3 +1,117 @@
+# MiFlix Mobile y Android TV
+
+| Variante | versionName | versionCode | applicationId | APK debug |
+| --- | --- | --- | --- | --- |
+| Mobile | 0.9.2-diagnostico | 26 | ar.com.miflix.client | app-mobile-debug.apk |
+| TV | 0.1.0-diagnostico | 1 | ar.com.miflix.client.tv | app-tv-debug.apk |
+
+TV se desarrolla en `miflix-tv`, basada en `miflix-cliente` HEAD
+`b3b3156cb6aff846822d591317f9f377c5d2df4c` (README corregido), que contiene
+el commit funcional móvil validado `5d896013478f8126c2dac3ed2f692fc305904509`.
+La rama móvil no se modifica. Cada variante conserva su propio versionado.
+
+## Arquitectura TV 0.1.0
+
+Se conserva un único módulo `app` y se agregan product flavors `mobile` / `tv`.
+`BuildConfig.IS_TV` selecciona la presentación; el manifest y banner TV se agregan
+mediante `src/tv`. Las APK tienen identificadores diferentes y pueden coexistir.
+Comparten código, pero **no** sesión Telegram ni progreso entre instalaciones.
+No se requieren dependencias Leanback de widgets: Compose presenta la UI y el manifest declara el soporte TV.
+
+Reutilizados sin reimplementación: CatalogRepository/parser/caché/Cloudflare,
+TelegramSession/TDLib, TelegramVideo/TelegramRangeDataSource (1 MiB), Media3 1.3.1,
+PlaybackProgress, ContinueWatching, FeaturedSession, episodios y selección de pistas.
+MainActivity conserva las rutas y los diálogos de continuación. PlaybackScreen
+conserva creación, resolución, lifecycle, release → clear y progreso del reproductor;
+solo bifurca interacción y presentación TV. Gradle/AGP/Compose/Media3 no se actualizan.
+
+Se descartaron detección de dispositivo en una sola APK (no separa versionado e identidad),
+otro módulo con extracción de core (movimientos innecesarios para este MVP) y source sets
+que copien pantallas completas del cliente (duplicarían navegación y estado).
+
+TV incluye Home 16:9 con Destacado, filas horizontales Películas/Series/Anime,
+Continuar viendo local, foco con borde/contraste, Detalle, selector básico de temporadas
+y episodios, reproducción fullscreen, controles remotos y teclas media, saltos ±10 s,
+y acceso a audio/subtítulos con la misma lógica y tamaños. No tiene trailers.
+Los controles TV permanecen visibles hasta Ocultar/Atrás para evitar perder el foco
+por un temporizador. Un D-pad/OK los muestra cuando están ocultos; Atrás primero
+los oculta y después vuelve a Detalle. En Detalle, Atrás vuelve a Home; en Home
+prevalece la salida normal de Android. No se agregan autoplay ni descarga offline.
+
+La restauración de Home usa la última tarjeta enfocada, índice inicial de su fila y
+el scroll vertical existente. Es razonable, no una garantía de foco idéntico si cambia
+el catálogo; el Destacado y las filas no visitadas pueden recuperar una posición distinta.
+La navegación entre filas usa el algoritmo de foco y scroll de Compose, sin framework propio.
+TV no expone todavía búsqueda/filtros, configuración avanzada ni Anterior/Siguiente en
+el reproductor; los episodios se eligen en Detalle. Estas extensiones quedan para después
+de validar Home → Detalle → Play. El acceso a las cuentas/canales sigue siendo externo.
+
+## Compilar las variantes
+
+Requisitos: JDK 17, Android SDK 34, Build Tools 34.0.0, Android Studio y conexión
+para resolver las dependencias originales. En Android Studio elegir `mobileDebug`
+o `tvDebug` en Build Variants.
+
+Windows PowerShell, desde la raíz:
+
+```powershell
+.\gradlew.bat testMobileDebugUnitTest testTvDebugUnitTest assembleMobileDebug assembleTvDebug
+```
+
+Linux/macOS:
+
+```sh
+bash gradlew testMobileDebugUnitTest testTvDebugUnitTest assembleMobileDebug assembleTvDebug
+```
+
+Resultados:
+- Mobile: `app/build/outputs/apk/mobile/debug/app-mobile-debug.apk`.
+- TV: `app/build/outputs/apk/tv/debug/app-tv-debug.apk`.
+
+Para una APK familiar de TV, conservar el archivo privado local
+`telegram.local.properties` de la compilación móvil, en la raíz. No subirlo, no copiar
+sesiones y no compartir códigos/2FA. Sin ese archivo la APK compila para diagnóstico,
+pero no permite autorizar Telegram ni validar streaming real. Cada variante autoriza
+su propia cuenta. La APK familiar contiene los identificadores de aplicación compilados;
+no se debe publicar como artifact público. Actions compila sin configuración privada.
+
+## Prueba manual Android TV API 28, 1080p
+
+1. Android Studio → Device Manager → Create Device → TV → Android TV (1080p).
+   Elegir imagen Android TV API 28 e iniciar el emulador.
+2. Compilar `tvDebug` **con configuración privada** para el recorrido completo.
+3. Instalar: `adb install -r app/build/outputs/apk/tv/debug/app-tv-debug.apk`.
+4. Ir al launcher del emulador con Home y abrir **MiFlix TV** solo con D-pad/OK.
+   Si se necesita diagnóstico del launcher:
+   `adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LEANBACK_LAUNCHER ar.com.miflix.client.tv`.
+5. En instalación nueva, enfocar teléfono → OK → teclado TV; ingresar número,
+   Continuar, código y 2FA cuando corresponda. No enviar esos datos en capturas/logs.
+6. Verificar carga real de Cloudflare, Destacado y filas; recorrer una fila más allá
+   de las tarjetas visibles, bajar/subir, comprobar borde y desplazamiento del foco.
+7. Abrir película con OK; verificar imagen, título, metadatos, sinopsis y Reproducir.
+8. Reproducir; verificar resolución Telegram, inicio antes de descarga completa y
+   ausencia de error. Probar Pausar/Reproducir y ±10 s; probar teclas media si están disponibles.
+9. Ocultar controles; OK/una flecha debe mostrarlos; Atrás los oculta, otro Atrás
+   retorna a Detalle. Atrás vuelve a Home; verificar restauración razonable del foco.
+10. Volver a reproducir: comprobar diálogo Continuar/Empezar y progreso local.
+11. Abrir una serie/anime; temporada → episodio → reproducir; volver a Detalle.
+12. Si el archivo tiene varias pistas, abrir Audio y subtítulos, recorrer opciones
+    con D-pad y seleccionar con OK. Verificar subtítulos inicialmente desactivados,
+    activación/desactivación y tamaños Pequeño/Mediano/Grande persistentes.
+13. Suspender/reanudar emulador o enviar app a background y regresar; comprobar
+    recuperación usando el lifecycle existente. Repetir build/prueba móvil para regresiones.
+
+Verificación de implementación: `testMobileDebugUnitTest` y `testTvDebugUnitTest`
+pasaron 109 pruebas cada uno (106 existentes + 3 de remoto), sin fallos ni omitidos;
+`assembleMobileDebug` y `assembleTvDebug` terminaron correctamente. Los manifest
+fusionados conservan Mobile 0.9.2/26 y su launcher, y TV 0.1.0/1 con Leanback/banner.
+Las APK de diagnóstico generadas aquí no contienen configuración privada Telegram.
+
+**El build y los tests JVM no certifican el recorrido con remoto ni streaming real.**
+La validación manual familiar es el punto de parada del primer vertical slice.
+
+---
+
 # MiFlix Cliente Android 0.9.2-diagnostico
 
 **Versión actual:** MiFlix `0.9.2-diagnostico` · `versionName = "0.9.2-diagnostico"` · `versionCode = 26`.
@@ -65,7 +179,7 @@ TELEGRAM_API_ID=123456
 TELEGRAM_API_HASH=0123456789abcdef0123456789abcdef
 ```
 
-El API ID debe ser un entero positivo y el API hash, 32 caracteres hexadecimales. Android Studio: abrí la raíz del proyecto, creá el archivo junto a `settings.gradle.kts`, sincronizá Gradle (**File > Sync Project with Gradle Files**), elegí la variante `debug` y ejecutá **Build > Build APK(s)**. El APK estará en `app/build/outputs/apk/debug/app-debug.apk`. Instalalo en el teléfono del familiar: MiFlix reconocerá la configuración y ofrecerá conectar su propia cuenta de Telegram con teléfono, código y 2FA cuando corresponda. Cada teléfono crea su propia sesión TDLib.
+El API ID debe ser un entero positivo y el API hash, 32 caracteres hexadecimales. Android Studio: abrí la raíz del proyecto, creá el archivo junto a `settings.gradle.kts`, sincronizá Gradle (**File > Sync Project with Gradle Files**), elegí la variante `mobileDebug` y ejecutá **Build > Build APK(s)**. El APK estará en `app/build/outputs/apk/mobile/debug/app-mobile-debug.apk`. Instalalo en el teléfono del familiar: MiFlix reconocerá la configuración y ofrecerá conectar su propia cuenta de Telegram con teléfono, código y 2FA cuando corresponda. Cada teléfono crea su propia sesión TDLib.
 
 `telegram.local.properties` y `local.properties` están ignorados por Git. Antes de compartir cambios, verificá `git check-ignore telegram.local.properties` y `git status --short`; nunca uses `git add -f` con ese archivo. No copies `app/build/` ni la base de TDLib a Git. Si falta el archivo privado, Actions y el desarrollo siguen compilando, pero la conexión muestra un diagnóstico de compilación sin configuración privada; no solicita API ID/hash. El artifact de Actions sirve para validar tests/build y no reemplaza la APK familiar compilada en tu PC con ese archivo. El APK familiar contiene los identificadores de aplicación y quien tenga el APK podría extraerlos: compartilo solo con familiares autorizados. No incluye la sesión Telegram de quien compila.
 
@@ -114,8 +228,8 @@ Usamos el paquete comunitario io.github.tdlib-android:core:0.1.1, que distribuye
 
 ## Instalar y probar
 
-1. Abrí el proyecto con Android Studio, JDK 17 y Android SDK 34. Ejecutá gradlew.bat testDebugUnitTest assembleDebug.
-2. Instalá app/build/outputs/apk/debug/app-debug.apk en Android 8 o superior. La instalación sobre una versión anterior conserva la URL del catálogo cuando está firmada con la misma clave de depuración.
+1. Abrí el proyecto con Android Studio, JDK 17 y Android SDK 34. Ejecutá gradlew.bat testMobileDebugUnitTest assembleMobileDebug.
+2. Instalá app/build/outputs/apk/mobile/debug/app-mobile-debug.apk en Android 8 o superior. La instalación sobre una versión anterior conserva la URL del catálogo cuando está firmada con la misma clave de depuración.
 3. Comprobá que MiFlix sigue mostrando el catálogo. Su endpoint verificado es https://miflix-catalogo.deviadario.workers.dev/catalogo.json y la URL guardada en Configuración sigue vigente.
 4. El administrador agrega externamente la cuenta al canal privado desde Telegram. Compilá la APK familiar con el archivo privado indicado arriba. **No compartas códigos de inicio de sesión ni contraseña con otras personas.**
 5. En una instalación limpia, MiFlix abre la conexión de Telegram con teléfono, código y 2FA cuando corresponda, carga el catálogo predeterminado y entra a Inicio al autorizarse. Abrí una ficha con enlace a un mensaje de video y tocá Reproducir en MiFlix. Verificá que empieza antes de descargar todo el archivo, pausa, seek cerca del final y regreso a la ficha. La caché parcial necesita conexión para los tramos aún no cargados.
@@ -125,4 +239,4 @@ Usamos el paquete comunitario io.github.tdlib-android:core:0.1.1, que distribuye
 
 MainActivity.kt mantiene la interfaz existente y abre la ruta de reproducción. TelegramSession.kt guarda la sesión de TDLib dentro de la aplicación, resuelve los enlaces y solicita rangos. TelegramVideo.kt implementa la caché acotada y el DataSource de Media3. PlaybackScreen.kt muestra autenticación, buffering y PlayerView. Catalog.kt mantiene la descarga, validación y caché del catálogo; Cloudflare Worker y MiFlix Admin no se modifican.
 
-La compilación automatizada de GitHub Actions ejecuta testDebugUnitTest y assembleDebug y adjunta el APK. Que la compilación pase confirma dependencias y código, pero el inicio de sesión y la reproducción deben verificarse en un teléfono con cuenta autorizada y una publicación real con video.
+La compilación automatizada de GitHub Actions ejecuta tests y assemble de ambas variantes y adjunta el APK. Que la compilación pase confirma dependencias y código, pero el inicio de sesión y la reproducción deben verificarse en un teléfono con cuenta autorizada y una publicación real con video.

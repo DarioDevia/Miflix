@@ -176,6 +176,7 @@ private fun ClientApp(
     var pendingResume by remember { mutableStateOf<PendingResume?>(null) }
     var playbackIssue by remember { mutableStateOf<PlaybackIssue?>(null) }
     var fullscreen by rememberSaveable { mutableStateOf(false) }
+    var tvFocusKey by rememberSaveable { mutableStateOf<String?>(null) }
     var category by rememberSaveable { mutableStateOf("Todos") }
     var query by rememberSaveable { mutableStateOf("") }
     var searchType by rememberSaveable { mutableStateOf<String?>(null) }
@@ -208,7 +209,8 @@ private fun ClientApp(
     val titles = catalog.items.orEmpty()
     val featuredSession = remember { FeaturedSession() }
     val featured = remember(titles) { featuredSession.select(titles) }
-    val fullscreenActive = playbackFullscreenActive(screen, fullscreen, episodeTransition)
+    val fullscreenActive = if (BuildConfig.IS_TV) screen == Screen.PLAYER else
+        playbackFullscreenActive(screen, fullscreen, episodeTransition)
     val searchIndex = remember(titles) { CatalogSearchIndex(titles) }
     LaunchedEffect(searchIndex, query, searchType, searchGenre, searchYear, searchRating,
         searchLatest, searchOrder) { searchScroll.scrollToItem(0) }
@@ -317,7 +319,7 @@ private fun ClientApp(
     }
     fun goBack() {
         Log.d("MiFlixPlayback", "NAV_BACK screen=$screen selectedId=$selectedId")
-        if (fullscreenActive) {
+        if (fullscreenActive && !BuildConfig.IS_TV) {
             fullscreen = false
             return
         }
@@ -402,7 +404,7 @@ private fun ClientApp(
         Scaffold(
             containerColor = MiFlixStyle.background,
             topBar = {
-                if (!fullscreenActive) TopAppBar(
+                if (!fullscreenActive && !BuildConfig.IS_TV) TopAppBar(
                     title = {
                         Text(
                             when (screen) {
@@ -444,7 +446,7 @@ private fun ClientApp(
                 )
             },
             bottomBar = {
-                if (screen == Screen.HOME || screen == Screen.SEARCH || screen == Screen.SECTIONS) {
+                if (!BuildConfig.IS_TV && (screen == Screen.HOME || screen == Screen.SEARCH || screen == Screen.SECTIONS)) {
                     NavigationBar(containerColor = MiFlixStyle.surface) {
                         listOf(
                             Triple(Screen.HOME, "Inicio", Icons.Default.Home),
@@ -470,7 +472,18 @@ private fun ClientApp(
             }
         ) { padding ->
             when (screen) {
-                Screen.HOME -> HomeScreen(
+                Screen.HOME -> if (BuildConfig.IS_TV) TvHome(titles, featured, continuing,
+                    homeScroll, tvFocusKey, { tvFocusKey = it }, busy, problem, ::refresh,
+                    ::openDetail, { item ->
+                        openDetail(item.title)
+                        val season = item.seasonIndex
+                        val episode = item.episodeIndex
+                        val link = item.episode?.telegramUrl
+                        if (season != null && episode != null && link != null && validTelegramLink(link))
+                            requestPlayback(item.key, link, item.episode?.titulo ?: item.title.titulo,
+                                findPreviousPlayableEpisode(item.title, season, episode, ::validTelegramLink),
+                                findNextPlayableEpisode(item.title, season, episode, ::validTelegramLink))
+                    }) else HomeScreen(
                     modifier = Modifier.padding(padding),
                     scrollState = homeScroll,
                     titles = titles,
@@ -522,7 +535,9 @@ private fun ClientApp(
                     onCategoryChange = { category = it },
                     onSelect = ::openDetail
                 )
-                Screen.DETAIL -> if (selected != null) Detail(
+                Screen.DETAIL -> if (selected != null && BuildConfig.IS_TV)
+                    TvDetail(selected, ::validTelegramLink, ::requestPlayback)
+                else if (selected != null) Detail(
                     title = selected,
                     modifier = Modifier.padding(padding),
                     autoplayTrailers = autoplayTrailers && pendingResume == null && pendingNavigation == null,
@@ -547,7 +562,7 @@ private fun ClientApp(
                             screen = Screen.DETAIL
                         }
                     },
-                    fullscreen = fullscreen,
+                    fullscreen = fullscreen || BuildConfig.IS_TV,
                     onFullscreenToggle = { fullscreen = !fullscreen },
                     onOpenTelegram = { openTelegram(context, playbackLink) },
                     onPlaybackFailure = { issue ->

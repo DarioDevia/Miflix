@@ -15,7 +15,10 @@ Aplicación cliente separada del administrador. Su identificador es `ar.com.mifl
 
 `MainActivity.kt` muestra Inicio → sección → ficha y ajustes. `Catalog.kt` descarga, valida y guarda el JSON. La app administradora publica el catálogo; este proyecto es solo cliente. La siguiente etapa agregará una capa `TelegramSession` con TDLib y luego un reproductor conectado a sus archivos. La API ID y API hash de Telegram deberán obtenerse para **esta aplicación**; no se incluyen credenciales personales, tokens de bot ni claves administrativas en el código o el catálogo. Cada familiar entrará con su propia cuenta que tenga acceso al canal.
 
-## Probar
+## Probar (instrucciones históricas anteriores a las variantes Mobile/TV)
+
+Para compilar el proyecto actual, usar los comandos de README.md. Los siguientes
+comandos y estados corresponden a la versión histórica móvil 0.1.0, no a MiFlix TV.
 
 1. Abrí esta carpeta como proyecto en Android Studio (JDK 17, SDK Android 34).
 2. Ejecutá `./gradlew testDebugUnitTest assembleDebug` (en Windows: `gradlew.bat testDebugUnitTest assembleDebug`).
