@@ -13,6 +13,9 @@ import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
@@ -278,6 +281,7 @@ private fun TelegramLogin(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun VideoPlayer(
     video: TelegramVideo,
@@ -305,6 +309,9 @@ private fun VideoPlayer(
         Log.d(tag, "PLAYER_CREATE fileId=${video.fileId} size=${video.size} " +
             "resumePosition=$resumePosition playWhenReady=$resumePlay")
         ExoPlayer.Builder(context).build().apply {
+            trackSelectionParameters = trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
+            Log.d("MiFlixTracks", "DEFAULT_TEXT_DISABLED")
             setMediaSource(ProgressiveMediaSource.Factory(video.factory()).createMediaSource(
                 MediaItem.fromUri(Uri.parse("miflix://telegram/${video.fileId}"))
             ))
@@ -316,19 +323,12 @@ private fun VideoPlayer(
     }
     var released by remember(player) { mutableStateOf(false) }
     var availableTracks by remember(player) { mutableStateOf(player.currentTracks) }
-    var showAudioDialog by remember(player) { mutableStateOf(false) }
-    val audioTracks = remember(availableTracks) {
-        buildList {
-            availableTracks.groups.forEach { group ->
-                if (group.type == C.TRACK_TYPE_AUDIO) repeat(group.length) { trackIndex ->
-                    val format = group.getTrackFormat(trackIndex)
-                    val name = format.label?.takeIf { it.isNotBlank() }
-                        ?: format.language?.takeIf { it.isNotBlank() } ?: "Audio ${size + 1}"
-                    add(DiagnosticAudioTrack(trackIndex, group, name))
-                }
-            }
-        }
-    }
+    var showTracksPanel by remember(player) { mutableStateOf(false) }
+    var defaultAudioApplied by remember(player) { mutableStateOf(false) }
+    val trackOptions = remember(availableTracks) { selectableMediaTracks(availableTracks) }
+    val audioTracks = trackOptions.filter { it.group.type == C.TRACK_TYPE_AUDIO }
+    val textTracks = trackOptions.filter { it.group.type == C.TRACK_TYPE_TEXT }
+    val hasTrackChoice = audioTracks.size > 1 || textTracks.isNotEmpty()
     var error by remember(video) { mutableStateOf<String?>(null) }
     var buffering by remember(video) { mutableStateOf(true) }
     var playing by remember(video) { mutableStateOf(player.isPlaying) }
@@ -348,31 +348,53 @@ private fun VideoPlayer(
     val playbackFailure by rememberUpdatedState(onPlaybackFailure)
     val stopped by rememberUpdatedState(onStopped)
 
-    fun selectAudio(option: DiagnosticAudioTrack) {
-        if (released || !owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
-        // Revalidate the native group, not only its changing index in the UI snapshot.
+    fun selectTrack(option: PlayerTrackOption, automatic: Boolean = false) {
+        if (released || (!automatic &&
+            !owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))) return
+        val type = option.group.type
+        val event = if (type == C.TRACK_TYPE_AUDIO) "AUDIO" else "TEXT"
         val groupIndex = player.currentTracks.groups.indexOfFirst {
-            it.type == C.TRACK_TYPE_AUDIO && it.mediaTrackGroup == option.group.mediaTrackGroup
+            it.type == type && it.mediaTrackGroup == option.group.mediaTrackGroup
         }
         val group = player.currentTracks.groups.getOrNull(groupIndex)
         if (group == null || option.trackIndex !in 0 until group.length ||
             !group.isTrackSupported(option.trackIndex)) {
-            Log.d("MiFlixTracks", "AUDIO_SELECTION_REJECTED reason=STALE_OR_UNSUPPORTED")
-            showAudioDialog = false
+            Log.d("MiFlixTracks", "${event}_SELECTION_REJECTED reason=STALE_OR_UNSUPPORTED")
             return
         }
-        val format = group.getTrackFormat(option.trackIndex)
-        fun text(value: String?) = value?.takeIf { it.isNotBlank() }
-            ?.replace('\n', ' ')?.replace('\r', ' ')?.replace('\t', ' ') ?: "unknown"
-        Log.d("MiFlixTracks", "AUDIO_SELECTION_REQUEST group=$groupIndex track=${option.trackIndex} " +
-            "label=${text(format.label)} language=${text(format.language)}")
+        if (type == C.TRACK_TYPE_AUDIO) defaultAudioApplied = true
+        Log.d("MiFlixTracks", "${event}_SELECTION_REQUEST group=$groupIndex track=${option.trackIndex}")
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(type, false)
             .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, option.trackIndex))
             .build()
-        // Parameters were submitted; TRACKS_CHANGED confirms actual selection asynchronously.
-        Log.d("MiFlixTracks", "AUDIO_SELECTION_APPLIED group=$groupIndex track=${option.trackIndex}")
-        showAudioDialog = false
+        // Submitted parameters; TRACKS_CHANGED confirms the actual renderer selection.
+        Log.d("MiFlixTracks", "${event}_SELECTION_APPLIED group=$groupIndex track=${option.trackIndex}")
+        if (automatic) Log.d("MiFlixTracks", "DEFAULT_AUDIO_SELECTED group=$groupIndex track=${option.trackIndex}")
         controlsVisible = true
+    }
+
+    fun disableText() {
+        if (released || !owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
+        Log.d("MiFlixTracks", "TEXT_DISABLED")
+    }
+
+    fun applyDefaultAudio(tracks: Tracks) {
+        if (released || defaultAudioApplied) return
+        val options = selectableMediaTracks(tracks).filter { it.group.type == C.TRACK_TYPE_AUDIO }
+        if (options.none { it.group.isTrackSupported(it.trackIndex) }) return
+        // Mark before assigning parameters: the resulting callback must not reset manual choices.
+        defaultAudioApplied = true
+        val preferred = preferredSpanishAudio(options.map {
+            val format = it.group.getTrackFormat(it.trackIndex)
+            AudioTrackMetadata(format.label, format.language,
+                it.group.isTrackSupported(it.trackIndex), it.group.isTrackSelected(it.trackIndex))
+        })
+        if (preferred != null) selectTrack(options[preferred], automatic = true)
+        else Log.d("MiFlixTracks", "DEFAULT_AUDIO_KEEP_MEDIA3")
     }
 
     fun switchEpisode(target: EpisodeNavigationTarget?) {
@@ -404,8 +426,8 @@ private fun VideoPlayer(
             delay(500)
         }
     }
-    LaunchedEffect(controlsVisible, playing) {
-        if (controlsVisible && playing) {
+    LaunchedEffect(controlsVisible, playing, showTracksPanel, dragging) {
+        if (controlsVisible && playing && !showTracksPanel && !dragging) {
             delay(3_000)
             controlsVisible = false
         }
@@ -421,6 +443,7 @@ private fun VideoPlayer(
             override fun onTracksChanged(tracks: Tracks) {
                 availableTracks = tracks
                 logMediaTracks(tracks, "TRACKS_CHANGED")
+                applyDefaultAudio(tracks)
             }
             override fun onPlayerError(exception: PlaybackException) {
                 Log.e(tag, "PLAYER_ERROR code=${exception.errorCode} name=${exception.errorCodeName} " +
@@ -472,6 +495,7 @@ private fun VideoPlayer(
         player.addListener(listener)
         availableTracks = player.currentTracks
         logMediaTracks(player.currentTracks, "LISTENER_ATTACHED")
+        applyDefaultAudio(player.currentTracks)
         Log.d(tag, "PLAYER_LISTENER_ATTACHED state=${player.playbackState} duration=${player.duration}")
         owner.lifecycle.addObserver(observer)
         onDispose {
@@ -481,29 +505,44 @@ private fun VideoPlayer(
             releasePlayer(backgrounded = false)
         }
     }
-    if (showAudioDialog && !released) {
-        AlertDialog(
-            onDismissRequest = { showAudioDialog = false },
-            title = { Text("Audio · diagnóstico") },
-            text = {
-                Column(Modifier.fillMaxWidth().heightIn(max = 280.dp)
-                    .verticalScroll(rememberScrollState())) {
-                    audioTracks.forEach { option ->
-                        val supported = option.group.isTrackSupported(option.trackIndex)
-                        Row(Modifier.fillMaxWidth().clickable(enabled = supported) {
-                            selectAudio(option)
-                        }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = option.group.isTrackSelected(option.trackIndex),
-                                onClick = null, enabled = supported)
-                            Text(option.name, Modifier.weight(1f),
-                                color = if (supported) MaterialTheme.colorScheme.onSurface else Color.Gray)
-                        }
+    if (showTracksPanel && !released) {
+        ModalBottomSheet(
+            onDismissRequest = { showTracksPanel = false },
+            containerColor = Color(0xFF18181C), contentColor = Color.White
+        ) {
+            Column(Modifier.fillMaxWidth().heightIn(max = 420.dp)
+                .verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Audio y subtítulos", Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleLarge)
+                    IconButton(onClick = { showTracksPanel = false }) {
+                        Icon(Icons.Default.Close, contentDescription = "Cerrar")
                     }
-                    if (audioTracks.isEmpty()) Text("No hay pistas de audio disponibles.")
                 }
-            },
-            confirmButton = { TextButton(onClick = { showAudioDialog = false }) { Text("Cerrar") } }
-        )
+                Text("Audio", Modifier.padding(top = 16.dp, bottom = 8.dp),
+                    style = MaterialTheme.typography.titleMedium)
+                audioTracks.forEach { option ->
+                    val supported = option.group.isTrackSupported(option.trackIndex)
+                    TrackChoiceRow(option.name, option.group.isTrackSelected(option.trackIndex),
+                        enabled = supported && audioTracks.size > 1,
+                        selectable = audioTracks.size > 1) { selectTrack(option) }
+                }
+                if (audioTracks.isEmpty()) Text("No disponible", color = Color.LightGray)
+                Text("Subtítulos", Modifier.padding(top = 20.dp, bottom = 8.dp),
+                    style = MaterialTheme.typography.titleMedium)
+                if (textTracks.isEmpty()) Text("No disponibles", color = Color.LightGray)
+                else {
+                    val textDisabled = C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes
+                    TrackChoiceRow("Desactivados", textDisabled) { disableText() }
+                    textTracks.forEach { option ->
+                        TrackChoiceRow(option.name,
+                            !textDisabled && option.group.isTrackSelected(option.trackIndex),
+                            enabled = option.group.isTrackSupported(option.trackIndex)) { selectTrack(option) }
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
+            }
+        }
     }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
         Box(if (fullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
@@ -534,22 +573,33 @@ private fun VideoPlayer(
                 CircularProgressIndicator(Modifier.align(Alignment.Center), color = Color.White)
             }
             if (controlsVisible) {
-                TextButton(onClick = { showAudioDialog = true },
-                    enabled = audioTracks.isNotEmpty() && !released,
-                    modifier = Modifier.align(Alignment.TopEnd)
-                        .background(Color.Black.copy(alpha = .72f))) {
-                    Text("Audio", color = Color.White)
-                }
-                Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                    .background(Color.Black.copy(alpha = .72f)).padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { if (player.isPlaying) player.pause() else player.play() }) {
-                        Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (playing) "Pausar" else "Reproducir", tint = Color.White)
+                if (hasTrackChoice) {
+                    TextButton(onClick = { showTracksPanel = true }, enabled = !released,
+                        modifier = Modifier.align(Alignment.TopEnd)
+                            .background(Color.Black.copy(alpha = .6f))) {
+                        Text("Audio y subtítulos", color = Color.White)
                     }
-                    Text(formatPlaybackTime(if (dragging && duration > 0)
-                        (draggedFraction * duration).toLong() else currentPosition),
-                        color = Color.White)
+                }
+                Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(if (fullscreen) 32.dp else 16.dp)) {
+                    IconButton(onClick = { seekToPosition(player.currentPosition - 10_000L, "button_back") }) {
+                        Icon(Icons.Default.Replay10, "Retroceder 10 segundos", tint = Color.White,
+                            modifier = Modifier.size(32.dp))
+                    }
+                    IconButton(onClick = { if (player.isPlaying) player.pause() else player.play() },
+                        modifier = Modifier.size(56.dp).background(Color.Black.copy(alpha = .45f),
+                            androidx.compose.foundation.shape.CircleShape)) {
+                        Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (playing) "Pausar" else "Reproducir",
+                            tint = Color.White, modifier = Modifier.size(40.dp))
+                    }
+                    IconButton(onClick = { seekToPosition(player.currentPosition + 10_000L, "button_forward") }) {
+                        Icon(Icons.Default.Forward10, "Adelantar 10 segundos", tint = Color.White,
+                            modifier = Modifier.size(32.dp))
+                    }
+                }
+                Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                    .background(Color.Black.copy(alpha = .6f)).padding(horizontal = 12.dp)) {
                     Slider(
                         value = if (dragging) draggedFraction else
                             if (duration > 0) (currentPosition.toFloat() / duration).coerceIn(0f, 1f)
@@ -560,36 +610,33 @@ private fun VideoPlayer(
                             dragging = false
                         },
                         enabled = duration > 0,
-                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                        modifier = Modifier.fillMaxWidth().height(32.dp)
                     )
-                    Text(formatPlaybackTime(duration), color = Color.White)
-                    IconButton(onClick = onFullscreenToggle) {
-                        Icon(if (fullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                            contentDescription = if (fullscreen) "Salir de pantalla completa" else "Pantalla completa",
-                            tint = Color.White)
-                    }
-                }
-            }
-            if (controlsVisible && (previousEpisode != null || nextEpisode != null)) {
-                Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 56.dp)
-                    .background(Color.Black.copy(alpha = .72f)),
-                    horizontalArrangement = Arrangement.Center) {
-                    IconButton(onClick = { switchEpisode(previousEpisode) },
-                        enabled = previousEpisode != null && !episodeNavigating) {
-                        Icon(Icons.Default.SkipPrevious,
-                            contentDescription = "Episodio anterior",
-                            tint = if (previousEpisode != null) Color.White else Color.Gray)
-                    }
-                    IconButton(onClick = { switchEpisode(nextEpisode) },
-                        enabled = nextEpisode != null && !episodeNavigating) {
-                        Icon(Icons.Default.SkipNext,
-                            contentDescription = "Episodio siguiente",
-                            tint = if (nextEpisode != null) Color.White else Color.Gray)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(formatPlaybackTime(if (dragging && duration > 0)
+                            (draggedFraction * duration).toLong() else currentPosition), color = Color.White,
+                            style = MaterialTheme.typography.labelMedium)
+                        Text(" / " + formatPlaybackTime(duration), color = Color.LightGray,
+                            style = MaterialTheme.typography.labelMedium)
+                        Spacer(Modifier.weight(1f))
+                        if (fullscreen && (previousEpisode != null || nextEpisode != null)) {
+                            EpisodeControls(previousEpisode, nextEpisode, episodeNavigating, ::switchEpisode)
+                        }
+                        IconButton(onClick = onFullscreenToggle, modifier = Modifier.size(40.dp)) {
+                            Icon(if (fullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                contentDescription = if (fullscreen) "Salir de pantalla completa" else "Pantalla completa",
+                                tint = Color.White)
+                        }
                     }
                 }
             }
         }
         if (!fullscreen) {
+            if (controlsVisible && (previousEpisode != null || nextEpisode != null)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    EpisodeControls(previousEpisode, nextEpisode, episodeNavigating, ::switchEpisode)
+                }
+            }
             Text(title, Modifier.padding(16.dp), style = MaterialTheme.typography.titleLarge)
             if (error != null) Text(error!!, Modifier.padding(horizontal = 16.dp),
                 color = MaterialTheme.colorScheme.error)
@@ -599,11 +646,49 @@ private fun VideoPlayer(
     }
 }
 
-private data class DiagnosticAudioTrack(
+private data class PlayerTrackOption(
     val trackIndex: Int,
     val group: Tracks.Group,
     val name: String
 )
+
+private fun selectableMediaTracks(tracks: Tracks): List<PlayerTrackOption> = buildList {
+    var audioCount = 0
+    var textCount = 0
+    tracks.groups.forEach { group ->
+        if (group.type == C.TRACK_TYPE_AUDIO || group.type == C.TRACK_TYPE_TEXT) {
+            repeat(group.length) { index ->
+                val fallback = if (group.type == C.TRACK_TYPE_AUDIO) "Audio ${++audioCount}"
+                    else "Subtítulo ${++textCount}"
+                val format = group.getTrackFormat(index)
+                add(PlayerTrackOption(index, group, mediaTrackName(format.label, format.language, fallback)))
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrackChoiceRow(name: String, selected: Boolean, enabled: Boolean = true,
+    selectable: Boolean = true, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick)
+        .padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (selectable) RadioButton(selected = selected, onClick = null, enabled = enabled)
+        Text(name, Modifier.weight(1f), color = if (enabled || !selectable) Color.White else Color.Gray)
+    }
+}
+
+@Composable
+private fun EpisodeControls(previous: EpisodeNavigationTarget?, next: EpisodeNavigationTarget?,
+    navigating: Boolean, onNavigate: (EpisodeNavigationTarget?) -> Unit) {
+    if (previous != null) TextButton(onClick = { onNavigate(previous) }, enabled = !navigating) {
+        Icon(Icons.Default.SkipPrevious, "Episodio anterior", tint = Color.White)
+        Text("Anterior", color = Color.White, style = MaterialTheme.typography.labelMedium)
+    }
+    if (next != null) TextButton(onClick = { onNavigate(next) }, enabled = !navigating) {
+        Text("Siguiente", color = Color.White, style = MaterialTheme.typography.labelMedium)
+        Icon(Icons.Default.SkipNext, "Siguiente episodio", tint = Color.White)
+    }
+}
 
 /** Read-only snapshots: no track preferences, IDs, URIs or player state are logged here. */
 private fun logMediaTracks(tracks: Tracks, event: String) {
