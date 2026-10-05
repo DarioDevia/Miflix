@@ -4,6 +4,7 @@ import android.net.Uri
 import android.os.SystemClock
 import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -38,6 +39,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.common.Format
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
@@ -313,6 +315,20 @@ private fun VideoPlayer(
         }
     }
     var released by remember(player) { mutableStateOf(false) }
+    var availableTracks by remember(player) { mutableStateOf(player.currentTracks) }
+    var showAudioDialog by remember(player) { mutableStateOf(false) }
+    val audioTracks = remember(availableTracks) {
+        buildList {
+            availableTracks.groups.forEach { group ->
+                if (group.type == C.TRACK_TYPE_AUDIO) repeat(group.length) { trackIndex ->
+                    val format = group.getTrackFormat(trackIndex)
+                    val name = format.label?.takeIf { it.isNotBlank() }
+                        ?: format.language?.takeIf { it.isNotBlank() } ?: "Audio ${size + 1}"
+                    add(DiagnosticAudioTrack(trackIndex, group, name))
+                }
+            }
+        }
+    }
     var error by remember(video) { mutableStateOf<String?>(null) }
     var buffering by remember(video) { mutableStateOf(true) }
     var playing by remember(video) { mutableStateOf(player.isPlaying) }
@@ -331,6 +347,33 @@ private fun VideoPlayer(
     val navigateEpisode by rememberUpdatedState(onNavigateEpisode)
     val playbackFailure by rememberUpdatedState(onPlaybackFailure)
     val stopped by rememberUpdatedState(onStopped)
+
+    fun selectAudio(option: DiagnosticAudioTrack) {
+        if (released || !owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
+        // Revalidate the native group, not only its changing index in the UI snapshot.
+        val groupIndex = player.currentTracks.groups.indexOfFirst {
+            it.type == C.TRACK_TYPE_AUDIO && it.mediaTrackGroup == option.group.mediaTrackGroup
+        }
+        val group = player.currentTracks.groups.getOrNull(groupIndex)
+        if (group == null || option.trackIndex !in 0 until group.length ||
+            !group.isTrackSupported(option.trackIndex)) {
+            Log.d("MiFlixTracks", "AUDIO_SELECTION_REJECTED reason=STALE_OR_UNSUPPORTED")
+            showAudioDialog = false
+            return
+        }
+        val format = group.getTrackFormat(option.trackIndex)
+        fun text(value: String?) = value?.takeIf { it.isNotBlank() }
+            ?.replace('\n', ' ')?.replace('\r', ' ')?.replace('\t', ' ') ?: "unknown"
+        Log.d("MiFlixTracks", "AUDIO_SELECTION_REQUEST group=$groupIndex track=${option.trackIndex} " +
+            "label=${text(format.label)} language=${text(format.language)}")
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, option.trackIndex))
+            .build()
+        // Parameters were submitted; TRACKS_CHANGED confirms actual selection asynchronously.
+        Log.d("MiFlixTracks", "AUDIO_SELECTION_APPLIED group=$groupIndex track=${option.trackIndex}")
+        showAudioDialog = false
+        controlsVisible = true
+    }
 
     fun switchEpisode(target: EpisodeNavigationTarget?) {
         if (target == null || episodeNavigating ||
@@ -376,6 +419,7 @@ private fun VideoPlayer(
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onTracksChanged(tracks: Tracks) {
+                availableTracks = tracks
                 logMediaTracks(tracks, "TRACKS_CHANGED")
             }
             override fun onPlayerError(exception: PlaybackException) {
@@ -426,6 +470,7 @@ private fun VideoPlayer(
             }
         }
         player.addListener(listener)
+        availableTracks = player.currentTracks
         logMediaTracks(player.currentTracks, "LISTENER_ATTACHED")
         Log.d(tag, "PLAYER_LISTENER_ATTACHED state=${player.playbackState} duration=${player.duration}")
         owner.lifecycle.addObserver(observer)
@@ -435,6 +480,30 @@ private fun VideoPlayer(
             owner.lifecycle.removeObserver(observer)
             releasePlayer(backgrounded = false)
         }
+    }
+    if (showAudioDialog && !released) {
+        AlertDialog(
+            onDismissRequest = { showAudioDialog = false },
+            title = { Text("Audio · diagnóstico") },
+            text = {
+                Column(Modifier.fillMaxWidth().heightIn(max = 280.dp)
+                    .verticalScroll(rememberScrollState())) {
+                    audioTracks.forEach { option ->
+                        val supported = option.group.isTrackSupported(option.trackIndex)
+                        Row(Modifier.fillMaxWidth().clickable(enabled = supported) {
+                            selectAudio(option)
+                        }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = option.group.isTrackSelected(option.trackIndex),
+                                onClick = null, enabled = supported)
+                            Text(option.name, Modifier.weight(1f),
+                                color = if (supported) MaterialTheme.colorScheme.onSurface else Color.Gray)
+                        }
+                    }
+                    if (audioTracks.isEmpty()) Text("No hay pistas de audio disponibles.")
+                }
+            },
+            confirmButton = { TextButton(onClick = { showAudioDialog = false }) { Text("Cerrar") } }
+        )
     }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
         Box(if (fullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
@@ -465,6 +534,12 @@ private fun VideoPlayer(
                 CircularProgressIndicator(Modifier.align(Alignment.Center), color = Color.White)
             }
             if (controlsVisible) {
+                TextButton(onClick = { showAudioDialog = true },
+                    enabled = audioTracks.isNotEmpty() && !released,
+                    modifier = Modifier.align(Alignment.TopEnd)
+                        .background(Color.Black.copy(alpha = .72f))) {
+                    Text("Audio", color = Color.White)
+                }
                 Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                     .background(Color.Black.copy(alpha = .72f)).padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically) {
@@ -523,6 +598,12 @@ private fun VideoPlayer(
         }
     }
 }
+
+private data class DiagnosticAudioTrack(
+    val trackIndex: Int,
+    val group: Tracks.Group,
+    val name: String
+)
 
 /** Read-only snapshots: no track preferences, IDs, URIs or player state are logged here. */
 private fun logMediaTracks(tracks: Tracks, event: String) {
