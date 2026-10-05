@@ -36,6 +36,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
+import androidx.media3.common.Format
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
@@ -373,6 +375,9 @@ private fun VideoPlayer(
     }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
+            override fun onTracksChanged(tracks: Tracks) {
+                logMediaTracks(tracks, "TRACKS_CHANGED")
+            }
             override fun onPlayerError(exception: PlaybackException) {
                 Log.e(tag, "PLAYER_ERROR code=${exception.errorCode} name=${exception.errorCodeName} " +
                     "state=${player.playbackState} duration=${player.duration} position=${player.currentPosition}", exception)
@@ -421,6 +426,7 @@ private fun VideoPlayer(
             }
         }
         player.addListener(listener)
+        logMediaTracks(player.currentTracks, "LISTENER_ATTACHED")
         Log.d(tag, "PLAYER_LISTENER_ATTACHED state=${player.playbackState} duration=${player.duration}")
         owner.lifecycle.addObserver(observer)
         onDispose {
@@ -514,6 +520,41 @@ private fun VideoPlayer(
                 color = MaterialTheme.colorScheme.error)
         } else if (error != null) {
             Text(error!!, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error)
+        }
+    }
+}
+
+/** Read-only snapshots: no track preferences, IDs, URIs or player state are logged here. */
+private fun logMediaTracks(tracks: Tracks, event: String) {
+    val tag = "MiFlixTracks"
+    fun text(value: String?): String = value?.takeIf { it.isNotBlank() }
+        ?.replace('\n', ' ')?.replace('\r', ' ')?.replace('\t', ' ') ?: "unknown"
+    fun number(value: Int): String = if (value == Format.NO_VALUE) "unknown" else value.toString()
+    Log.d(tag, "$event groups=${tracks.groups.size}")
+    tracks.groups.forEachIndexed { groupIndex, group ->
+        val type = when (group.type) {
+            C.TRACK_TYPE_VIDEO -> "VIDEO"
+            C.TRACK_TYPE_AUDIO -> "AUDIO"
+            C.TRACK_TYPE_TEXT -> "TEXT/SUBTITLE"
+            else -> "UNKNOWN"
+        }
+        repeat(group.length) { trackIndex ->
+            val format = group.getTrackFormat(trackIndex)
+            val support = group.getTrackSupport(trackIndex)
+            val supportName = when (support) {
+                C.FORMAT_HANDLED -> "HANDLED"
+                C.FORMAT_EXCEEDS_CAPABILITIES -> "EXCEEDS_CAPABILITIES"
+                C.FORMAT_UNSUPPORTED_DRM -> "UNSUPPORTED_DRM"
+                C.FORMAT_UNSUPPORTED_SUBTYPE -> "UNSUPPORTED_SUBTYPE"
+                C.FORMAT_UNSUPPORTED_TYPE -> "UNSUPPORTED_TYPE"
+                else -> "UNKNOWN"
+            }
+            Log.d(tag, "$type group=$groupIndex track=$trackIndex " +
+                "label=${text(format.label)} language=${text(format.language)} " +
+                "sampleMimeType=${text(format.sampleMimeType)} codecs=${text(format.codecs)} " +
+                "channelCount=${number(format.channelCount)} sampleRate=${number(format.sampleRate)} " +
+                "bitrate=${number(format.bitrate)} selected=${group.isTrackSelected(trackIndex)} " +
+                "supported=${group.isTrackSupported(trackIndex)} support=$supportName($support)")
         }
     }
 }
