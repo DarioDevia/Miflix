@@ -155,10 +155,11 @@ internal fun VerticalPlayerControl(
 ) {
     val change by rememberUpdatedState(onValueChange)
     val interaction by rememberUpdatedState(onInteraction)
-    Column(modifier.width(48.dp).background(Color.Black.copy(alpha = .45f), RoundedCornerShape(24.dp)),
-        horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.padding(top = 4.dp).size(24.dp))
-        Canvas(Modifier.width(48.dp).height(trackHeight)
+    val compact = trackHeight <= 48.dp
+    val iconSpace = if (compact) 0.dp else 28.dp
+    // Compact portrait uses the icon beside the rail, leaving room for top/bottom controls.
+    Box(modifier.width(48.dp).height(trackHeight + iconSpace)
+        .background(Color.Black.copy(alpha = .45f), RoundedCornerShape(24.dp))
             .semantics {
                 contentDescription = description // Accessibility only; no visible labels/numbers.
                 if (value != null) progressBarRangeInfo = ProgressBarRangeInfo(value, 0f..1f)
@@ -167,19 +168,20 @@ internal fun VerticalPlayerControl(
                     enabled
                 }
             }
-            .pointerInput(enabled) {
+            .pointerInput(enabled, compact, trackHeight) {
                 if (!enabled) return@pointerInput
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     down.consume()
                     interaction(true)
                     try {
-                        change(verticalControlFraction(down.position.y, size.height.toFloat(), 8.dp.toPx()))
+                        val top = iconSpace.toPx()
+                        change(verticalControlFraction(down.position.y - top, size.height - top, 8.dp.toPx()))
                         while (true) {
                             val event = awaitPointerEvent()
                             val pointer = event.changes.firstOrNull { it.id == down.id } ?: break
                             event.changes.forEach { it.consume() }
-                            change(verticalControlFraction(pointer.position.y, size.height.toFloat(), 8.dp.toPx()))
+                            change(verticalControlFraction(pointer.position.y - top, size.height - top, 8.dp.toPx()))
                             if (!pointer.pressed) break
                         }
                     } finally {
@@ -187,6 +189,12 @@ internal fun VerticalPlayerControl(
                     }
                 }
             }) {
+        Icon(icon, contentDescription = null, tint = Color.White,
+            modifier = Modifier.align(if (compact) Alignment.CenterStart else Alignment.TopCenter)
+                .padding(start = if (compact) 2.dp else 0.dp, top = if (compact) 0.dp else 4.dp)
+                .size(if (compact) 20.dp else 24.dp))
+        Canvas(Modifier.align(if (compact) Alignment.CenterEnd else Alignment.BottomCenter)
+            .width(if (compact) 24.dp else 48.dp).height(trackHeight)) {
             val inset = 8.dp.toPx()
             val x = size.width / 2f
             val bottom = size.height - inset

@@ -808,4 +808,3 @@ private fun formatPlaybackTime(milliseconds: Long): String {
         seconds / 3_600, seconds / 60 % 60, seconds % 60)
     else String.format(Locale.US, "%02d:%02d", seconds / 60, seconds % 60)
 }
-
