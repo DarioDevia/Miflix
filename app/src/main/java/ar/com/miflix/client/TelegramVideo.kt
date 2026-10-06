@@ -61,6 +61,7 @@ internal class TelegramVideo(
         ranges.clear()
     }
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     fun factory(): DataSource.Factory = DataSource.Factory { TelegramRangeDataSource(this) }
 
     companion object {
@@ -70,6 +71,7 @@ internal class TelegramVideo(
 }
 
 /** Media3 calls open again at a new DataSpec.position when playback seeks. */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 private class TelegramRangeDataSource(private val video: TelegramVideo) : BaseDataSource(true) {
     private val tag = "MiFlixPlayback"
     private var uri: Uri? = null
@@ -136,3 +138,4 @@ private class TelegramRangeDataSource(private val video: TelegramVideo) : BaseDa
         }
     }
 }
+

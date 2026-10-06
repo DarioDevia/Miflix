@@ -285,6 +285,7 @@ private fun TelegramLogin(
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 private fun VideoPlayer(
     video: TelegramVideo,
@@ -765,6 +766,7 @@ private fun EpisodeControls(previous: EpisodeNavigationTarget?, next: EpisodeNav
 }
 
 /** Read-only snapshots: no track preferences, IDs, URIs or player state are logged here. */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 private fun logMediaTracks(tracks: Tracks, event: String) {
     val tag = "MiFlixTracks"
     fun text(value: String?): String = value?.takeIf { it.isNotBlank() }
@@ -806,3 +808,4 @@ private fun formatPlaybackTime(milliseconds: Long): String {
         seconds / 3_600, seconds / 60 % 60, seconds % 60)
     else String.format(Locale.US, "%02d:%02d", seconds / 60, seconds % 60)
 }
+
