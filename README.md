@@ -1,8 +1,28 @@
-# MiFlix Cliente Android 0.9.2-diagnostico
+# MiFlix Cliente Android 0.9.3-diagnostico
 
-**Versión actual:** MiFlix `0.9.2-diagnostico` · `versionName = "0.9.2-diagnostico"` · `versionCode = 26`.
+**Versión actual:** MiFlix Mobile `0.9.3-diagnostico` · `versionName = "0.9.3-diagnostico"` · `versionCode = 27` · `applicationId = "ar.com.miflix.client"`.
 
-## 0.9.2 diagnóstico: fullscreen entre episodios y Destacado por sesión
+## 0.9.3 diagnóstico: progreso arrastrable y controles laterales
+
+La barra de progreso conserva el Slider de Compose: permite tocar una posición o arrastrar el thumb y ejecuta un único seek al soltar, sin solicitudes a Telegram por cada movimiento. El área de la barra es de 48 dp; apoyar el dedo ya pausa el auto-ocultamiento, incluso antes de moverlo. El código anterior tenía una altura de 32 dp y protegía el auto-hide recién desde el cambio de valor; la causa táctil exacta en hardware requiere confirmar la prueba manual.
+
+El lateral izquierdo muestra un icono y un slider vertical de **brillo temporal de la ventana**, y el derecho controla **volumen multimedia de Android (STREAM_MUSIC)**. No muestran textos ni porcentajes. Tienen zonas táctiles de 48 dp, márgenes laterales y barras más cortas en portrait. Aparecen y desaparecen junto con los controles existentes. Durante cualquier drag se suspende el mismo auto-hide de tres segundos; al soltar vuelve a comenzar. Los sliders consumen sus gestos y no activan doble toque ±10 s.
+
+Mostrar el control de brillo no cambia la luminosidad: solo manipularlo aplica `Window.attributes.screenBrightness` entre 0 y 1. Al salir o pasar a background se restaura el override previo, incluido -1 (heredar Android), sin escribir ajustes globales ni cambiar brillo adaptativo. El thumb inicial usa el override existente o la configuración de brillo Android como aproximación: esta API no expone la luminancia efectiva del panel bajo brillo adaptativo. Si no puede leerse ese valor, no se inventa una posición; el thumb aparece al elegir un nivel. No se agregan permisos. Los botones físicos de volumen se reflejan en hasta aproximadamente 500 ms mientras los controles están visibles; no hay polling en background. Se respetan las políticas de volumen fijo y restricciones del sistema.
+
+**Verificación y firma:** Actions ejecuta `testDebugUnitTest`, `lintDebug`, `assembleDebug` y `assembleRelease`. Produce `MiFlix-cliente-debug`, `MiFlix-cliente-release-unsigned` y reportes de verificaciones. El debug sirve para comprobación técnica: **no actualiza una instalación firmada con la clave release del usuario**. La release de Actions está sin firmar y sin credenciales privadas. Para la actualización familiar, compilar y firmar en Windows con el mismo keystore release permanente y `telegram.local.properties` local; no crear otra clave ni incluirla en Git. La validación final requiere teléfono real.
+
+Pruebas manuales en Samsung:
+
+1. **Progreso:** arrastrar hacia adelante y atrás, soltar y comprobar un seek; tocar otro punto y comprobar tap-to-seek.
+2. **Brillo:** comenzar con brillo bajo; subir/bajar el slider izquierdo, salir y verificar el brillo previo. Repetir al enviar la app a background y volver.
+3. **Volumen:** mover el slider derecho hasta ambos extremos; comprobar audio multimedia y sincronización con botones físicos.
+4. **Auto-hide:** esperar tres segundos; comprobar que todos los controles se ocultan. Mantener presionado/arrastrar cada thumb más de tres segundos, soltar y comprobar que el temporizador reinicia.
+5. **Gestos:** comprobar doble toque ±10 s y que manipular los sliders no produce saltos accidentales.
+6. **Episodios:** comprobar Anterior/Siguiente, cambios de temporada, fullscreen conservado y progreso, sin cambios en esos botones.
+7. **Orientación:** probar los tres sliders en portrait/landscape/fullscreen, rotar y salir/volver; comprobar ausencia de controles duplicados y regresiones en audio/subtítulos/reproducción.
+
+## 0.9.2 diagnóstico: fullscreen entre episodios y Destacado por sesión (histórico)
 
 El reproductor conserva fullscreen y la orientación al cambiar de episodio mediante **Anterior/Siguiente**, incluidos los saltos entre temporadas. Si el usuario estaba en modo vertical/no fullscreen, conserva ese modo. Atrás sigue saliendo primero de fullscreen.
 
@@ -93,7 +113,7 @@ Prueba en teléfono: reproducir, doble toque derecho e izquierdo, mover la barra
 
 ## Compilación de diagnóstico
 
-La compilación actual `0.9.2-diagnostico` (`versionCode = 26`) conserva las trazas con la etiqueta `MiFlixPlayback` en Logcat. Se conserva el ownership corregido en 0.4.2: `clear()` se ejecuta al liberar el Player. En Android Studio, seleccioná el proceso `ar.com.miflix.client`, filtrá `tag:MiFlixPlayback`, iniciá la reproducción de un video y conservá las líneas desde `NAV_PLAY` hasta `PLAYER_ERROR` o `PLAYER_STATE`. También podés ejecutar `adb logcat -c` y luego `adb logcat -v time -s MiFlixPlayback:D`. El registro incluye el enlace del mensaje y la ruta temporal del video; revisalo antes de compartirlo. Nunca compartas códigos de Telegram, API hash ni datos de inicio de sesión.
+La compilación actual `0.9.3-diagnostico` (`versionCode = 27`) conserva las trazas con la etiqueta `MiFlixPlayback` en Logcat. Se conserva el ownership corregido en 0.4.2: `clear()` se ejecuta al liberar el Player. En Android Studio, seleccioná el proceso `ar.com.miflix.client`, filtrá `tag:MiFlixPlayback`, iniciá la reproducción de un video y conservá las líneas desde `NAV_PLAY` hasta `PLAYER_ERROR` o `PLAYER_STATE`. También podés ejecutar `adb logcat -c` y luego `adb logcat -v time -s MiFlixPlayback:D`. Revisá las trazas de diagnóstico antes de compartirlas. Nunca compartas códigos de Telegram, API hash ni datos de inicio de sesión.
 
 Eventos clave: `RESOLVE_RESULT` indica el mensaje; `VIDEO_FILE`, el ID/tamaño; `RANGE_REQUEST` y `RANGE_RESULT`, el rango y el estado de TDLib; `RANGE_READ`, los bytes físicos leídos; `DS_OPEN`/`DS_READ`/`DS_EOF`, los bytes entregados a Media3; `PLAYER_TIMELINE`/`PLAYER_ERROR`, reconocimiento del video y fallo; `PLAYER_DISPOSE`/`PLAYER_RELEASED_CLEAR_VIDEO`/`CACHE_CLEAR`, el cierre en ese orden.
 

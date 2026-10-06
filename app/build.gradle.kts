@@ -25,8 +25,8 @@ android {
         applicationId = "ar.com.miflix.client"
         minSdk = 26
         targetSdk = 34
-        versionCode = 26
-        versionName = "0.9.2-diagnostico"
+        versionCode = 27
+        versionName = "0.9.3-diagnostico"
         buildConfigField("int", "TELEGRAM_API_ID", telegramId.toString())
         buildConfigField("String", "TELEGRAM_API_HASH", "\"$telegramHash\"")
     }
@@ -59,3 +59,4 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
 }
+

@@ -20,6 +20,8 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Brightness6
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -108,7 +110,7 @@ internal fun PlaybackScreen(
     }
 
     LaunchedEffect(link, state is TelegramSession.State.Ready, attempt, foreground) {
-        Log.d(tag, "SCREEN_EFFECT_START link=$link state=$state attempt=$attempt videoId=${video?.fileId}")
+        Log.d(tag, "SCREEN_EFFECT_START telegramReady=${state is TelegramSession.State.Ready} attempt=$attempt videoId=${video?.fileId}")
         if (foreground && state is TelegramSession.State.Ready && video == null) {
             downloading = true
             failure = null
@@ -346,6 +348,16 @@ private fun VideoPlayer(
     var indication by remember(video) { mutableStateOf<String?>(null) }
     var dragging by remember(video) { mutableStateOf(false) }
     var draggedFraction by remember(video) { mutableFloatStateOf(0f) }
+    var progressTouching by remember(video) { mutableStateOf(false) }
+    var brightnessTouching by remember(video) { mutableStateOf(false) }
+    var volumeTouching by remember(video) { mutableStateOf(false) }
+    val levels = rememberPlayerLevels(controlsVisible)
+    val observeProgress = remember(video) {
+        { active: Boolean ->
+            progressTouching = active
+            if (active) controlsVisible = true
+        }
+    }
     var episodeNavigating by remember(video) { mutableStateOf(false) }
     val checkpoint by rememberUpdatedState(onCheckpoint)
     val progress by rememberUpdatedState(onProgress)
@@ -434,10 +446,13 @@ private fun VideoPlayer(
             delay(500)
         }
     }
-    LaunchedEffect(controlsVisible, playing, showTracksPanel, dragging) {
-        if (controlsVisible && playing && !showTracksPanel && !dragging) {
+    val controlInteracting = dragging || progressTouching || brightnessTouching || volumeTouching
+    LaunchedEffect(controlsVisible, playing, showTracksPanel, controlInteracting) {
+        if (canAutoHideControls(controlsVisible, playing, showTracksPanel, controlInteracting)) {
             delay(3_000)
-            controlsVisible = false
+            if (canAutoHideControls(controlsVisible, playing, showTracksPanel,
+                    dragging || progressTouching || brightnessTouching || volumeTouching))
+                controlsVisible = false
         }
     }
     LaunchedEffect(indication) {
@@ -565,7 +580,9 @@ private fun VideoPlayer(
         }
     }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-        Box(if (fullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+        BoxWithConstraints(if (fullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+            val sideTrackHeight = if (fullscreen) (maxHeight - 190.dp).coerceIn(48.dp, 144.dp) else 48.dp
+            val sideOffset = if (maxHeight < 300.dp) (-24).dp else 0.dp
             AndroidView(
                 factory = { PlayerView(it).apply {
                     useController = false
@@ -617,6 +634,16 @@ private fun VideoPlayer(
                 CircularProgressIndicator(Modifier.align(Alignment.Center), color = Color.White)
             }
             if (controlsVisible) {
+                VerticalPlayerControl(levels.brightness, levels.brightnessEnabled,
+                    Icons.Default.Brightness6, "Brillo del reproductor", sideTrackHeight,
+                    Modifier.align(Alignment.CenterStart).padding(start = 12.dp)
+                        .offset(y = sideOffset),
+                    onInteraction = { brightnessTouching = it }, onValueChange = levels.setBrightness)
+                VerticalPlayerControl(levels.volume, levels.volumeEnabled,
+                    Icons.Default.VolumeUp, "Volumen multimedia", sideTrackHeight,
+                    Modifier.align(Alignment.CenterEnd).padding(end = 12.dp)
+                        .offset(y = sideOffset),
+                    onInteraction = { volumeTouching = it }, onValueChange = levels.setVolume)
                 if (hasTrackChoice) {
                     TextButton(onClick = { showTracksPanel = true }, enabled = !released,
                         modifier = Modifier.align(Alignment.TopEnd)
@@ -650,11 +677,14 @@ private fun VideoPlayer(
                             else 0f,
                         onValueChange = { draggedFraction = it; dragging = true },
                         onValueChangeFinished = {
-                            if (duration > 0) seekToPosition((draggedFraction * duration).toLong(), "slider")
+                            if (dragging) scrubPosition(draggedFraction, duration)?.let {
+                                seekToPosition(it, "slider")
+                            }
                             dragging = false
                         },
                         enabled = duration > 0,
-                        modifier = Modifier.fillMaxWidth().height(32.dp)
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                            .observeProgressTouch(observeProgress, remember(video) { { dragging = false } })
                     )
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(formatPlaybackTime(if (dragging && duration > 0)
