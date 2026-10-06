@@ -6,6 +6,9 @@ import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -347,18 +350,13 @@ private fun VideoPlayer(
     var duration by remember(video) { mutableLongStateOf(player.duration) }
     var controlsVisible by remember(video) { mutableStateOf(true) }
     var indication by remember(video) { mutableStateOf<String?>(null) }
-    var dragging by remember(video) { mutableStateOf(false) }
-    var draggedFraction by remember(video) { mutableFloatStateOf(0f) }
-    var progressTouching by remember(video) { mutableStateOf(false) }
+    val scrub = remember(video) { ProgressScrub() }
+    val progressInteractions = remember(video) { MutableInteractionSource() }
+    val progressPressed by progressInteractions.collectIsPressedAsState()
+    val progressDragged by progressInteractions.collectIsDraggedAsState()
     var brightnessTouching by remember(video) { mutableStateOf(false) }
     var volumeTouching by remember(video) { mutableStateOf(false) }
     val levels = rememberPlayerLevels(controlsVisible)
-    val observeProgress = remember(video) {
-        { active: Boolean ->
-            progressTouching = active
-            if (active) controlsVisible = true
-        }
-    }
     var episodeNavigating by remember(video) { mutableStateOf(false) }
     val checkpoint by rememberUpdatedState(onCheckpoint)
     val progress by rememberUpdatedState(onProgress)
@@ -437,6 +435,13 @@ private fun VideoPlayer(
         checkpoint(target, player.playWhenReady)
     }
 
+    val finishScrub by rememberUpdatedState<() -> Unit> {
+        scrub.finish(duration)?.let { seekToPosition(it, "slider") }
+    }
+    // Material3 1.2 keys its SliderState on this callback. Keep its identity stable
+    // while reading the latest duration/seek callback, so recomposition cannot reset a gesture.
+    val onScrubFinished = remember(video) { { finishScrub() } }
+
     LaunchedEffect(player) {
         while (!released) {
             currentPosition = player.currentPosition
@@ -447,12 +452,14 @@ private fun VideoPlayer(
             delay(500)
         }
     }
-    val controlInteracting = dragging || progressTouching || brightnessTouching || volumeTouching
+    val controlInteracting = scrub.fraction != null || progressPressed || progressDragged ||
+        brightnessTouching || volumeTouching
     LaunchedEffect(controlsVisible, playing, showTracksPanel, controlInteracting) {
         if (canAutoHideControls(controlsVisible, playing, showTracksPanel, controlInteracting)) {
             delay(3_000)
             if (canAutoHideControls(controlsVisible, playing, showTracksPanel,
-                    dragging || progressTouching || brightnessTouching || volumeTouching))
+                    scrub.fraction != null || progressPressed || progressDragged ||
+                        brightnessTouching || volumeTouching))
                 controlsVisible = false
         }
     }
@@ -673,23 +680,18 @@ private fun VideoPlayer(
                 Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                     .background(Color.Black.copy(alpha = .6f)).padding(horizontal = 12.dp)) {
                     Slider(
-                        value = if (dragging) draggedFraction else
+                        value = scrub.fraction ?:
                             if (duration > 0) (currentPosition.toFloat() / duration).coerceIn(0f, 1f)
                             else 0f,
-                        onValueChange = { draggedFraction = it; dragging = true },
-                        onValueChangeFinished = {
-                            if (dragging) scrubPosition(draggedFraction, duration)?.let {
-                                seekToPosition(it, "slider")
-                            }
-                            dragging = false
-                        },
+                        onValueChange = scrub::preview,
+                        onValueChangeFinished = onScrubFinished,
+                        interactionSource = progressInteractions,
                         enabled = duration > 0,
                         modifier = Modifier.fillMaxWidth().height(48.dp)
-                            .observeProgressTouch(observeProgress, remember(video) { { dragging = false } })
                     )
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(formatPlaybackTime(if (dragging && duration > 0)
-                            (draggedFraction * duration).toLong() else currentPosition), color = Color.White,
+                        Text(formatPlaybackTime(scrub.fraction?.let { scrubPosition(it, duration) }
+                            ?: currentPosition), color = Color.White,
                             style = MaterialTheme.typography.labelMedium)
                         Text(" / " + formatPlaybackTime(duration), color = Color.LightGray,
                             style = MaterialTheme.typography.labelMedium)

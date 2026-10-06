@@ -21,7 +21,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -122,25 +121,6 @@ internal fun rememberPlayerLevels(controlsVisible: Boolean): PlayerLevels {
             }
         })
 }
-
-/** Observe down/up/cancel without consuming: the existing Material Slider owns its drag/tap. */
-internal fun Modifier.observeProgressTouch(onInteraction: (Boolean) -> Unit,
-    onCancel: () -> Unit): Modifier = pointerInput(onInteraction, onCancel) {
-        awaitEachGesture {
-            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-            onInteraction(true)
-            var finished = false
-            try {
-                do {
-                    val event = awaitPointerEvent(PointerEventPass.Final)
-                } while (event.changes.any { it.pressed })
-                finished = true
-            } finally {
-                onInteraction(false)
-                if (!finished) onCancel()
-            }
-        }
-    }
 
 @Composable
 internal fun VerticalPlayerControl(

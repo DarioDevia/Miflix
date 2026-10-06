@@ -1,10 +1,25 @@
-# MiFlix Cliente Android 0.9.3-diagnostico
+# MiFlix Cliente Android 0.9.4-diagnostico
 
-**Versión actual:** MiFlix Mobile `0.9.3-diagnostico` · `versionName = "0.9.3-diagnostico"` · `versionCode = 27` · `applicationId = "ar.com.miflix.client"`.
+**Versión actual:** MiFlix Mobile `0.9.4-diagnostico` · `versionName = "0.9.4-diagnostico"` · `versionCode = 28` · `applicationId = "ar.com.miflix.client"`.
 
-## 0.9.3 diagnóstico: progreso arrastrable y controles laterales
+## 0.9.4 diagnóstico: corrección táctil de progreso
 
-La barra de progreso conserva el Slider de Compose: permite tocar una posición o arrastrar el thumb y ejecuta un único seek al soltar, sin solicitudes a Telegram por cada movimiento. El área de la barra es de 48 dp; apoyar el dedo ya pausa el auto-ocultamiento, incluso antes de moverlo. El código anterior tenía una altura de 32 dp y protegía el auto-hide recién desde el cambio de valor; la causa táctil exacta en hardware requiere confirmar la prueba manual.
+La prueba real de 0.9.3 mostró que la barra avanzaba visualmente pero no respondía a tap ni drag. Esta revisión conserva el único Slider de Compose y su área de 48 dp: retira el observador `pointerInput` añadido para auto-hide y utiliza su `MutableInteractionSource` nativo. Mantiene estable `onValueChangeFinished`, usado como clave del estado interno por Material3 1.2, para evitar reiniciar el gesto al recomponer. El valor provisional actualiza el thumb y el tiempo existente; solamente al finalizar se entrega una posición al seek habitual, una vez. No agrega capas táctiles ni seeks por cada movimiento.
+
+El diff identifica el observador/cancelación añadido en 0.9.3 y la identidad del callback como puntos de riesgo; no demuestra por sí solo cuál produjo cada evento en el Samsung. La causa física y la resolución definitiva requieren repetir la prueba táctil. Se conserva el temporizador de tres segundos, protegido durante interacción nativa/provisional. Brillo, volumen, sus posiciones, episodios y el motor de streaming no cambian.
+
+Prueba táctil pendiente en Samsung, repetir en portrait y landscape/fullscreen:
+
+1. **Tap:** reproducir una película, mostrar controles y tocar aproximadamente el 25 % y después el 75 % de la barra; comprobar ambos seeks.
+2. **Drag:** mantener el thumb y arrastrarlo hacia adelante; comprobar que acompaña el dedo y hace seek al soltar. Repetir hacia atrás. Logcat `tag:MiFlixPlayback` debe mostrar `SEEK source=slider` al finalizar, sin una cascada durante el movimiento.
+3. **Auto-hide:** sin interacción debe ocultarse a los tres segundos; durante drag no debe ocultarse; al soltar debe reiniciar el temporizador existente.
+4. **Regresiones:** comprobar brillo/restauración, volumen/botones físicos, ±10 s, Play/Pausa, Anterior/Siguiente y cambios de temporada, fullscreen/Back/rotación, audio/subtítulos, progreso y reproducción Telegram.
+
+Las pruebas JVM verifican únicamente el valor provisional, el destino final único, límites y protección de auto-hide; no prueban gestos físicos. No existe infraestructura de tests Compose instrumentados en este proyecto y no se incorpora una nueva para esta corrección. Compilar y firmar la actualización familiar en Windows con el mismo keystore permanente y las propiedades privadas locales. Los artifacts debug y release unsigned de CI no actualizan la release instalada.
+
+## 0.9.3 diagnóstico: progreso y controles laterales (histórico)
+
+La intención de 0.9.3 era conservar el Slider de Compose para tap/drag y ejecutar un único seek al soltar; la prueba posterior en Samsung detectó la regresión táctil corregida para nueva validación en 0.9.4. El área de la barra es de 48 dp; apoyar el dedo ya pausa el auto-ocultamiento, incluso antes de moverlo. El código anterior tenía una altura de 32 dp y protegía el auto-hide recién desde el cambio de valor; la causa táctil exacta en hardware requiere confirmar la prueba manual.
 
 El lateral izquierdo muestra un icono y un slider vertical de **brillo temporal de la ventana**, y el derecho controla **volumen multimedia de Android (STREAM_MUSIC)**. No muestran textos ni porcentajes. Tienen zonas táctiles de 48 dp, márgenes laterales y barras más cortas en portrait. Aparecen y desaparecen junto con los controles existentes. Durante cualquier drag se suspende el mismo auto-hide de tres segundos; al soltar vuelve a comenzar. Los sliders consumen sus gestos y no activan doble toque ±10 s.
 
