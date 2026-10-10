@@ -95,6 +95,12 @@ internal fun PlaybackScreen(
     }
     DisposableEffect(owner) {
         val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP ||
+                event == Lifecycle.Event.ON_START || event == Lifecycle.Event.ON_RESUME) {
+                session.logPlaybackDiagnostics(event.name)
+                Log.d("MiFlixLifecycle", "SCREEN_CHECKPOINT event=$event position=$resumePosition " +
+                    "playWhenReady=$resumePlay hasVideo=${video != null} resolving=$downloading")
+            }
             if (event == Lifecycle.Event.ON_STOP || event == Lifecycle.Event.ON_START) {
                 foreground = event == Lifecycle.Event.ON_START
                 Log.d("MiFlixLifecycle", "SCREEN_LIFECYCLE event=$event telegramReady=${session.state.value is TelegramSession.State.Ready}")
@@ -127,6 +133,7 @@ internal fun PlaybackScreen(
                 else resolved.clear() // No Player has ever owned this result.
                 Log.d(tag, "SCREEN_VIDEO_READY fileId=${video?.fileId} size=${video?.size}")
             } catch (cancelled: CancellationException) {
+                Log.d("MiFlixLifecycle", "RESOLVE_CANCELLED foreground=$foreground")
                 throw cancelled
             } catch (error: Exception) {
                 Log.e(tag, "SCREEN_RESOLVE_ERROR", error)
@@ -511,13 +518,21 @@ private fun VideoPlayer(
             else exitProgress(position, durationMs)
             Log.d("MiFlixLifecycle", "PLAYER_RELEASE reason=${if (backgrounded) "ON_STOP" else "DISPOSE"} position=$position playWhenReady=${player.playWhenReady}")
             player.removeListener(listener)
+            val releaseStarted = SystemClock.elapsedRealtime()
             player.release()
+            Log.d("MiFlixLifecycle", "PLAYER_RELEASE_COMPLETE elapsedMs=${SystemClock.elapsedRealtime() - releaseStarted}")
             Log.d(tag, "PLAYER_RELEASED_CLEAR_VIDEO fileId=${video.fileId}")
+            val clearStarted = SystemClock.elapsedRealtime()
+            Log.d("MiFlixLifecycle", "VIDEO_CLEAR_BEGIN")
             video.clear()
+            Log.d("MiFlixLifecycle", "VIDEO_CLEAR_COMPLETE elapsedMs=${SystemClock.elapsedRealtime() - clearStarted}")
             Log.d("MiFlixLifecycle", "PLAYER_RELEASED_CLEAR_VIDEO fileId=${video.fileId}")
         }
         val observer = LifecycleEventObserver { _, event ->
             Log.d(tag, "PLAYER_LIFECYCLE event=$event state=${player.playbackState}")
+            Log.d("MiFlixLifecycle", "PLAYER_LIFECYCLE event=$event released=$released " +
+                "state=${player.playbackState} position=${player.currentPosition} " +
+                "duration=${player.duration} buffered=${player.bufferedPosition} playWhenReady=${player.playWhenReady}")
             if (event == Lifecycle.Event.ON_STOP && !released) {
                 releasePlayer(backgrounded = true)
                 stopped()

@@ -1,8 +1,22 @@
-# MiFlix Cliente Android 0.9.4-diagnostico
+# MiFlix Cliente Android 0.9.5-diagnostico
 
-**Versión actual:** MiFlix Mobile `0.9.4-diagnostico` · `versionName = "0.9.4-diagnostico"` · `versionCode = 28` · `applicationId = "ar.com.miflix.client"`.
+**Versión actual:** MiFlix Mobile `0.9.5-diagnostico` · `versionName = "0.9.5-diagnostico"` · `versionCode = 29` · `applicationId = "ar.com.miflix.client"`.
 
-## 0.9.4 diagnóstico: corrección táctil de progreso
+## 0.9.5 diagnóstico: Acerca de, novedades y segundo plano
+
+Configuración incluye **Acerca de**: nombre MiFlix, versión/code tomados del BuildConfig instalado, desarrollador DarioDevia (identidad del repositorio) e historial documentado 0.9.0–0.9.5 incluido en la APK. No descarga novedades ni necesita Internet. Las revisiones internas de 0.9.1 permanecen agrupadas bajo esa versión, sin inventar releases adicionales.
+
+Las novedades se presentan una sola vez por versionCode al llegar a Inicio con la Activity RESUMED, también en una instalación limpia tras autorizar Telegram. Se registra localmente `updates_presented_version_code` en las preferencias existentes. Se marca al presentar; cerrar, navegar, volver desde background o iniciar nuevamente la misma versión no vuelve a mostrarlo. No se presenta en Player, Detalle ni durante autenticación. El historial sigue accesible desde Acerca de; el aviso no activa ni modifica reproducción.
+
+**Suspensión: diagnóstico, no una corrección especulativa.** La base ya guarda posición/intención, libera Player antes de TelegramVideo en ON_STOP y vuelve a preparar al regresar. Sin logs del incidente no se ha demostrado la causa ni se atribuye al ahorro de batería. Se añaden trazas seguras `MiFlixLifecycle` de Activity/Player, conexión/autorización TDLib, operaciones pendientes y tiempos de release/clear. No se cambia la recuperación, la sesión, las solicitudes ni los timeouts/rangos. La resolución GetMessageLinkInfo carece actualmente de timeout propio; las lecturas mantienen 45 s y DeleteFile 5 s. El `read/clear` sincronizado puede esperar una lectura en curso. Son puntos auditados para correlacionar con la prueba, no causas confirmadas.
+
+[Diagnóstico y pruebas Samsung](docs/diagnostico-segundo-plano-0.9.5.md) detalla cómo distinguir resolución pendiente, reconexión, bloqueo de liberación y buffering. La instrumentación solo observa los estados de conexión: no los usa para reiniciar TDLib. Las pruebas JVM nuevas cubren versión/historial/aviso y contabilidad de solicitudes; no simulan reconexión Telegram, Doze ni gestos reales. No se ejecutan emulador ni teléfono en CI; esas pruebas quedan pendientes. Actions mantiene tests, lint, debug y release unsigned, sin configuración privada.
+
+### Intro cinematográfica: pendiente separado
+
+Punto recomendado: un contenedor inicial separado, después de disponer de la primera UI/copia cacheada, con una marca de sesión en estado del contenedor de la Activity para el lanzamiento frío. Una futura intro local podría usar Media3 ya incluido y un Player independiente del de Telegram, sin audio inesperado, con opción de omitir y salida inmediata ante error. El catálogo/autenticación deben seguir cargando; no bloquearlos esperando el video. Conservar la marca durante recreaciones y no disparar en ON_START/ON_RESUME ni al volver de Player. Liberar ese Player independiente al finalizar/salir. Se definirá la política exacta cuando exista el material final. Esta versión no incorpora video, animación, dependencias ni código de intro.
+
+## 0.9.4 diagnóstico: corrección táctil de progreso (histórico)
 
 La prueba real de 0.9.3 mostró que la barra avanzaba visualmente pero no respondía a tap ni drag. Esta revisión conserva el único Slider de Compose y su área de 48 dp: retira el observador `pointerInput` añadido para auto-hide y utiliza su `MutableInteractionSource` nativo. Mantiene estable `onValueChangeFinished`, usado como clave del estado interno por Material3 1.2, para evitar reiniciar el gesto al recomponer. El valor provisional actualiza el thumb y el tiempo existente; solamente al finalizar se entrega una posición al seek habitual, una vez. No agrega capas táctiles ni seeks por cada movimiento.
 
@@ -128,7 +142,7 @@ Prueba en teléfono: reproducir, doble toque derecho e izquierdo, mover la barra
 
 ## Compilación de diagnóstico
 
-La compilación actual `0.9.3-diagnostico` (`versionCode = 27`) conserva las trazas con la etiqueta `MiFlixPlayback` en Logcat. Se conserva el ownership corregido en 0.4.2: `clear()` se ejecuta al liberar el Player. En Android Studio, seleccioná el proceso `ar.com.miflix.client`, filtrá `tag:MiFlixPlayback`, iniciá la reproducción de un video y conservá las líneas desde `NAV_PLAY` hasta `PLAYER_ERROR` o `PLAYER_STATE`. También podés ejecutar `adb logcat -c` y luego `adb logcat -v time -s MiFlixPlayback:D`. Revisá las trazas de diagnóstico antes de compartirlas. Nunca compartas códigos de Telegram, API hash ni datos de inicio de sesión.
+La compilación actual `0.9.5-diagnostico` (`versionCode = 29`) conserva las trazas con la etiqueta `MiFlixPlayback` en Logcat. Se conserva el ownership corregido en 0.4.2: `clear()` se ejecuta al liberar el Player. En Android Studio, seleccioná el proceso `ar.com.miflix.client`, filtrá `tag:MiFlixPlayback`, iniciá la reproducción de un video y conservá las líneas desde `NAV_PLAY` hasta `PLAYER_ERROR` o `PLAYER_STATE`. También podés ejecutar `adb logcat -c` y luego `adb logcat -v time -s MiFlixPlayback:D`. Revisá las trazas de diagnóstico antes de compartirlas. Nunca compartas códigos de Telegram, API hash ni datos de inicio de sesión.
 
 Eventos clave: `RESOLVE_RESULT` indica el mensaje; `VIDEO_FILE`, el ID/tamaño; `RANGE_REQUEST` y `RANGE_RESULT`, el rango y el estado de TDLib; `RANGE_READ`, los bytes físicos leídos; `DS_OPEN`/`DS_READ`/`DS_EOF`, los bytes entregados a Media3; `PLAYER_TIMELINE`/`PLAYER_ERROR`, reconocimiento del video y fallo; `PLAYER_DISPOSE`/`PLAYER_RELEASED_CLEAR_VIDEO`/`CACHE_CLEAR`, el cierre en ese orden.
 

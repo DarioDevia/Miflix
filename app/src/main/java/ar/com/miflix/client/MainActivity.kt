@@ -62,6 +62,15 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private fun logLifecycle(event: String) {
+        val power = getSystemService(android.os.PowerManager::class.java)
+        Log.d("MiFlixLifecycle", "ACTIVITY_$event powerSave=${power?.isPowerSaveMode} " +
+            "deviceIdle=${power?.isDeviceIdleMode} changingConfigurations=$isChangingConfigurations")
+    }
+    override fun onStart() { super.onStart(); logLifecycle("START") }
+    override fun onResume() { super.onResume(); logLifecycle("RESUME") }
+    override fun onPause() { logLifecycle("PAUSE"); super.onPause() }
+    override fun onStop() { logLifecycle("STOP"); super.onStop() }
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         Log.d("MiFlixPlayback", "ORIENTATION_CHANGE orientation=${newConfig.orientation} " +
@@ -204,6 +213,23 @@ private fun ClientApp(
     }
     val scope = rememberCoroutineScope()
     val owner = LocalLifecycleOwner.current
+    var appResumed by remember(owner) {
+        mutableStateOf(owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    }
+    var showAbout by rememberSaveable { mutableStateOf(false) }
+    var showUpdates by rememberSaveable { mutableStateOf(false) }
+    val updateNotice = remember(refreshPreferences) {
+        UpdateNotice(object : UpdateNoticeStorage {
+            override fun read() = refreshPreferences.getInt(AppUpdates.SEEN_VERSION_KEY, 0)
+            override fun write(versionCode: Int) {
+                refreshPreferences.edit().putInt(AppUpdates.SEEN_VERSION_KEY, versionCode).apply()
+            }
+        })
+    }
+    LaunchedEffect(screen, appResumed, showUpdates) {
+        if (!showUpdates && updateNotice.presentIfEligible(BuildConfig.VERSION_CODE,
+                screen == Screen.HOME, appResumed)) showUpdates = true
+    }
     val activity = context as? ComponentActivity
     val titles = catalog.items.orEmpty()
     val featuredSession = remember { FeaturedSession() }
@@ -258,6 +284,8 @@ private fun ClientApp(
     }
     DisposableEffect(owner, url, screen, cacheLoaded, catalog) {
         val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) appResumed = true
+            if (event == Lifecycle.Event.ON_PAUSE) appResumed = false
             if (event == Lifecycle.Event.ON_RESUME && cacheLoaded && screen == Screen.HOME) {
                 refreshIfDue()
                 continuing = continueWatching(catalog.items.orEmpty(), progressStore)
@@ -368,6 +396,10 @@ private fun ClientApp(
         onSurface = MiFlixStyle.primaryText,
         onSurfaceVariant = MiFlixStyle.secondaryText
     )) {
+        if (showAbout && screen == Screen.SETTINGS && appResumed)
+            AboutMiFlix { showAbout = false }
+        if (showUpdates && screen == Screen.HOME && appResumed)
+            UpdateNoticeDialog { showUpdates = false }
         playbackIssue?.let { issue ->
             AlertDialog(
                 onDismissRequest = { playbackIssue = null },
@@ -560,6 +592,7 @@ private fun ClientApp(
                 ) }
                 Screen.CONNECT -> Box(Modifier.padding(padding)) { TelegramConnectScreen() }
                 Screen.SETTINGS -> SettingsScreen(
+                    onAbout = { showAbout = true },
                     modifier = Modifier.padding(padding),
                     url = editUrl,
                     invite = editInvite,
@@ -921,7 +954,7 @@ private fun SettingsScreen(
     telegramState: TelegramSession.State,
     onUrlChange: (String) -> Unit, onInviteChange: (String) -> Unit,
     onRefresh: () -> Unit, onJoin: () -> Unit,
-    onDisconnectTelegram: () -> Unit, onSave: () -> Unit
+    onDisconnectTelegram: () -> Unit, onSave: () -> Unit, onAbout: () -> Unit
 ) {
     var showAdvanced by rememberSaveable { mutableStateOf(false) }
     val urlOk = url.isBlank() || runCatching {
@@ -931,6 +964,7 @@ private fun SettingsScreen(
     val inviteOk = invite.isBlank() || validTelegramLink(invite)
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        item { TextButton(onClick = onAbout) { Text("Acerca de") } }
         item { SectionHeading("Catálogo") }
         item { Text("La última copia válida queda disponible sin conexión. MiFlix busca cambios al abrir y al volver a Inicio.", color = MiFlixStyle.secondaryText) }
         item {

@@ -23,6 +23,14 @@ import kotlin.coroutines.resumeWithException
  */
 internal class TelegramSession private constructor(private val context: Context) {
     private val playbackTag = "MiFlixPlayback"
+    private val pendingPlayback = PendingPlaybackRequests()
+    @Volatile private var connection = "Unknown"
+    internal fun logPlaybackDiagnostics(event: String) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        Log.d("MiFlixLifecycle", "TD_SNAPSHOT event=$event authorization=${state.value.javaClass.simpleName} " +
+            "connection=$connection clientPresent=${client != null} generation=$generation " +
+            "pending=${pendingPlayback.count()} oldestPendingMs=${pendingPlayback.oldestAgeMs(now)}")
+    }
     @Volatile private var diagnosticFileId: Int? = null
     sealed interface State {
         data object NeedsApi : State
@@ -72,10 +80,18 @@ internal class TelegramSession private constructor(private val context: Context)
         try {
             System.loadLibrary("tdjni")
             val myGeneration = ++generation
+            Log.d("MiFlixLifecycle", "TD_CLIENT_CREATE generation=$myGeneration")
             client = Client.create({ update ->
                 if (generation == myGeneration) {
                     when (update) {
                         is TdApi.UpdateAuthorizationState -> handleAuthorization(update.authorizationState)
+                        is TdApi.UpdateConnectionState -> {
+                            val next = update.state.javaClass.simpleName
+                            if (next != connection) {
+                                connection = next
+                                logPlaybackDiagnostics("CONNECTION_CHANGED")
+                            }
+                        }
                         is TdApi.UpdateFile -> if (update.file.id == diagnosticFileId) {
                             val local = update.file.local
                             Log.d(playbackTag, "TD_UPDATE fileId=${update.file.id} " +
@@ -95,6 +111,7 @@ internal class TelegramSession private constructor(private val context: Context)
     }
 
     private fun handleAuthorization(state: TdApi.AuthorizationState) {
+        Log.d("MiFlixLifecycle", "TD_AUTHORIZATION type=${state.javaClass.simpleName} generation=$generation")
         when (state) {
             is TdApi.AuthorizationStateWaitTdlibParameters -> scope.launch {
                 val params = TdApi.SetTdlibParameters().apply {
@@ -151,7 +168,7 @@ internal class TelegramSession private constructor(private val context: Context)
 
     suspend fun obtainVideo(link: String): TelegramVideo {
         require(state.value is State.Ready) { "Primero iniciá sesión en Telegram." }
-        Log.d(playbackTag, "RESOLVE_START telegram_url=$link state=${state.value}")
+        Log.d(playbackTag, "RESOLVE_START telegramReady=${state.value is State.Ready}")
         val info = request(TdApi.GetMessageLinkInfo(link))
         Log.d(playbackTag, "RESOLVE_RESULT message=${info.message?.id} content=${info.message?.content?.javaClass?.simpleName}")
         val message = info.message ?: error(
@@ -252,28 +269,58 @@ internal class TelegramSession private constructor(private val context: Context)
         mutableState.value = State.NeedsApi
     }
 
-    private suspend fun <T : TdApi.Object> request(function: TdApi.Function<T>): T =
-        suspendCancellableCoroutine { continuation ->
-            val current = client ?: run {
-                continuation.resumeWithException(IllegalStateException("Telegram no está iniciado."))
-                return@suspendCancellableCoroutine
-            }
-            current.send(function, { response ->
-                if (response is TdApi.Error &&
-                    (function is TdApi.GetMessageLinkInfo || function is TdApi.DownloadFile ||
-                        function is TdApi.DeleteFile)) {
-                    Log.e(playbackTag, "TD_ERROR function=${function.javaClass.simpleName} " +
-                        "code=${response.code} message=${response.message}")
-                }
-                if (!continuation.isActive) return@send
-                if (response is TdApi.Error) continuation.resumeWithException(
-                    TelegramRequestException(response.code, response.message, function.javaClass.simpleName)
-                ) else {
-                    @Suppress("UNCHECKED_CAST")
-                    continuation.resume(response as T)
-                }
-            })
+    private suspend fun <T : TdApi.Object> request(function: TdApi.Function<T>): T {
+        val diagnostic = function is TdApi.GetMessageLinkInfo || function is TdApi.DownloadFile ||
+            function is TdApi.DeleteFile
+        val started = android.os.SystemClock.elapsedRealtime()
+        val requestId = if (diagnostic) pendingPlayback.begin(started) else null
+        val operation = function.javaClass.simpleName
+        var outcome = "COMPLETE"
+        if (requestId != null) {
+            Log.d("MiFlixLifecycle", "TD_REQUEST_START request=$requestId operation=$operation " +
+                "connection=$connection generation=$generation pending=${pendingPlayback.count()}")
         }
+        try {
+            return suspendCancellableCoroutine { continuation ->
+                val current = client ?: run {
+                    continuation.resumeWithException(IllegalStateException("Telegram no está iniciado."))
+                    return@suspendCancellableCoroutine
+                }
+                current.send(function, { response ->
+                    if (response is TdApi.Error &&
+                        (function is TdApi.GetMessageLinkInfo || function is TdApi.DownloadFile ||
+                            function is TdApi.DeleteFile)) {
+                        Log.e(playbackTag, "TD_ERROR function=${function.javaClass.simpleName} " +
+                            "code=${response.code}")
+                    }
+                    if (!continuation.isActive) {
+                        if (requestId != null) Log.d("MiFlixLifecycle",
+                            "TD_LATE_RESPONSE request=$requestId operation=$operation response=${response.javaClass.simpleName}")
+                        return@send
+                    }
+                    if (response is TdApi.Error) continuation.resumeWithException(
+                        TelegramRequestException(response.code, response.message, function.javaClass.simpleName)
+                    ) else {
+                        @Suppress("UNCHECKED_CAST")
+                        continuation.resume(response as T)
+                    }
+                })
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            outcome = if (cancelled is kotlinx.coroutines.TimeoutCancellationException) "TIMEOUT" else "CANCELLED"
+            throw cancelled
+        } catch (failure: Exception) {
+            outcome = "ERROR_${failure.javaClass.simpleName}"
+            throw failure
+        } finally {
+            if (requestId != null) {
+                pendingPlayback.end(requestId)
+                Log.d("MiFlixLifecycle", "TD_REQUEST_END request=$requestId operation=$operation " +
+                    "outcome=$outcome elapsedMs=${android.os.SystemClock.elapsedRealtime() - started} " +
+                    "pending=${pendingPlayback.count()}")
+            }
+        }
+    }
 
     companion object {
         @Volatile private var instance: TelegramSession? = null
