@@ -66,11 +66,11 @@ private fun DetailBackground(artwork: TvDetailArtwork, contentId: String) {
                 contentScale = ContentScale.Fit, onError = { posterFailed = true })
         }
         Box(Modifier.matchParentSize().background(Brush.horizontalGradient(
-            0f to detailBase.copy(alpha = .98f), .52f to detailBase.copy(alpha = .80f),
-            1f to detailBase.copy(alpha = .12f))))
+            0f to detailBase.copy(alpha = .94f), .52f to detailBase.copy(alpha = .55f),
+            1f to detailBase.copy(alpha = .03f))))
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(
             0f to Color.Transparent, .55f to detailBase.copy(alpha = .15f),
-            1f to detailBase.copy(alpha = .98f))))
+            1f to detailBase.copy(alpha = .82f))))
     }
 }
 
@@ -128,6 +128,8 @@ internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
         val heroHeight = maxHeight.coerceAtLeast(420.dp)
         val infoWidth = maxWidth * .58f
         DetailBackground(artwork, title.id)
+        Text("MiFlix TV ${BuildConfig.VERSION_NAME}", color = Color.White.copy(alpha = .65f),
+            fontSize = 12.sp, modifier = Modifier.align(Alignment.TopEnd).padding(20.dp))
         LazyColumn(state = scroll, modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 32.dp)) {
             item(key = "hero") {

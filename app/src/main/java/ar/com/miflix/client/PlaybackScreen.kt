@@ -70,7 +70,8 @@ internal fun PlaybackScreen(
     fullscreen: Boolean,
     onFullscreenToggle: () -> Unit,
     onOpenTelegram: () -> Unit,
-    onPlaybackFailure: (PlaybackIssue) -> Unit
+    onPlaybackFailure: (PlaybackIssue) -> Unit,
+    tvArtwork: Title? = null
 ) {
     val tag = "MiFlixPlayback"
     val context = LocalContext.current
@@ -154,7 +155,7 @@ internal fun PlaybackScreen(
             onBackground = { position, duration -> saveProgress(position, duration, true) },
             onExit = { position, duration -> progressStore.finish(progressKey, position, duration,
                 System.currentTimeMillis()) },
-            onCompleted = { progressStore.clear(progressKey) })
+            onCompleted = { progressStore.clear(progressKey) }, tvArtwork = tvArtwork)
         state is TelegramSession.State.Ready -> {
             Column(Modifier.fillMaxSize().padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -320,7 +321,8 @@ private fun VideoPlayer(
     onProgress: (Long, Long) -> Unit,
     onBackground: (Long, Long) -> Unit,
     onExit: (Long, Long) -> Unit,
-    onCompleted: () -> Unit
+    onCompleted: () -> Unit,
+    tvArtwork: Title?
 ) {
     val tag = "MiFlixPlayback"
     val context = LocalContext.current
@@ -643,7 +645,9 @@ private fun VideoPlayer(
                 { if (player.isPlaying) player.pause() else player.play() },
                 { player.play() }, { player.pause() },
                 { seekToPosition(player.currentPosition + it, "tv_remote") },
-                hasTrackChoice, { showTracksPanel = true })
+                hasTrackChoice, { showTracksPanel = true },
+                pauseTitle = tvArtwork?.titulo ?: title, logoUrl = tvArtwork?.logoUrl, blocked = showTracksPanel,
+                paused = !playing && !buffering)
             if (controlsVisible && !BuildConfig.IS_TV) {
                 if (hasTrackChoice) {
                     TextButton(onClick = { showTracksPanel = true }, enabled = !released,

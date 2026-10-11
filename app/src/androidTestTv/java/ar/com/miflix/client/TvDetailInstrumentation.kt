@@ -1,9 +1,20 @@
 package ar.com.miflix.client
 
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color as ComposeColor
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Activity
 import android.app.Instrumentation
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -26,7 +37,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 
 /** Native Android instrumentation: no new testing libraries and no production test hooks.
  * Run only on a clean TV emulator with a build without private Telegram configuration.
- * Artwork comes from deterministic in-memory fixtures; real streaming is NOT tested.
+ * Artwork uses synthetic fixtures and downloaded published-image bytes; real streaming is NOT tested.
  */
 class TvDetailInstrumentation : Instrumentation() {
     private var activity: Activity? = null
@@ -57,9 +68,14 @@ class TvDetailInstrumentation : Instrumentation() {
                         requests.add(data.toString())
                         return object : Fetcher {
                             override suspend fun fetch(): DrawableResult {
-                                check(data.host == "artwork.test") { "Unexpected image network request" }
+                                check(data.host in listOf("artwork.test", "image.tmdb.org")) { "Unexpected image network request" }
                                 check(!data.path.orEmpty().contains("broken")) { "Fixture image failure" }
-                                val bitmap = fixtureBitmap(data.path.orEmpty())
+                                val bitmap = if (data.host == "image.tmdb.org") {
+                                    val filename = if (data.path.orEmpty().endsWith("hSOyMqkIy9nN9jypcZWHzE8Dhgu.png"))
+                                        "logo.png" else "backdrop.jpg"
+                                    BitmapFactory.decodeFile(File(targetContext.getExternalFilesDir(null),
+                                        "tv012/$filename").path) ?: error("Supply the documented real-image fixtures")
+                                } else fixtureBitmap(data.path.orEmpty())
                                 return DrawableResult(BitmapDrawable(targetContext.resources, bitmap), false, DataSource.MEMORY)
                             }
                         }
@@ -68,6 +84,7 @@ class TvDetailInstrumentation : Instrumentation() {
             }.build())
             val cases = listOf(
                 "movie-logo" to movie("Logo", backdropUrl=art("background"), logoUrl=art("logo")),
+                "logo-no-background" to movie("Sólo logo", logoUrl=art("logo")),
                 "movie-no-logo" to movie("Sin logo", backdropUrl=art("background")),
                 "movie-poster" to movie("Sólo póster", posterUrl=art("poster")),
                 "movie-neutral" to movie("Sin imágenes"),
@@ -85,7 +102,7 @@ class TvDetailInstrumentation : Instrumentation() {
                     eventually { !hasText(title.titulo) }
                 } else eventually { hasText(title.titulo) }
                 screenshot(name, when(name) { "logo-wide" -> 12f; "logo-tall" -> .125f;
-                    "movie-logo", "movie-legacy", "movie-retry" -> 4f; else -> null })
+                    "movie-logo", "movie-legacy", "movie-retry", "logo-no-background" -> 4f; else -> null })
                 key(KeyEvent.KEYCODE_BACK)
                 eventually { focused().contains("Ver detalle") }
             }.also { if (!it) failures++ }
@@ -129,9 +146,27 @@ class TvDetailInstrumentation : Instrumentation() {
                 eventually { focused().contains("Elegir episodio") }
                 screenshot("$type-return", null)
             }.also { if (!it) failures++ }
+            runCase("reported-film-published-artwork") {
+                val title = CatalogRepository.parseCatalog("""{"schema_version":"1.2.0","items":[{
+                    "id":"reported-film", "tipo":"pelicula", "titulo":"Los Ilusionistas: Nada es lo que Parece",
+                    "telegram_url":"https://t.me/c/1/1", "year":2013,
+                    "sinopsis":"Un equipo de ilusionistas sorprende al público con una serie de espectáculos.",
+                    "fondo_url":"https://image.tmdb.org/t/p/original/xEY0MV2jSQBz9iOJfCFvLTiPGMA.jpg",
+                    "backdrop_url":"https://image.tmdb.org/t/p/original/xEY0MV2jSQBz9iOJfCFvLTiPGMA.jpg",
+                    "logo_url":"https://image.tmdb.org/t/p/original/hSOyMqkIy9nN9jypcZWHzE8Dhgu.png"
+                }]}""").items.single()
+                openDetail(title)
+                eventually { !hasText(title.titulo) }
+                screenshot("reported-film-real-published-images", null)
+            }.also { if (!it) failures++ }
+            for (type in listOf("pelicula", "serie", "anime")) runCase("player-controls-$type") {
+                playerControls(type, art("logo"))
+            }.also { if (!it) failures++ }
+            runCase("player-controls-no-logo") { playerControls("pelicula", null) }
+                .also { if (!it) failures++ }
             check(requests.none { it.contains("api.themoviedb") || it.contains("api.tmdb") })
-            check(requests.all { Uri.parse(it).host == "artwork.test" })
-            results += "PASS artwork requests confined to fixture images; no API requests"
+            check(requests.all { Uri.parse(it).host in listOf("artwork.test", "image.tmdb.org") })
+            results += "PASS artwork requests confined to synthetic/published-image fixtures; no API requests"
         } catch (error: Throwable) { failures++; results += "FAIL runner: ${error.stackTraceToString()}" }
         finally {
             runOnMainSync { activity?.finish() }
@@ -147,6 +182,55 @@ class TvDetailInstrumentation : Instrumentation() {
         }
         finish(if (failures == 0) Activity.RESULT_OK else Activity.RESULT_CANCELED, output)
     }
+    private fun playerControls(type: String, logo: String?) {
+        openDetail(movie("Control $type"))
+        var back = false
+        var seek = 0L
+        runOnMainSync {
+            (activity as ComponentActivity).setContent {
+                MaterialTheme {
+                    var playing by remember { mutableStateOf(true) }
+                    var visible by remember { mutableStateOf(true) }
+                    var position by remember { mutableLongStateOf(60_000L) }
+                    BackHandler { back = true }
+                    Box(Modifier.fillMaxSize().background(ComposeColor(0xFF15202D))) {
+                        TvPlaybackControls("Episodio de prueba", playing, position, 600_000L, visible,
+                            { visible = it }, { playing = !playing }, { playing = true }, { playing = false },
+                            { seek += it; position += it }, false, {}, "Título principal $type", logo)
+                    }
+                }
+            }
+        }
+        eventually { focused().contains("Pausar") }
+        check(!hasText("Pausar") && !hasText("Reproducir") && !hasText("Ocultar"))
+        screenshot("player-$type-initial-${logo != null}", null)
+        eventually { !labels(root).contains("Pausar") }
+        screenshot("player-$type-clean-${logo != null}", null)
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { focused().contains("Pausar") }
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { focused().contains("Reproducir") }
+        if (logo == null) eventually { hasText("Título principal $type") }
+        else eventually { labels(root).contains("Logo de Título principal") }
+        screenshot("player-$type-paused-${logo != null}", if (logo == null) null else 4f)
+        SystemClock.sleep(4_500)
+        check(focused().contains("Reproducir")) { "Paused controls must remain visible" }
+        key(KeyEvent.KEYCODE_DPAD_RIGHT); check(seek == 10_000L)
+        key(KeyEvent.KEYCODE_DPAD_LEFT); check(seek == 0L)
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { focused().contains("Pausar") }
+        check(!labels(root).contains("Logo de Título principal"))
+        screenshot("player-$type-resumed-${logo != null}", null)
+        eventually { !labels(root).contains("Pausar") }
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { focused().contains("Pausar") }
+        key(KeyEvent.KEYCODE_BACK)
+        eventually { !labels(root).contains("Pausar") }
+        check(!back)
+        key(KeyEvent.KEYCODE_BACK)
+        eventually { back }
+    }
+
     private fun art(name: String) = "https://artwork.test/$name.png"
     private fun movie(name: String, backdropUrl: String?=null, fondoUrl: String?=null,
         logoUrl: String?=null, posterUrl: String?=null) = Title(id="tv-detail-test",tipo="pelicula",titulo=name,
@@ -213,8 +297,10 @@ class TvDetailInstrumentation : Instrumentation() {
         File(dir,"$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG,100,it) }
         if(logoRatio!=null) {
             var minX=bitmap.width;var minY=bitmap.height;var maxX=-1;var maxY=-1
+            val pixels = IntArray(bitmap.width * bitmap.height)
+            bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
             for(y in 0 until bitmap.height)for(x in 0 until bitmap.width) {
-                val pixel=bitmap.getPixel(x,y)
+                val pixel=pixels[y * bitmap.width + x]
                 if(Color.green(pixel)>215&&Color.red(pixel)<85&&Color.blue(pixel) in 85..155) {
                     minX=minOf(minX,x);maxX=maxOf(maxX,x);minY=minOf(minY,y);maxY=maxOf(maxY,y)
                 }

@@ -36,7 +36,8 @@ internal fun TvAction(label: String, modifier: Modifier = Modifier, enabled: Boo
         .border(if (focused) 3.dp else 0.dp, if (focused) Color.White else Color.Transparent,
             RoundedCornerShape(12.dp)),
         colors = ButtonDefaults.buttonColors(containerColor = if (focused) Color(0xFFEF4B4B)
-            else Color(0xFF252B37))) { Text(label) }
+            else Color(0xFF252B37), contentColor = Color.White,
+            disabledContentColor = Color.LightGray)) { Text(label) }
 }
 
 @Composable

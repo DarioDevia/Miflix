@@ -3,12 +3,44 @@
 | Variante | versionName | versionCode | applicationId | APK debug |
 | --- | --- | --- | --- | --- |
 | Mobile | 0.9.2-diagnostico | 26 | ar.com.miflix.client | app-mobile-debug.apk |
-| TV | 0.1.1-diagnostico | 2 | ar.com.miflix.client.tv | app-tv-debug.apk |
+| TV | 0.1.2-diagnostico | 3 | ar.com.miflix.client.tv | app-tv-debug.apk |
 
 TV se desarrolla en `miflix-tv`, basada en `miflix-cliente` HEAD
 `b3b3156cb6aff846822d591317f9f377c5d2df4c` (README corregido), que contiene
 el commit funcional móvil validado `5d896013478f8126c2dac3ed2f692fc305904509`.
 La rama móvil no se modifica. Cada variante conserva su propio versionado.
+
+## MiFlix TV 0.1.2: correcciones de interfaz
+
+Base: `miflix-tv`, `ffdfc32d2c98f7e24826bd45ef30ef1df0ea6bcf` (0.1.1 / 2).
+Detalle conserva fondo y logo proporcionales, atenúa los degradados para que el
+backdrop sea visible y muestra la versión instalada. Los botones TV usan texto
+blanco y foco con borde blanco; no cambia la navegación de Home.
+
+El reproductor TV presenta Play/Pause mediante un icono, tiempo/barra temporales y
+acceso secundario a Audio y subtítulos. Durante reproducción oculta controles tras
+4 segundos sin interacción; en pausa permanecen y aparece el logo del título
+principal en la esquina superior izquierda, con título blanco como alternativa.
+El logo desaparece al reanudar. No hay botones −10 s, +10 s ni Ocultar.
+
+Con controles ocultos, D-pad/OK los muestra; con controles visibles, OK acciona el
+icono enfocado y ←/→ hacen seek de ±10 segundos mediante el motor existente.
+↓ enfoca Audio y subtítulos y ↑ devuelve el foco a Play/Pause cuando hay pistas.
+Las teclas media conservan su función. Atrás oculta primero los controles y, una
+vez ocultos, vuelve a Detalle. El selector de pistas bloquea el temporizador.
+
+Compilar `tvDebug` con JDK 17 y el SDK existente, sin actualizar dependencias:
+
+```powershell
+.\gradlew.bat assembleTvDebug
+adb install -r app/build/outputs/apk/tv/debug/app-tv-debug.apk
+adb shell dumpsys package ar.com.miflix.client.tv | Select-String 'versionName|versionCode'
+```
+
+Debe mostrar `0.1.2-diagnostico` / `3`. Conservar la configuración Telegram privada
+local para reproducir realmente; no publicarla. Mobile permanece 0.9.2 / 26 en
+esta base TV. Ver diagnóstico, alcance de pruebas y pasos de actualización en
+[informe 0.1.2](docs/TV_0.1.2_VALIDACION.md).
 
 ## Detalle cinematográfico TV 0.1.1
 
@@ -48,8 +80,10 @@ bash gradlew testMobileDebugUnitTest testTvDebugUnitTest assembleMobileDebug ass
 bash gradlew lintMobileDebug lintTvDebug --continue
 ```
 
-En un emulador limpio, sin sesión ni configuración privada, pueden ejecutarse las
-pruebas nativas con imágenes sintéticas (no comprueban streaming Telegram):
+Las siguientes instrucciones corresponden a 0.1.1. El runner actual de 0.1.2
+requiere además las dos imágenes publicadas; seguir la receta completa del
+[informe 0.1.2](docs/TV_0.1.2_VALIDACION.md), en un emulador limpio sin sesión ni
+configuración privada. No comprueba streaming Telegram:
 
 ```sh
 bash gradlew assembleTvDebug assembleTvDebugAndroidTest
@@ -86,6 +120,7 @@ Consultar [informe de validación](docs/TV_0.1.1_VALIDACION.md) para alcance y l
 
 ### Registro de cambios
 
+- **TV 0.1.2 / 3:** contraste, detalle identificable, controles temporales por iconos y logo en pausa; motor y audio sin cambios.
 - **TV 0.1.1 / 2:** Detalle cinematográfico, fondos/logos opcionales y sus alternativas,
   lectura completa de sinopsis con remoto, límites de carga y pruebas del Detalle.
 - **TV 0.1.0 / 1:** primera interfaz TV, launcher, Home, detalle básico y motor compartido.
@@ -114,9 +149,9 @@ TV incluye Home 16:9 con Destacado, filas horizontales Películas/Series/Anime,
 Continuar viendo local, foco con borde/contraste, Detalle, selector básico de temporadas
 y episodios, reproducción fullscreen, controles remotos y teclas media, saltos ±10 s,
 y acceso a audio/subtítulos con la misma lógica y tamaños. No tiene trailers.
-Los controles TV permanecen visibles hasta Ocultar/Atrás para evitar perder el foco
-por un temporizador. Un D-pad/OK los muestra cuando están ocultos; Atrás primero
-los oculta y después vuelve a Detalle. En Detalle, Atrás vuelve a Home; en Home
+En 0.1.0/0.1.1 los controles permanecían visibles hasta Ocultar/Atrás. Desde
+0.1.2 se ocultan automáticamente durante reproducción, como se explica arriba.
+Un D-pad/OK los muestra; Atrás primero los oculta y después vuelve a Detalle. En Detalle, Atrás vuelve a Home; en Home
 prevalece la salida normal de Android. No se agregan autoplay ni descarga offline.
 
 La restauración de Home usa la última tarjeta enfocada, índice inicial de su fila y
@@ -172,7 +207,7 @@ no se debe publicar como artifact público. Actions compila sin configuración p
 7. Abrir película con OK; verificar imagen, título, metadatos, sinopsis y Reproducir.
 8. Reproducir; verificar resolución Telegram, inicio antes de descarga completa y
    ausencia de error. Probar Pausar/Reproducir y ±10 s; probar teclas media si están disponibles.
-9. Ocultar controles; OK/una flecha debe mostrarlos; Atrás los oculta, otro Atrás
+9. Esperar 4 segundos para ocultar controles; OK/una flecha debe mostrarlos; Atrás los oculta, otro Atrás
    retorna a Detalle. Atrás vuelve a Home; verificar restauración razonable del foco.
 10. Volver a reproducir: comprobar diálogo Continuar/Empezar y progreso local.
 11. Abrir una serie/anime; temporada → episodio → reproducir; volver a Detalle.

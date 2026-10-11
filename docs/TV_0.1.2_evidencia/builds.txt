@@ -1,0 +1,5 @@
+assembleMobileDebug: PASS
+assembleTvDebug: PASS
+assembleTvDebugAndroidTest: PASS
+JDK 17; Gradle 8.2; Android SDK 34; build tools 34.0.0.
+Lint devuelve exit 1 por incidencias preexistentes idénticas a base ffdfc32.

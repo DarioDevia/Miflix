@@ -548,6 +548,7 @@ private fun ClientApp(
                 Screen.PLAYER -> key(playbackKey, playbackLink) { PlaybackScreen(
                     link = playbackLink,
                     title = playbackTitle,
+                    tvArtwork = if (BuildConfig.IS_TV) selected else null,
                     progressKey = playbackKey,
                     startPosition = playbackStartPosition,
                     progressStore = progressStore,

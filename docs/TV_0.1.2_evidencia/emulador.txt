@@ -1,0 +1,21 @@
+Android TV API 28 x86; 1920x1080; software rendering.
+PASS movie-logo
+PASS logo-no-background
+PASS movie-no-logo
+PASS movie-poster
+PASS movie-neutral
+PASS movie-broken
+PASS movie-legacy
+PASS movie-retry
+PASS logo-wide
+PASS logo-tall
+PASS synopsis-dpad-back-and-player-return
+PASS serie-season-episode-player-return
+PASS anime-season-episode-player-return
+PASS reported-film-published-artwork
+PASS player-controls-pelicula
+PASS player-controls-serie
+PASS player-controls-anime
+PASS player-controls-no-logo
+PASS artwork requests confined to synthetic/published-image fixtures; no API requests
+Failures: 0

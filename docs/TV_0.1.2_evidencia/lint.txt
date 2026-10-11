@@ -1,0 +1,4 @@
+mobileDebug: base=48, entrega=48, nuevas=0, removidas=0
+tvDebug: base=50, entrega=50, nuevas=0, removidas=0
+Comparación: id, severity, message y archivos; ignora líneas/columnas desplazadas.
+Mobile: 41 errores/7 avisos. TV: 42 errores/8 avisos.
