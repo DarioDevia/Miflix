@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -122,65 +121,6 @@ internal fun TvHome(titles: List<Title>, featured: Title?, continuing: List<Cont
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
-    onPlay: (String, String, String, EpisodeNavigationTarget?, EpisodeNavigationTarget?) -> Unit) {
-    var seasonIndex by rememberSaveable(title.id) { mutableIntStateOf(0) }
-    val firstFocus = remember(title.id) { FocusRequester() }
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(32.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                AsyncImage(title.posterUrl ?: title.backdropUrl, title.titulo,
-                    Modifier.width(180.dp).height(245.dp), contentScale = ContentScale.Crop)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(title.titulo, style = MaterialTheme.typography.headlineLarge, maxLines = 2,
-                        overflow = TextOverflow.Ellipsis)
-                    Text(listOfNotNull(title.year?.toString(), title.puntuacion?.let { "$it / 10" },
-                        title.generos.orEmpty().joinToString(" · ")).joinToString(" · "))
-                    Text(title.sinopsis.orEmpty(), style = MaterialTheme.typography.bodyLarge, maxLines = 5,
-                        overflow = TextOverflow.Ellipsis)
-                    val link = title.telegramUrl?.takeIf(validLink)
-                    if (title.tipo != "serie" && link != null) {
-                        LaunchedEffect(title.id) { firstFocus.requestFocus() }
-                        TvAction("Reproducir",
-                        Modifier.focusRequester(firstFocus)) {
-                        onPlay(ProgressKeys.title(title), link, title.titulo, null, null)
-                    }
-                    } else if (title.temporadas.orEmpty().isEmpty()) {
-                        LaunchedEffect(title.id) { firstFocus.requestFocus() }
-                        TvAction("Sin video disponible", Modifier.focusRequester(firstFocus)) { }
-                    }
-                }
-            }
-        }
-        if (title.temporadas.orEmpty().isNotEmpty()) {
-            item {
-                LazyRow(modifier = Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(title.temporadas.size) { index ->
-                        val season = title.temporadas[index]
-                        val initialFocus = index == 0 && (title.tipo == "serie" ||
-                            title.telegramUrl?.takeIf(validLink) == null)
-                        if (initialFocus) LaunchedEffect(title.id) { firstFocus.requestFocus() }
-                        TvAction((if (index == seasonIndex) "✓ " else "") + "Temporada ${season.numero}",
-                            if (initialFocus) Modifier.focusRequester(firstFocus) else Modifier) { seasonIndex = index }
-                    }
-                }
-            }
-            val season = title.temporadas.getOrNull(seasonIndex)
-            season?.episodios.orEmpty().forEachIndexed { index, episode -> item {
-                val link = episode.telegramUrl?.takeIf(validLink)
-                TvAction("E${episode.numero} · ${episode.titulo.orEmpty()}", enabled = link != null) {
-                    if (link != null) onPlay(ProgressKeys.episode(title, season!!, episode), link,
-                        episode.titulo ?: "Episodio ${episode.numero}",
-                        findPreviousPlayableEpisode(title, seasonIndex, index, validLink),
-                        findNextPlayableEpisode(title, seasonIndex, index, validLink))
-                }
-            } }
         }
     }
 }

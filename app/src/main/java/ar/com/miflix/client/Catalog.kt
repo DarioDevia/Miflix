@@ -35,7 +35,9 @@ data class Title(
     @SerializedName("poster_url") val posterUrl: String? = null,
     @SerializedName("backdrop_url") val backdropUrl: String? = null,
     @SerializedName("telegram_url") val telegramUrl: String? = null,
-    val temporadas: List<Season> = emptyList()
+    val temporadas: List<Season> = emptyList(),
+    @SerializedName("fondo_url") val fondoUrl: String? = null,
+    @SerializedName("logo_url") val logoUrl: String? = null
 )
 
 data class Season(
@@ -191,6 +193,11 @@ class CatalogRepository(private val context: Context) {
                 val rating = parseRating(item)
                 if (rating == null) item.remove("puntuacion")
                 else item.addProperty("puntuacion", rating)
+                // Optional artwork must never invalidate an otherwise usable catalog.
+                for (field in listOf("backdrop_url", "fondo_url", "logo_url", "poster_url")) {
+                    val text = optionalText(item, field)
+                    if (text == null) item.remove(field) else item.addProperty(field, text)
+                }
                 if (version != "2") normalizeAdminFields(item)
             }
             if (version != "2") return Gson().fromJson(root, Catalog::class.java)
@@ -231,7 +238,9 @@ class CatalogRepository(private val context: Context) {
                     director = item.get("director")?.takeUnless { it.isJsonNull }?.asString,
                     reparto = item.getAsJsonArray("reparto")?.map { it.asString }.orEmpty(),
                     posterUrl = item.get("poster_url")?.takeUnless { it.isJsonNull }?.asString,
-                    backdropUrl = item.get("backdrop_url")?.takeUnless { it.isJsonNull }?.asString,
+                    backdropUrl = optionalText(item, "backdrop_url"),
+                    fondoUrl = optionalText(item, "fondo_url"),
+                    logoUrl = optionalText(item, "logo_url"),
                     telegramUrl = directLink ?: publications.firstOrNull()?.telegramUrl,
                     temporadas = if (publications.size > 1) listOf(
                         Season(numero = 0, titulo = "Publicaciones", episodios = publications)

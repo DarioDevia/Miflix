@@ -3,14 +3,95 @@
 | Variante | versionName | versionCode | applicationId | APK debug |
 | --- | --- | --- | --- | --- |
 | Mobile | 0.9.2-diagnostico | 26 | ar.com.miflix.client | app-mobile-debug.apk |
-| TV | 0.1.0-diagnostico | 1 | ar.com.miflix.client.tv | app-tv-debug.apk |
+| TV | 0.1.1-diagnostico | 2 | ar.com.miflix.client.tv | app-tv-debug.apk |
 
 TV se desarrolla en `miflix-tv`, basada en `miflix-cliente` HEAD
 `b3b3156cb6aff846822d591317f9f377c5d2df4c` (README corregido), que contiene
 el commit funcional móvil validado `5d896013478f8126c2dac3ed2f692fc305904509`.
 La rama móvil no se modifica. Cada variante conserva su propio versionado.
 
-## Arquitectura TV 0.1.0
+## Detalle cinematográfico TV 0.1.1
+
+Base verificada: `miflix-tv`, `b49b2787e123e7f5654f423a040063f989257d5c`,
+TV 0.1.0-diagnostico / 1, working tree limpio. Esta entrega modifica únicamente
+la presentación del Detalle TV y expone dos campos visuales opcionales del catálogo.
+No incorpora commits de Mobile posteriores a la base TV.
+
+El fondo ocupa la pantalla con recorte centrado y degradados oscuros. Se intenta
+`backdrop_url`, después `fondo_url`, incluso si falla la descarga inicial. Sin fondo,
+se presenta un póster vertical sin deformarlo o un fondo neutro. `logo_url` se ajusta
+con transparencia y proporciones conservadas; durante la carga y ante un error se
+muestra el título textual. El póster nunca sustituye al logo. Se omiten los metadatos
+que faltan. La sinopsis resumida permite abrir «Sinopsis completa» si está truncada;
+↑/↓ desplazan el diálogo y Atrás lo cierra, recuperando el foco.
+
+Reproducir recibe el foco inicial cuando existe un enlace directo válido. Para
+series/anime con temporadas, «Elegir episodio» desplaza al selector existente.
+Temporadas, episodios y callbacks mantienen su orden e identidad de progreso.
+Home, MainActivity, PlaybackScreen, autenticación, streaming y progreso no cambian.
+
+`Title` expone `fondo_url` y `logo_url`, tanto en schema 1 como schema 2; los cuatro
+campos de imagen opcionales se leen como texto o se ignoran si están mal formados.
+El JSON remoto y su contrato permanecen iguales. Coil 2.6 conserva la caché existente;
+las solicitudes de detalle se memorizan, no precargan el catálogo y tienen límites
+1280×720 (fondo), 800×320 (logo) y 342×512 (póster). En URLs de imágenes TMDB ya
+publicadas solo se elige la rendición w1280/w500/w342 del mismo archivo; no hay
+búsquedas ni llamadas a la API de TMDB/AniList. No se agregan dependencias.
+
+### Verificar Detalle 0.1.1
+
+Elegir `tvDebug` en Android Studio y ejecutar Build → Build APK(s). Para comprobar
+ambas variantes, desde la raíz con los requisitos indicados abajo:
+
+```sh
+bash gradlew testMobileDebugUnitTest testTvDebugUnitTest assembleMobileDebug assembleTvDebug
+bash gradlew lintMobileDebug lintTvDebug --continue
+```
+
+En un emulador limpio, sin sesión ni configuración privada, pueden ejecutarse las
+pruebas nativas con imágenes sintéticas (no comprueban streaming Telegram):
+
+```sh
+bash gradlew assembleTvDebug assembleTvDebugAndroidTest
+adb install -r app/build/outputs/apk/tv/debug/app-tv-debug.apk
+adb install -r app/build/outputs/apk/androidTest/tv/debug/app-tv-debug-androidTest.apk
+adb shell am instrument -w ar.com.miflix.client.tv.test/ar.com.miflix.client.TvDetailInstrumentation
+```
+
+El runner restaura su catálogo y preferencias de actualización al terminar. No
+usarlo en una instalación familiar con datos: requiere build sin configuración
+privada. Comprobar `Failures: 0`; las capturas quedan en el directorio externo de
+la app `tv-detail-tests`. No requiere bibliotecas adicionales de test.
+
+Validación manual pendiente en televisor real y con streaming autorizado:
+
+1. Instalar TV 0.1.1 en Android TV API 28, 1080p, o en el televisor; abrir desde launcher.
+2. Con D-pad, abrir una película con fondo y logo del catálogo real. Revisar contraste,
+   transparencia, proporciones, márgenes y foco en Reproducir desde varios metros.
+3. Abrir una película sin logo y otra sin fondo; comprobar título textual y póster
+   vertical/fondo neutro. Si una imagen falla, no debe aparecer una imagen rota.
+4. Abrir Sinopsis completa, usar ↑/↓, cerrar con Atrás y comprobar recuperación del foco.
+5. Con la configuración privada local, reproducir, pausar, hacer seek y volver a Detalle;
+   comprobar continuación/progreso. No compartir credenciales ni capturas de autorización.
+6. Abrir serie y anime, elegir temporadas y episodios con D-pad, reproducir y volver.
+7. Repetir el recorrido Mobile si se desea validación física adicional del parser compartido.
+
+Comprobación de esta entrega: 123 tests por variante y los tres assemble pasan.
+Android TV API 28, 1080p: 12 casos de interfaz instrumentados pasan, cero fallos,
+con catálogo e imágenes sintéticos. No se probó streaming autorizado ni TV físico.
+Lint se ejecutó en entrega y base aislada: los informes son idénticos (Mobile:
+41 errores/7 avisos; TV: 42 errores/8 avisos). Continúa fallando por incidencias
+preexistentes; no se silenciaron comprobaciones ni se modificó el motor.
+Consultar [informe de validación](docs/TV_0.1.1_VALIDACION.md) para alcance y límites.
+
+### Registro de cambios
+
+- **TV 0.1.1 / 2:** Detalle cinematográfico, fondos/logos opcionales y sus alternativas,
+  lectura completa de sinopsis con remoto, límites de carga y pruebas del Detalle.
+- **TV 0.1.0 / 1:** primera interfaz TV, launcher, Home, detalle básico y motor compartido.
+- **Mobile de esta base TV:** 0.9.2 / 26, sin cambio de versionado.
+
+## Arquitectura TV 0.1.0 (base histórica)
 
 Se conserva un único módulo `app` y se agregan product flavors `mobile` / `tv`.
 `BuildConfig.IS_TV` selecciona la presentación; el manifest y banner TV se agregan
