@@ -1,4 +1,7 @@
-# Recuperación TV 0.1.3 — en validación
+# Recuperación TV 0.1.3 — registro del checkpoint inicial
+
+Este registro describe el checkpoint `ee6933c`. El estado posterior, resultados
+de esta copia e instrucciones están en [validación 0.1.3](TV_0.1.3_VALIDACION.md).
 
 Base limpia clonada: `28da9ac2ecf22ce7fecfa5f0dcaf4cef6cbcf108`, rama `miflix-tv`.
 

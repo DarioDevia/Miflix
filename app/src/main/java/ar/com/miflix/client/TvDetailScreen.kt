@@ -109,6 +109,7 @@ internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
     var fullSynopsis by rememberSaveable(title.id) { mutableStateOf(false) }
     var restoreSynopsis by remember { mutableStateOf(false) }
     val actionFocus = remember(title.id) { FocusRequester() }
+    var initialFocusPending by remember(title.id) { mutableStateOf(true) }
     val seasonFocus = remember(title.id, title.temporadas.orEmpty().size) {
         List(title.temporadas.orEmpty().size) { FocusRequester() }
     }
@@ -156,12 +157,20 @@ internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
                     title.audio?.takeIf(String::isNotBlank)?.let { Text("Audio: $it", color = Color.LightGray, fontSize = 16.sp) }
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (directLink != null) {
-                            LaunchedEffect(title.id) { actionFocus.requestFocus() }
+                            LaunchedEffect(title.id) {
+                                if (initialFocusPending) {
+                                    withFrameNanos { }; actionFocus.requestFocus(); initialFocusPending = false
+                                }
+                            }
                             TvDetailAction("▶ Reproducir", Modifier.focusRequester(actionFocus)) {
                                 onPlay(ProgressKeys.title(title), directLink, title.titulo, null, null)
                             }
                         } else if (seasons.isNotEmpty()) {
-                            LaunchedEffect(title.id) { actionFocus.requestFocus() }
+                            LaunchedEffect(title.id) {
+                                if (initialFocusPending) {
+                                    withFrameNanos { }; actionFocus.requestFocus(); initialFocusPending = false
+                                }
+                            }
                             TvDetailAction("Elegir episodio", Modifier.focusRequester(actionFocus)) {
                                 focusAt(1, seasonFocus[seasonIndex])
                             }
@@ -169,7 +178,11 @@ internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
                             modifier = Modifier.padding(vertical = 12.dp))
                         if (synopsisOverflow) {
                             if (directLink == null && seasons.isEmpty())
-                                LaunchedEffect(title.id) { synopsisFocus.requestFocus() }
+                                LaunchedEffect(title.id) {
+                                    if (initialFocusPending) {
+                                        withFrameNanos { }; synopsisFocus.requestFocus(); initialFocusPending = false
+                                    }
+                                }
                             TvDetailAction("Sinopsis completa", Modifier.focusRequester(synopsisFocus)) {
                                 fullSynopsis = true
                             }

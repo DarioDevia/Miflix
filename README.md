@@ -3,14 +3,31 @@
 | Variante | versionName | versionCode | applicationId | APK debug |
 | --- | --- | --- | --- | --- |
 | Mobile | 0.9.2-diagnostico | 26 | ar.com.miflix.client | app-mobile-debug.apk |
-| TV | 0.1.2-diagnostico | 3 | ar.com.miflix.client.tv | app-tv-debug.apk |
+| TV | 0.1.3-diagnostico | 4 | ar.com.miflix.client.tv | app-tv-debug.apk |
 
 TV se desarrolla en `miflix-tv`, basada en `miflix-cliente` HEAD
 `b3b3156cb6aff846822d591317f9f377c5d2df4c` (README corregido), que contiene
 el commit funcional móvil validado `5d896013478f8126c2dac3ed2f692fc305904509`.
 La rama móvil no se modifica. Cada variante conserva su propio versionado.
 
-## MiFlix TV 0.1.2: correcciones de interfaz
+## MiFlix TV 0.1.3: respaldo para validación manual
+
+Disponible en **`backup/miflix-tv-0.1.3`**, reconstruida desde `28da9ac`.
+**La interfaz todavía no está validada.** La rama estable `miflix-tv` conserva
+0.1.2 hasta completar las pruebas del usuario.
+
+Inicio cinematográfico con fondo completo, logo/título, sinopsis y acciones;
+menú lateral compacto; pósters proporcionales; presentación compartida entre
+Películas, Series y Anime. Temporadas y episodios conservan su navegación propia.
+La entrada TV solicita foco y abre el teclado con OK. La navegación de episodios
+permite volver a temporadas y cabecera. Se conserva el reproductor de 0.1.2.
+El tráiler TV se abre mediante una acción explícita en una aplicación externa;
+el WebView exclusivo de Mobile permanece sin cambios.
+
+Ver [compilación, pruebas y pendientes de 0.1.3](docs/TV_0.1.3_VALIDACION.md).
+Compilar la variante **tvDebug** con JDK 17; debe indicar **0.1.3-diagnostico / 4**.
+
+## MiFlix TV 0.1.2: correcciones de interfaz (histórico)
 
 Base: `miflix-tv`, `ffdfc32d2c98f7e24826bd45ef30ef1df0ea6bcf` (0.1.1 / 2).
 Detalle conserva fondo y logo proporcionales, atenúa los degradados para que el

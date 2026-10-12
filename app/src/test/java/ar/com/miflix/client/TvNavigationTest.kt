@@ -5,6 +5,28 @@ import org.junit.Test
 
 class TvNavigationTest {
     private val link = "https://t.me/c/1/1"
+    @Test fun missingMovieVideoDoesNotOfferEpisodes() {
+        assertEquals("Ver detalle", tvFeaturedActionLabel(Title(tipo="pelicula")))
+        assertEquals("▶ Reproducir", tvFeaturedActionLabel(Title(tipo="pelicula", telegramUrl=link)))
+    }
+    @Test fun unavailableSeriesAndAnimeStillAllowBrowsingTheirEpisodes() {
+        for (type in listOf("serie", "anime")) {
+            assertEquals("Ver detalle", tvFeaturedActionLabel(Title(tipo=type)))
+            assertEquals("Elegir episodio", tvFeaturedActionLabel(Title(tipo=type,
+                temporadas=listOf(Season(episodios=listOf(Episode(numero=1)))))))
+        }
+    }
+    @Test fun featuredSkipsEmptySeasonsWithoutLosingTheEpisodeDestination() {
+        for (type in listOf("serie", "anime")) {
+            val episode = Episode(id="later", numero=7, telegramUrl=link)
+            val season = Season(numero=2, episodios=listOf(episode))
+            val title = Title(id=type, tipo=type, temporadas=listOf(Season(numero=1), season))
+            val target = tvFeaturedTarget(title)!!
+            assertEquals(1, target.seasonIndex)
+            assertEquals(0, target.episodeIndex)
+            assertEquals(ProgressKeys.episode(title, season, episode), target.progressKey)
+        }
+    }
     @Test fun featuredMovieUsesItsOrdinaryProgressKey() {
         val title = Title(id="movie", tipo="pelicula", titulo="Película", telegramUrl=link)
         val target = tvFeaturedTarget(title)!!

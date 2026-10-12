@@ -1,0 +1,13 @@
+Comando: gradlew.bat lintMobileDebug lintTvDebug --continue
+Resultado: FALLA lint. No se desactivaron comprobaciones ni se actualizo Mobile para ocultarlas.
+mobileDebug: 41 errores, 11 avisos.
+Errores por tipo: {'UnsafeOptInUsageError': 41}
+Todas las lineas senaladas por errores ya existen en el archivo correspondiente de 28da9ac.
+Avisos por tipo: {'ObsoleteLintCustomCheck': 1, 'ApplySharedPref': 2, 'UnusedAttribute': 1, 'GradleDependency': 4, 'SetJavaScriptEnabled': 1, 'StaticFieldLeak': 1, 'IconLauncherShape': 1}
+tvDebug: 42 errores, 12 avisos.
+Errores por tipo: {'UnsafeOptInUsageError': 41, 'IntentFilterExportedReceiver': 1}
+Todas las lineas senaladas por errores ya existen en el archivo correspondiente de 28da9ac.
+Avisos por tipo: {'ObsoleteLintCustomCheck': 1, 'ApplySharedPref': 2, 'UnusedAttribute': 1, 'VectorRaster': 1, 'GradleDependency': 4, 'SetJavaScriptEnabled': 1, 'StaticFieldLeak': 1, 'IconLauncherShape': 1}
+El informe historico 0.1.2 registra los mismos recuentos de errores: Mobile 41 y TV 42.
+No se ejecuto de nuevo lint sobre la base; no se afirma una comparacion completa normalizada.
+Los avisos incluyen dependencias mas nuevas y ObsoleteLintCustomCheck (algunas comprobaciones de Compose omitidas por incompatibilidad).

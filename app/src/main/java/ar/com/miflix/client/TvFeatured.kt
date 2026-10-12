@@ -1,5 +1,11 @@
 package ar.com.miflix.client
 
+internal fun tvFeaturedActionLabel(title: Title): String = when {
+    tvFeaturedTarget(title) != null -> "▶ Reproducir"
+    title.tipo in setOf("serie", "anime") && title.temporadas.orEmpty().isNotEmpty() -> "Elegir episodio"
+    else -> "Ver detalle"
+}
+
 /** Select only an existing playable destination; keep the ordinary resume/progress flow. */
 internal fun tvFeaturedTarget(title: Title, valid: (String) -> Boolean = { link ->
     runCatching { val u = java.net.URI(link.trim()); u.scheme.equals("https", true) &&

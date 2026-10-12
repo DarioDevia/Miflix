@@ -47,7 +47,9 @@ internal fun TvCard(title: Title, focusKey: String, restoreKey: String?, subtitl
     fraction: Float? = null, onFocused: (String) -> Unit, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val requester = remember { FocusRequester() }
-    LaunchedEffect(Unit) { if (restoreKey == focusKey) requester.requestFocus() }
+    LaunchedEffect(restoreKey, focusKey) {
+        if (restoreKey == focusKey) { withFrameNanos { }; requester.requestFocus() }
+    }
     Column(Modifier.width(154.dp).focusRequester(requester)
         .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocused(focusKey) }
         .border(if (focused) 4.dp else 1.dp,
@@ -70,7 +72,17 @@ internal fun TvHome(titles: List<Title>, featured: Title?, continuing: List<Cont
     scroll: LazyListState, restoreKey: String?, onFocused: (String) -> Unit,
     busy: Boolean, problem: String?, onRefresh: () -> Unit, onSelect: (Title) -> Unit,
     onContinue: (ContinueWatchingItem) -> Unit, onPlayFeatured: (Title) -> Unit) {
-    val returnKey = remember { restoreKey }
+    val returnKey = remember {
+        restoreKey?.takeIf { key -> continuing.any { "continue:${it.key}" == key } ||
+            titles.any { "${it.tipo}:${it.id}" == key } }
+    }
+    // Consume restoration once at screen level; lazy items may leave/re-enter
+    // composition while the user moves through other rows.
+    var pendingReturnKey by remember { mutableStateOf(returnKey) }
+    val recordFocus: (String) -> Unit = { key ->
+        if (pendingReturnKey == key) pendingReturnKey = null
+        onFocused(key)
+    }
     val featuredFocus = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
     val firstCategory = listOf("pelicula", "serie", "anime").firstOrNull { type -> titles.any { it.tipo == type } }
@@ -82,7 +94,11 @@ internal fun TvHome(titles: List<Title>, featured: Title?, continuing: List<Cont
         } else false
     }
     LaunchedEffect(featured) {
-        if (returnKey == null && featured != null) { withFrameNanos { }; featuredFocus.requestFocus() }
+        if (returnKey == null && featured != null) {
+            scroll.scrollToItem(0)
+            withFrameNanos { }
+            featuredFocus.requestFocus()
+        }
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val heroHeight = (maxHeight * .60f).coerceAtLeast(310.dp)
@@ -106,7 +122,7 @@ internal fun TvHome(titles: List<Title>, featured: Title?, continuing: List<Cont
                             Text(it, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            TvDetailAction(if (tvFeaturedTarget(featured) != null) "▶ Reproducir" else "Elegir episodio",
+                            TvDetailAction(tvFeaturedActionLabel(featured),
                                 Modifier.focusRequester(featuredFocus)) { onPlayFeatured(featured) }
                             TvDetailAction("Ver ficha") { onSelect(featured) }
                         }
@@ -124,8 +140,8 @@ internal fun TvHome(titles: List<Title>, featured: Title?, continuing: List<Cont
                 LazyRow(state = rememberLazyListState(initial), modifier = returnToHero.focusGroup(),
                     contentPadding = PaddingValues(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(continuing, key = { it.key }) { item ->
-                        TvCard(item.title, "continue:${item.key}", returnKey, item.label, item.fraction,
-                            onFocused) { onContinue(item) }
+                        TvCard(item.title, "continue:${item.key}", pendingReturnKey, item.label, item.fraction,
+                            recordFocus) { onContinue(item) }
                     }
                 }
             }
@@ -137,7 +153,7 @@ internal fun TvHome(titles: List<Title>, featured: Title?, continuing: List<Cont
                     LazyRow(state = rememberLazyListState(initial), modifier = (if (continuing.isEmpty() && type == firstCategory) returnToHero else Modifier).focusGroup(),
                         contentPadding = PaddingValues(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         items(row, key = { it.id }) { title ->
-                            TvCard(title, "$type:${title.id}", returnKey, onFocused = onFocused) { onSelect(title) }
+                            TvCard(title, "$type:${title.id}", pendingReturnKey, onFocused = recordFocus) { onSelect(title) }
                         }
                     }
                 }
