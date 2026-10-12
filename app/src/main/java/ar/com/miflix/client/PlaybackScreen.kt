@@ -200,14 +200,6 @@ private fun TelegramLogin(
     var input by remember(state) { mutableStateOf("") }
     var problem by remember(state) { mutableStateOf<String?>(null) }
     var submitting by remember { mutableStateOf(false) }
-    val inputFocus = remember { FocusRequester() }
-    var inputFocused by remember { mutableStateOf(false) }
-    LaunchedEffect(state) {
-        if (BuildConfig.IS_TV && (state == TelegramSession.State.Phone ||
-            state == TelegramSession.State.Code || state == TelegramSession.State.Password ||
-            state == TelegramSession.State.Email || state == TelegramSession.State.EmailCode))
-            inputFocus.requestFocus()
-    }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState())
@@ -238,6 +230,26 @@ private fun TelegramLogin(
                     TelegramSession.State.Code -> "Código enviado por Telegram"
                     else -> "Contraseña de verificación en dos pasos"
                 }
+                val submit: () -> Unit = {
+                    submitting = true
+                    problem = null
+                    scope.launch {
+                        try {
+                            session.submit(input)
+                            input = ""
+                        } catch (error: Exception) {
+                            problem = error.message ?: "Telegram rechazó el dato."
+                        } finally {
+                            submitting = false
+                        }
+                    }
+                }
+                if (BuildConfig.IS_TV) TvAuthEntry(label, input, { value ->
+                    if (state !is TelegramSession.State.Phone || isArgentinaPhoneInput(value))
+                        input = if (state is TelegramSession.State.Phone) value.trimStart().removePrefix("+54") else value
+                }, state is TelegramSession.State.Phone, state is TelegramSession.State.Password, submitting, submit,
+                    code = state is TelegramSession.State.Code || state is TelegramSession.State.EmailCode)
+                else {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     if (state is TelegramSession.State.Phone) {
                         Text("+54", modifier = Modifier.padding(end = 12.dp))
@@ -257,29 +269,11 @@ private fun TelegramLogin(
                             keyboardType = if (state is TelegramSession.State.Phone) KeyboardType.Phone
                             else KeyboardType.Text
                         ),
-                        modifier = if (BuildConfig.IS_TV) Modifier.weight(1f)
-                            .focusRequester(inputFocus).onFocusChanged { inputFocused = it.isFocused }
-                            .border(if (inputFocused) 3.dp else 0.dp, if (inputFocused) Color.White
-                                else Color.Transparent, RoundedCornerShape(8.dp)) else Modifier.weight(1f)
+                        modifier = Modifier.weight(1f)
                     )
                 }
-                val submit: () -> Unit = {
-                    submitting = true
-                    problem = null
-                    scope.launch {
-                        try {
-                            session.submit(input)
-                            input = ""
-                        } catch (error: Exception) {
-                            problem = error.message ?: "Telegram rechazó el dato."
-                        } finally {
-                            submitting = false
-                        }
-                    }
+                    Button(onClick = submit, enabled = input.isNotBlank() && !submitting) { Text("Continuar") }
                 }
-                if (BuildConfig.IS_TV) TvAction("Continuar", enabled = input.isNotBlank() && !submitting,
-                    onClick = submit)
-                else Button(onClick = submit, enabled = input.isNotBlank() && !submitting) { Text("Continuar") }
             }
             is TelegramSession.State.OtherDevice -> {
                 Text("Telegram pide confirmar el inicio de sesión en otro dispositivo:")
@@ -290,9 +284,8 @@ private fun TelegramLogin(
                 Text(if (BuildConfig.TELEGRAM_API_ID > 0)
                     "No pudimos conectar con Telegram. Revisá tu conexión e intentá de nuevo."
                     else state.message, color = MaterialTheme.colorScheme.error)
-                Button(onClick = { session.reset() }) {
-                    Text("Reintentar")
-                }
+                if (BuildConfig.IS_TV) TvAction("Reintentar") { session.reset() }
+                else Button(onClick = { session.reset() }) { Text("Reintentar") }
             }
             TelegramSession.State.Ready -> Unit
         }

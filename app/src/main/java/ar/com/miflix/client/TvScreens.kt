@@ -20,6 +20,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,23 +43,23 @@ internal fun TvAction(label: String, modifier: Modifier = Modifier, enabled: Boo
 }
 
 @Composable
-private fun TvCard(title: Title, focusKey: String, restoreKey: String?, subtitle: String? = null,
+internal fun TvCard(title: Title, focusKey: String, restoreKey: String?, subtitle: String? = null,
     fraction: Float? = null, onFocused: (String) -> Unit, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val requester = remember { FocusRequester() }
     LaunchedEffect(Unit) { if (restoreKey == focusKey) requester.requestFocus() }
-    Column(Modifier.width(150.dp).focusRequester(requester)
+    Column(Modifier.width(154.dp).focusRequester(requester)
         .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocused(focusKey) }
         .border(if (focused) 4.dp else 1.dp,
             if (focused) Color.White else Color(0xFF252B37), RoundedCornerShape(10.dp))
         .clip(RoundedCornerShape(10.dp))
         .background(if (focused) Color(0xFF8A2929) else Color(0xFF181C25))
         .clickable(onClick = onClick).padding(8.dp)) {
-        AsyncImage(title.posterUrl ?: title.backdropUrl, title.titulo,
-            Modifier.fillMaxWidth().height(154.dp), contentScale = ContentScale.Crop)
+        AsyncImage(tvArtworkUrl(title.posterUrl, TvArtworkKind.POSTER), title.titulo,
+            Modifier.fillMaxWidth().aspectRatio(2f / 3f), contentScale = ContentScale.Fit)
         Text(title.titulo, Modifier.padding(top = 6.dp), maxLines = 2,
-            overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
-        subtitle?.let { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold, color = Color.White)
+        subtitle?.let { Text(it, color = Color.LightGray, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         fraction?.let { LinearProgressIndicator(progress = it,
             modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) }
     }
@@ -67,58 +69,76 @@ private fun TvCard(title: Title, focusKey: String, restoreKey: String?, subtitle
 internal fun TvHome(titles: List<Title>, featured: Title?, continuing: List<ContinueWatchingItem>,
     scroll: LazyListState, restoreKey: String?, onFocused: (String) -> Unit,
     busy: Boolean, problem: String?, onRefresh: () -> Unit, onSelect: (Title) -> Unit,
-    onContinue: (ContinueWatchingItem) -> Unit) {
-    // Snapshot the return target; focusing another card must not steal focus back.
+    onContinue: (ContinueWatchingItem) -> Unit, onPlayFeatured: (Title) -> Unit) {
     val returnKey = remember { restoreKey }
     val featuredFocus = remember { FocusRequester() }
-    LaunchedEffect(featured) {
-        if (returnKey == null && featured != null) featuredFocus.requestFocus()
+    val scope = rememberCoroutineScope()
+    val firstCategory = listOf("pelicula", "serie", "anime").firstOrNull { type -> titles.any { it.tipo == type } }
+    val returnToHero = Modifier.onPreviewKeyEvent { event ->
+        if (featured != null && event.nativeKeyEvent.keyCode == 19) {
+            if (event.type == KeyEventType.KeyDown) scope.launch {
+                scroll.animateScrollToItem(0); withFrameNanos { }; featuredFocus.requestFocus()
+            }; true
+        } else false
     }
-    LazyColumn(state = scroll, modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        item {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("MiFlix TV", Modifier.weight(1f), style = MaterialTheme.typography.headlineLarge,
-                    color = Color(0xFFEF4B4B), fontWeight = FontWeight.Bold)
-                TvAction(if (busy) "Actualizando…" else "Actualizar", enabled = !busy, onClick = onRefresh)
-            }
-            problem?.let { Text(it, color = Color.LightGray) }
-            if (titles.isEmpty()) Text(if (busy) "Cargando catálogo…" else "Sin catálogo. Usá Actualizar.")
-        }
-        featured?.let { title -> item {
-            Box(Modifier.fillMaxWidth().height(230.dp).clip(RoundedCornerShape(14.dp))) {
-                AsyncImage(title.backdropUrl ?: title.posterUrl, null, Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop)
-                Column(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .65f)).padding(24.dp),
-                    verticalArrangement = Arrangement.Center) {
-                    Text("Destacado", color = Color.LightGray)
-                    Text(title.titulo, style = MaterialTheme.typography.headlineLarge, maxLines = 2)
-                    Text(listOfNotNull(title.year?.toString(), title.generos.orEmpty().joinToString(" · "))
-                        .joinToString(" · "))
-                    TvAction("Ver detalle", Modifier.focusRequester(featuredFocus), onClick = { onSelect(title) })
+    LaunchedEffect(featured) {
+        if (returnKey == null && featured != null) { withFrameNanos { }; featuredFocus.requestFocus() }
+    }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val heroHeight = (maxHeight * .60f).coerceAtLeast(310.dp)
+        featured?.let { TvCinemaBackdrop(remember(it) { tvDetailArtwork(it) }, it.id) }
+        LazyColumn(state = scroll, modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 100.dp, end = 24.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            item(key = "hero") {
+                Column(Modifier.heightIn(min = heroHeight).padding(top = 22.dp, bottom = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("MiFlix", color = Color(0xFFEF4B4B), fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.headlineSmall)
+                    Text("TV ${BuildConfig.VERSION_NAME}", color = Color.LightGray,
+                        style = MaterialTheme.typography.labelMedium)
+                    if (featured != null) Column(Modifier.widthIn(max = 430.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TvContentIdentity(featured, tvDetailArtwork(featured).logo)
+                        Text(listOfNotNull(featured.year?.toString(), tvDetailGenres(featured)
+                            .takeIf(String::isNotBlank)).joinToString(" · "), color = Color.LightGray)
+                        featured.sinopsis?.takeIf(String::isNotBlank)?.let {
+                            Text(it, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            TvDetailAction(if (tvFeaturedTarget(featured) != null) "▶ Reproducir" else "Elegir episodio",
+                                Modifier.focusRequester(featuredFocus)) { onPlayFeatured(featured) }
+                            TvDetailAction("Ver ficha") { onSelect(featured) }
+                        }
+                    }
+                    problem?.let { Text(it, color = Color.LightGray) }
+                    if (titles.isEmpty()) {
+                        Text(if (busy) "Cargando catálogo…" else "Sin catálogo", color = Color.White)
+                        TvAction("Actualizar", enabled = !busy, onClick = onRefresh)
+                    }
                 }
             }
-        } }
-        if (continuing.isNotEmpty()) item {
-            Text("Continuar viendo", style = MaterialTheme.typography.headlineSmall)
-            val initial = continuing.indexOfFirst { "continue:${it.key}" == returnKey }.coerceAtLeast(0)
-            LazyRow(state = rememberLazyListState(initial), modifier = Modifier.focusGroup(),
-                contentPadding = PaddingValues(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                items(continuing, key = { it.key }) { item ->
-                    TvCard(item.title, "continue:${item.key}", returnKey, item.label, item.fraction,
-                        onFocused) { onContinue(item) }
-                }
-            }
-        }
-        listOf("pelicula" to "Películas", "serie" to "Series", "anime" to "Anime").forEach { (type, label) ->
-            val row = titles.filter { it.tipo == type }
-            if (row.isNotEmpty()) item(key = type) {
-                Text(label, style = MaterialTheme.typography.headlineSmall)
-                val initial = row.indexOfFirst { "$type:${it.id}" == returnKey }.coerceAtLeast(0)
-                LazyRow(state = rememberLazyListState(initial), modifier = Modifier.focusGroup(),
+            if (continuing.isNotEmpty()) item(key = "continue") {
+                Text("Continuar viendo", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                val initial = continuing.indexOfFirst { "continue:${it.key}" == returnKey }.coerceAtLeast(0)
+                LazyRow(state = rememberLazyListState(initial), modifier = returnToHero.focusGroup(),
                     contentPadding = PaddingValues(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    items(row, key = { it.id }) { title ->
-                        TvCard(title, "$type:${title.id}", returnKey, onFocused = onFocused) { onSelect(title) }
+                    items(continuing, key = { it.key }) { item ->
+                        TvCard(item.title, "continue:${item.key}", returnKey, item.label, item.fraction,
+                            onFocused) { onContinue(item) }
+                    }
+                }
+            }
+            listOf("pelicula" to "Películas", "serie" to "Series", "anime" to "Anime").forEach { (type, label) ->
+                val row = titles.filter { it.tipo == type }
+                if (row.isNotEmpty()) item(key = type) {
+                    Text(label, color = Color.White, style = MaterialTheme.typography.titleLarge)
+                    val initial = row.indexOfFirst { "$type:${it.id}" == returnKey }.coerceAtLeast(0)
+                    LazyRow(state = rememberLazyListState(initial), modifier = (if (continuing.isEmpty() && type == firstCategory) returnToHero else Modifier).focusGroup(),
+                        contentPadding = PaddingValues(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        items(row, key = { it.id }) { title ->
+                            TvCard(title, "$type:${title.id}", returnKey, onFocused = onFocused) { onSelect(title) }
+                        }
                     }
                 }
             }

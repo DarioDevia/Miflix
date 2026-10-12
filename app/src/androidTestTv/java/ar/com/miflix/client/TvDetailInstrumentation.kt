@@ -6,6 +6,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -46,7 +48,13 @@ class TvDetailInstrumentation : Instrumentation() {
     private val root get() = uiAutomation.rootInActiveWindow
         ?: uiAutomation.windows.firstOrNull { it.isFocused || it.isActive }?.root
     private var stage = "start"
-    override fun onCreate(arguments: Bundle?) { super.onCreate(arguments); start() }
+    private var redactInput = false
+    private var requestedCases: Set<String>? = null
+    private var executedCases = 0
+    override fun onCreate(arguments: Bundle?) {
+        requestedCases = arguments?.getString("cases")?.split(',')?.toSet()
+        super.onCreate(arguments); start()
+    }
     override fun onStart() {
         val cache = File(targetContext.filesDir, "catalogo.json")
         val backup = cache.takeIf(File::isFile)?.readBytes()
@@ -104,12 +112,12 @@ class TvDetailInstrumentation : Instrumentation() {
                 screenshot(name, when(name) { "logo-wide" -> 12f; "logo-tall" -> .125f;
                     "movie-logo", "movie-legacy", "movie-retry", "logo-no-background" -> 4f; else -> null })
                 key(KeyEvent.KEYCODE_BACK)
-                eventually { focused().contains("Ver detalle") }
+                eventually { (focused().contains("Reproducir") || focused().contains("Elegir episodio")) }
             }.also { if (!it) failures++ }
             runCase("synopsis-dpad-back-and-player-return") {
                 val title = movie("Sinopsis larga", backdropUrl=art("background"))
                 openDetail(title)
-                key(KeyEvent.KEYCODE_DPAD_RIGHT)
+                key(KeyEvent.KEYCODE_DPAD_DOWN)
                 eventually { focused().contains("Sinopsis completa") }
                 stage = "open synopsis dialog"
                 key(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -121,7 +129,7 @@ class TvDetailInstrumentation : Instrumentation() {
                 key(KeyEvent.KEYCODE_BACK)
                 eventually { focused().contains("Sinopsis completa") }
                 stage = "focus play after synopsis"
-                key(KeyEvent.KEYCODE_DPAD_LEFT)
+                key(KeyEvent.KEYCODE_DPAD_UP)
                 eventually { focused().contains("Reproducir") }
                 key(KeyEvent.KEYCODE_DPAD_CENTER)
                 eventually { hasText("Conectar Telegram") }
@@ -145,6 +153,8 @@ class TvDetailInstrumentation : Instrumentation() {
                 key(KeyEvent.KEYCODE_BACK)
                 eventually { focused().contains("Elegir episodio") }
                 screenshot("$type-return", null)
+                key(KeyEvent.KEYCODE_DPAD_CENTER)
+                eventually { focused().contains("Temporada 2") }
             }.also { if (!it) failures++ }
             runCase("reported-film-published-artwork") {
                 val title = CatalogRepository.parseCatalog("""{"schema_version":"1.2.0","items":[{
@@ -155,8 +165,14 @@ class TvDetailInstrumentation : Instrumentation() {
                     "backdrop_url":"https://image.tmdb.org/t/p/original/xEY0MV2jSQBz9iOJfCFvLTiPGMA.jpg",
                     "logo_url":"https://image.tmdb.org/t/p/original/hSOyMqkIy9nN9jypcZWHzE8Dhgu.png"
                 }]}""").items.single()
-                openDetail(title)
-                eventually { !hasText(title.titulo) }
+                openHome(listOf(title))
+                eventually { labels(root).contains("Logo de " + title.titulo) }
+                screenshot("home-real-published-images", null)
+                key(KeyEvent.KEYCODE_DPAD_RIGHT)
+                eventually { focused().contains("Ver ficha") }
+                screenshot("home-real-detail-focus", null)
+                key(KeyEvent.KEYCODE_DPAD_CENTER)
+                eventually { !hasText(title.titulo) && focused().contains("Reproducir") }
                 screenshot("reported-film-real-published-images", null)
             }.also { if (!it) failures++ }
             for (type in listOf("pelicula", "serie", "anime")) runCase("player-controls-$type") {
@@ -164,6 +180,63 @@ class TvDetailInstrumentation : Instrumentation() {
             }.also { if (!it) failures++ }
             runCase("player-controls-no-logo") { playerControls("pelicula", null) }
                 .also { if (!it) failures++ }
+            for (type in listOf("serie", "anime")) runCase("$type-bidirectional-header") {
+                val title = movie("Cabecera $type", backdropUrl=art("background"), logoUrl=art("logo"))
+                    .copy(tipo=type, telegramUrl=null, temporadas=listOf(Season(numero=1,
+                        episodios=(1..18).map { Episode(id="long-$it", numero=it, titulo="Destino $it", telegramUrl="https://t.me/c/1/$it") })))
+                openDetail(title)
+                screenshot("$type-cinematic-header", 4f)
+                key(KeyEvent.KEYCODE_DPAD_CENTER)
+                eventually { focused().contains("Temporada 1") }
+                key(KeyEvent.KEYCODE_DPAD_DOWN)
+                eventually { focused().contains("E1 ·") }
+                for (n in 2..13) { key(KeyEvent.KEYCODE_DPAD_DOWN); eventually { focused().contains("E$n ·") } }
+                eventually { focused().contains("E13 ·") }
+                screenshot("$type-distant-episode", null)
+                for (n in 12 downTo 1) { key(KeyEvent.KEYCODE_DPAD_UP); eventually { focused().contains("E$n ·") } }
+                key(KeyEvent.KEYCODE_DPAD_UP)
+                eventually { focused().contains("Temporada 1") }
+                key(KeyEvent.KEYCODE_DPAD_UP)
+                eventually { focused().contains("Elegir episodio") }
+                screenshot("$type-return-header", 4f)
+                key(KeyEvent.KEYCODE_DPAD_CENTER)
+                eventually { focused().contains("Temporada 1") }
+            }.also { if (!it) failures++ }
+            runCase("anime-no-logo") {
+                openDetail(movie("Anime sin logo", backdropUrl=art("background")).copy(tipo="anime",
+                    telegramUrl=null, temporadas=listOf(Season(numero=1, episodios=listOf(Episode(numero=1, telegramUrl="https://t.me/c/1/1"))))))
+                eventually { hasText("Anime sin logo") }
+                screenshot("anime-no-logo", null)
+            }.also { if (!it) failures++ }
+            runCase("home-rail-posters-and-search") { homeNavigation() }
+                .also { if (!it) failures++ }
+            runCase("anime-continue-watching-resume") {
+                val episode = Episode(id="tv013-continue", numero=2, titulo="Continuación de prueba", telegramUrl="https://t.me/c/1/2")
+                val season = Season(numero=1, episodios=listOf(episode))
+                val title = movie("Anime continuidad", backdropUrl=art("background"), logoUrl=art("logo"), posterUrl=art("poster"))
+                    .copy(id="tv013-anime-progress", tipo="anime", telegramUrl=null, temporadas=listOf(season))
+                val storage = SharedPreferencesProgressStorage(targetContext)
+                val progressKey = ProgressKeys.episode(title, season, episode)
+                val before = storage.read(progressKey)
+                try {
+                    PlaybackProgressStore(storage).save(progressKey, 360_000, 3_600_000, System.currentTimeMillis())
+                    openHome(listOf(title))
+                    eventually { hasText("Continuar viendo") }
+                    key(KeyEvent.KEYCODE_DPAD_DOWN)
+                    eventually { focused().contains("Anime continuidad") }
+                    screenshot("anime-continue-watching", null)
+                    key(KeyEvent.KEYCODE_DPAD_CENTER)
+                    eventually { labels(root).contains("Continuar desde 6:00") }
+                    screenshot("anime-resume-dialog", null)
+                    key(KeyEvent.KEYCODE_BACK)
+                    eventually { focused().contains("Elegir episodio") }
+                } finally { if (before == null) storage.remove(progressKey) else storage.write(progressKey, before) }
+            }.also { if (!it) failures++ }
+            runCase("auth-code-focus-ime-submit-back") {
+                redactInput = true; try { authInput() } finally { redactInput = false }
+            }
+                .also { if (!it) failures++ }
+            check(executedCases > 0) { "No matching test cases" }
             check(requests.none { it.contains("api.themoviedb") || it.contains("api.tmdb") })
             check(requests.all { Uri.parse(it).host in listOf("artwork.test", "image.tmdb.org") })
             results += "PASS artwork requests confined to synthetic/published-image fixtures; no API requests"
@@ -177,7 +250,7 @@ class TvDetailInstrumentation : Instrumentation() {
             Coil.setImageLoader(oldLoader)
         }
         val output = Bundle().apply {
-            putString("stream", results.joinToString("\n")+"\nFailures: $failures\n")
+            putString("stream", results.joinToString("\n")+"\nCases: $executedCases\nFailures: $failures\n")
             putInt("failures", failures)
         }
         finish(if (failures == 0) Activity.RESULT_OK else Activity.RESULT_CANCELED, output)
@@ -231,34 +304,151 @@ class TvDetailInstrumentation : Instrumentation() {
         eventually { back }
     }
 
+    private fun homeNavigation() {
+        val titles = listOf("pelicula", "serie", "anime").flatMap { type -> (1..7).map { n ->
+            movie("$type título $n", backdropUrl=art("background"), logoUrl=art("logo"), posterUrl=art("poster"))
+                .copy(id="$type-$n", tipo=type) } }
+        openHome(titles)
+        screenshot("home-cinematic", null)
+        key(KeyEvent.KEYCODE_DPAD_RIGHT)
+        eventually { focused().contains("Ver ficha") }
+        screenshot("home-detail-button-focus", null)
+        repeat(2) { key(KeyEvent.KEYCODE_DPAD_LEFT) }
+        eventually { listOf("Inicio", "Buscar", "Secciones", "Telegram", "Configuración", "Actualizar").any { focused().contains(it) } }
+        repeat(5) { if (!focused().contains("Inicio")) key(KeyEvent.KEYCODE_DPAD_UP) }
+        eventually { focused().contains("Inicio") }
+        screenshot("rail-focused", null)
+        key(KeyEvent.KEYCODE_DPAD_DOWN)
+        eventually { focused().contains("Buscar") }
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { focused().contains("Título o género") }
+        screenshot("search-field-focus", null)
+        if (uiAutomation.windows.any { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD }) key(KeyEvent.KEYCODE_BACK)
+        key(KeyEvent.KEYCODE_BACK)
+        eventually { focused().contains("Reproducir") }
+        key(KeyEvent.KEYCODE_DPAD_LEFT)
+        repeat(5) { if (!focused().contains("Inicio")) key(KeyEvent.KEYCODE_DPAD_UP) }
+        eventually { focused().contains("Inicio") }
+        repeat(2) { key(KeyEvent.KEYCODE_DPAD_DOWN) }
+        eventually { focused().contains("Secciones") }
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { focused().contains("Todos") }
+        repeat(3) { key(KeyEvent.KEYCODE_DPAD_RIGHT) }
+        eventually { focused().contains("Anime") }
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        screenshot("sections-anime-posters", null)
+        check(!labels(root).contains("pelicula título") && !labels(root).contains("serie título"))
+        key(KeyEvent.KEYCODE_BACK)
+        eventually { focused().contains("Reproducir") }
+        key(KeyEvent.KEYCODE_DPAD_DOWN)
+        eventually { focused().contains("pelicula título") || focused().contains("serie título") || focused().contains("anime título") }
+        repeat(5) { key(KeyEvent.KEYCODE_DPAD_RIGHT) }
+        screenshot("home-poster-row-scrolled", null)
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { hasText("MiFlix TV " + BuildConfig.VERSION_NAME) }
+        key(KeyEvent.KEYCODE_BACK)
+        eventually { focused().contains("título") }
+        screenshot("home-restored-card-focus", null)
+    }
+
+    private fun authInput() {
+        openHome(listOf(movie("Entrada de prueba")))
+        var submitted = false
+        var inputLength = 0
+        var back = false
+        runOnMainSync {
+            (activity as ComponentActivity).setContent {
+                MaterialTheme {
+                    var value by remember { mutableStateOf("") }
+                    var error by remember { mutableStateOf(false) }
+                    BackHandler { back = true }
+                    androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()
+                        .background(ComposeColor(0xFF0B0D12)).padding(48.dp)) {
+                        androidx.compose.material3.Text("Prueba de entrada — sin conexión a Telegram", color=ComposeColor.White)
+                        TvAuthEntry("Código enviado por Telegram", value, { value = it; inputLength = it.length }, false, false, false,
+                            { submitted = value == "00000"; error = true }, code=true)
+                        if (error) androidx.compose.material3.Text("Error simulado, sin datos personales", color=ComposeColor.White)
+                    }
+                }
+            }
+        }
+        eventually { focused().contains("Código enviado por Telegram") }
+        screenshot("auth-code-focused", null)
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { uiAutomation.windows.any { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD } }
+        screenshot("auth-tv-keyboard", null)
+        // Select a key with DPAD on the actual TV IME, then use fictitious hardware input.
+        key(KeyEvent.KEYCODE_DPAD_RIGHT); key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { inputLength > 0 }
+        key(KeyEvent.KEYCODE_DEL)
+        eventually { inputLength == 0 }
+        // Never log or persist the fictitious value.
+        repeat(5) { key(KeyEvent.KEYCODE_0) }
+        key(KeyEvent.KEYCODE_BACK)
+        eventually { uiAutomation.windows.none { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD } }
+        check(!back)
+        key(KeyEvent.KEYCODE_DPAD_DOWN)
+        eventually { focused().contains("Continuar") }
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { submitted && hasText("Error simulado, sin datos personales") }
+        key(KeyEvent.KEYCODE_DPAD_UP)
+        eventually { focused().contains("Código enviado por Telegram") }
+        if (uiAutomation.windows.any { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD })
+            key(KeyEvent.KEYCODE_BACK)
+        key(KeyEvent.KEYCODE_BACK)
+        eventually { back }
+    }
+
     private fun art(name: String) = "https://artwork.test/$name.png"
     private fun movie(name: String, backdropUrl: String?=null, fondoUrl: String?=null,
         logoUrl: String?=null, posterUrl: String?=null) = Title(id="tv-detail-test",tipo="pelicula",titulo=name,
         year=2025,puntuacion=7.5,generos=listOf("Drama"),
         sinopsis=("Una historia de prueba para comprobar legibilidad, control remoto y desplazamiento. ").repeat(24),
         telegramUrl="https://t.me/c/1/1",backdropUrl=backdropUrl,fondoUrl=fondoUrl,logoUrl=logoUrl,posterUrl=posterUrl)
-    private fun openDetail(title: Title) {
+    private fun openHome(titles: List<Title>) {
         runOnMainSync { activity?.finish() }; waitForIdleSync()
-        File(targetContext.filesDir,"catalogo.json").writeText(Gson().toJson(Catalog("1.2.0",items=listOf(title))))
+        File(targetContext.filesDir,"catalogo.json").writeText(Gson().toJson(Catalog("1.2.0",items=titles)))
         targetContext.getSharedPreferences("miflix_client",0).edit()
             .putLong("catalog_last_check",System.currentTimeMillis()).remove("catalog_url").commit()
         activity = startActivitySync(Intent(targetContext,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         eventually { hasText("Conectar Telegram") }; key(KeyEvent.KEYCODE_BACK)
-        eventually { focused().contains("Ver detalle") }; key(KeyEvent.KEYCODE_DPAD_CENTER)
         eventually { focused().contains("Reproducir") || focused().contains("Elegir episodio") }
+    }
+    private fun openDetail(title: Title) {
+        openHome(listOf(title))
+        key(KeyEvent.KEYCODE_DPAD_RIGHT)
+        eventually { focused().contains("Ver ficha") }; key(KeyEvent.KEYCODE_DPAD_CENTER)
+        // Both Home and Detail have a play action. Require the destination screen,
+        // otherwise the test can accept Home and send the next key too early.
+        eventually { hasText("MiFlix TV " + BuildConfig.VERSION_NAME) &&
+            (focused().contains("Reproducir") || focused().contains("Elegir episodio")) }
     }
     private fun key(code: Int) { sendKeyDownUpSync(code); waitForIdleSync(); SystemClock.sleep(250) }
     private fun eventually(condition: () -> Boolean) {
         val end=SystemClock.uptimeMillis()+15_000
         while(SystemClock.uptimeMillis()<end) { waitForIdleSync(); if(condition())return; SystemClock.sleep(150) }
-        error("UI timeout; focused=${focused()}; tree=${labels(root)}")
+        if (redactInput) error("UI timeout in input fixture (values omitted)")
+        else error("UI timeout; focused=${focused()}; tree=${labels(root)}")
     }
     private fun labels(node: AccessibilityNodeInfo?): String {
         if(node==null)return ""
         return listOfNotNull(node.text?.toString(),node.contentDescription?.toString()).joinToString(" ")+" "+
             (0 until node.childCount).joinToString(" ") { labels(node.getChild(it)) }
     }
-    private fun focused()=labels(root?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT))
+    private fun focused(): String {
+        val windowRoot = root
+        val input = windowRoot?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+        fun descendant(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+            if (node == null) return null
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i)
+                if (child?.isFocused == true) return child
+                descendant(child)?.let { return it }
+            }
+            return null
+        }
+        return labels(if (input == windowRoot) descendant(windowRoot) else input)
+    }
     private fun hasText(text: String): Boolean {
         fun contains(node: AccessibilityNodeInfo?): Boolean {
             if (node == null) return false
@@ -267,12 +457,16 @@ class TvDetailInstrumentation : Instrumentation() {
         }
         return contains(root)
     }
-    private fun runCase(name: String, test: () -> Unit): Boolean = try {
+    private fun runCase(name: String, test: () -> Unit): Boolean {
+        if (requestedCases != null && name !in requestedCases!!) return true
+        executedCases++
+        return try {
         stage = name
         test(); record("PASS $name"); true
     } catch(error: Throwable) {
-        runCatching { screenshot("$name-failure", null) }
+        if (!name.startsWith("auth-")) runCatching { screenshot("$name-failure", null) }
         record("FAIL $name ($stage): ${error.message}"); false
+        }
     }
     private fun record(message: String) {
         results += message

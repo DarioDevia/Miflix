@@ -49,7 +49,7 @@ private fun artworkRequest(url: String, kind: TvArtworkKind): ImageRequest {
 }
 
 @Composable
-private fun DetailBackground(artwork: TvDetailArtwork, contentId: String) {
+internal fun TvCinemaBackdrop(artwork: TvDetailArtwork, contentId: String) {
     var candidate by remember(contentId, artwork.backgrounds) { mutableIntStateOf(0) }
     var posterFailed by remember(contentId, artwork.poster) { mutableStateOf(false) }
     val background = artwork.backgrounds.getOrNull(candidate)
@@ -75,21 +75,21 @@ private fun DetailBackground(artwork: TvDetailArtwork, contentId: String) {
 }
 
 @Composable
-private fun DetailTitle(title: Title, logo: String?) {
+internal fun TvContentIdentity(title: Title, logo: String?) {
     val text: @Composable () -> Unit = {
         Text(title.titulo, color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold,
             maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
     if (logo == null) text()
     else SubcomposeAsyncImage(artworkRequest(logo, TvArtworkKind.LOGO), "Logo de ${title.titulo}",
-        modifier = Modifier.fillMaxWidth().height(120.dp), alignment = Alignment.CenterStart,
+        modifier = Modifier.widthIn(max = 380.dp).fillMaxWidth().height(96.dp), alignment = Alignment.CenterStart,
         contentScale = ContentScale.Fit, loading = { text() }, error = { text() },
         success = { SubcomposeAsyncImageContent() })
 }
 
 /** Keep the existing focus/action implementation, with legible detail-only colors/type. */
 @Composable
-private fun DetailAction(label: String, modifier: Modifier = Modifier, enabled: Boolean = true,
+internal fun TvDetailAction(label: String, modifier: Modifier = Modifier, enabled: Boolean = true,
     onClick: () -> Unit) {
     MaterialTheme(colorScheme = MaterialTheme.colorScheme.copy(onPrimary = Color.White),
         typography = MaterialTheme.typography.copy(
@@ -101,20 +101,28 @@ private fun DetailAction(label: String, modifier: Modifier = Modifier, enabled: 
 /** TV presentation only. All playback/progress/episode callbacks are the existing ones. */
 @Composable
 internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
-    onPlay: (String, String, String, EpisodeNavigationTarget?, EpisodeNavigationTarget?) -> Unit) {
+    onPlay: (String, String, String, EpisodeNavigationTarget?, EpisodeNavigationTarget?) -> Unit,
+    initialSeasonIndex: Int = 0, onSeasonSelected: (Int) -> Unit = {}) {
     val artwork = remember(title) { tvDetailArtwork(title) }
-    var seasonIndex by rememberSaveable(title.id) { mutableIntStateOf(0) }
+    var seasonIndex by rememberSaveable(title.id) { mutableIntStateOf(initialSeasonIndex.coerceIn(0, (title.temporadas.orEmpty().size - 1).coerceAtLeast(0))) }
     var synopsisOverflow by remember(title.id, title.sinopsis) { mutableStateOf(false) }
     var fullSynopsis by rememberSaveable(title.id) { mutableStateOf(false) }
     var restoreSynopsis by remember { mutableStateOf(false) }
     val actionFocus = remember(title.id) { FocusRequester() }
-    val seasonFocus = remember(title.id) { FocusRequester() }
+    val seasonFocus = remember(title.id, title.temporadas.orEmpty().size) {
+        List(title.temporadas.orEmpty().size) { FocusRequester() }
+    }
     val synopsisFocus = remember(title.id) { FocusRequester() }
     val scroll = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val seasons = title.temporadas.orEmpty()
-    val directLink = title.telegramUrl?.takeIf(validLink)?.takeIf { title.tipo != "serie" }
+    val directLink = title.telegramUrl?.takeIf(validLink)?.takeIf { seasons.isEmpty() }
     val synopsis = title.sinopsis?.trim().orEmpty()
+    val episodes = seasons.getOrNull(seasonIndex)?.episodios.orEmpty()
+    val episodeFocus = remember(title.id, seasonIndex, episodes.size) { List(episodes.size) { FocusRequester() } }
+    fun focusAt(item: Int, requester: FocusRequester) {
+        scope.launch { scroll.animateScrollToItem(item); withFrameNanos { }; requester.requestFocus() }
+    }
     LaunchedEffect(fullSynopsis) {
         if (!fullSynopsis && restoreSynopsis) {
             // Return focus after the dialog's window has been removed.
@@ -126,8 +134,8 @@ internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
     if (fullSynopsis) FullSynopsis(synopsis) { fullSynopsis = false; restoreSynopsis = true }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val heroHeight = maxHeight.coerceAtLeast(420.dp)
-        val infoWidth = maxWidth * .58f
-        DetailBackground(artwork, title.id)
+        val infoWidth = maxWidth * .52f
+        TvCinemaBackdrop(artwork, title.id)
         Text("MiFlix TV ${BuildConfig.VERSION_NAME}", color = Color.White.copy(alpha = .65f),
             fontSize = 12.sp, modifier = Modifier.align(Alignment.TopEnd).padding(20.dp))
         LazyColumn(state = scroll, modifier = Modifier.fillMaxSize(),
@@ -136,7 +144,7 @@ internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
                 Column(Modifier.heightIn(min = heroHeight).width(infoWidth)
                     .padding(start = 48.dp, top = 32.dp, bottom = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    DetailTitle(title, artwork.logo)
+                    TvContentIdentity(title, artwork.logo)
                     val facts = tvDetailFacts(title)
                     if (facts.isNotBlank()) Text(facts, color = Color.White, fontSize = 18.sp)
                     val genres = tvDetailGenres(title)
@@ -145,26 +153,28 @@ internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
                     if (synopsis.isNotBlank()) Text(synopsis, color = Color(0xFFE5E7EB), fontSize = 18.sp,
                         maxLines = 3, overflow = TextOverflow.Ellipsis,
                         onTextLayout = { synopsisOverflow = it.hasVisualOverflow })
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    title.audio?.takeIf(String::isNotBlank)?.let { Text("Audio: $it", color = Color.LightGray, fontSize = 16.sp) }
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (directLink != null) {
                             LaunchedEffect(title.id) { actionFocus.requestFocus() }
-                            DetailAction("▶ Reproducir", Modifier.focusRequester(actionFocus)) {
+                            TvDetailAction("▶ Reproducir", Modifier.focusRequester(actionFocus)) {
                                 onPlay(ProgressKeys.title(title), directLink, title.titulo, null, null)
                             }
                         } else if (seasons.isNotEmpty()) {
                             LaunchedEffect(title.id) { actionFocus.requestFocus() }
-                            DetailAction("Elegir episodio", Modifier.focusRequester(actionFocus)) {
-                                scope.launch { scroll.animateScrollToItem(1); seasonFocus.requestFocus() }
+                            TvDetailAction("Elegir episodio", Modifier.focusRequester(actionFocus)) {
+                                focusAt(1, seasonFocus[seasonIndex])
                             }
                         } else Text("Sin video disponible", color = Color.LightGray,
                             modifier = Modifier.padding(vertical = 12.dp))
                         if (synopsisOverflow) {
                             if (directLink == null && seasons.isEmpty())
                                 LaunchedEffect(title.id) { synopsisFocus.requestFocus() }
-                            DetailAction("Sinopsis completa", Modifier.focusRequester(synopsisFocus)) {
+                            TvDetailAction("Sinopsis completa", Modifier.focusRequester(synopsisFocus)) {
                                 fullSynopsis = true
                             }
                         }
+                        TvTrailerAction(title)
                     }
                 }
             }
@@ -173,12 +183,21 @@ internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
                     Column(Modifier.fillMaxWidth().background(detailBase.copy(alpha = .9f)).padding(horizontal = 48.dp)) {
                         Text("Temporadas y episodios", color = Color.White,
                             style = MaterialTheme.typography.headlineSmall)
-                        LazyRow(modifier = Modifier.focusGroup().padding(vertical = 12.dp),
+                        LazyRow(state = rememberLazyListState(seasonIndex), modifier = Modifier.focusGroup().padding(vertical = 12.dp).onPreviewKeyEvent { event ->
+                            val code = event.nativeKeyEvent.keyCode
+                            if (code == 19 || code == 20) {
+                                if (event.type == KeyEventType.KeyDown) {
+                                    if (code == 19) focusAt(0, actionFocus)
+                                    else episodes.indexOfFirst { it.telegramUrl?.let(validLink) == true }
+                                        .takeIf { it >= 0 }?.let { focusAt(it + 2, episodeFocus[it]) }
+                                }; true
+                            } else false
+                        },
                             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             items(seasons.size) { index ->
                                 val season = seasons[index]
-                                DetailAction((if (index == seasonIndex) "✓ " else "") + "Temporada ${season.numero}",
-                                    if (index == 0) Modifier.focusRequester(seasonFocus) else Modifier) { seasonIndex = index }
+                                TvDetailAction((if (index == seasonIndex) "✓ " else "") + "Temporada ${season.numero}",
+                                    Modifier.focusRequester(seasonFocus[index])) { seasonIndex = index; onSeasonSelected(index) }
                             }
                         }
                     }
@@ -187,8 +206,18 @@ internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
                 season?.episodios.orEmpty().forEachIndexed { index, episode ->
                     item(key = "episode:$seasonIndex:$index") {
                         val link = episode.telegramUrl?.takeIf(validLink)
-                        DetailAction("E${episode.numero} · ${episode.titulo.orEmpty()}",
-                            Modifier.padding(horizontal = 48.dp), enabled = link != null) {
+                        TvDetailAction("E${episode.numero} · ${episode.titulo.orEmpty()}",
+                            Modifier.padding(horizontal = 48.dp).widthIn(max = 480.dp)
+                                .focusRequester(episodeFocus[index]).onPreviewKeyEvent { event ->
+                                    val code = event.nativeKeyEvent.keyCode
+                                    if (code == 19 || code == 20) {
+                                        if (event.type == KeyEventType.KeyDown) {
+                                            val next = tvAdjacentPlayableIndex(episodes, index, if (code == 19) -1 else 1, validLink)
+                                            if (next != null) focusAt(next + 2, episodeFocus[next])
+                                            else if (code == 19) focusAt(1, seasonFocus[seasonIndex])
+                                        }; true
+                                    } else false
+                                }, enabled = link != null) {
                             if (link != null) onPlay(ProgressKeys.episode(title, season!!, episode), link,
                                 episode.titulo ?: "Episodio ${episode.numero}",
                                 findPreviousPlayableEpisode(title, seasonIndex, index, validLink),
@@ -221,7 +250,7 @@ private fun FullSynopsis(text: String, onDismiss: () -> Unit) {
                 modifier = Modifier.weight(1f).verticalScroll(scroll))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("↑ ↓ para leer · Atrás para cerrar", color = Color.LightGray, modifier = Modifier.weight(1f))
-                DetailAction("Cerrar", Modifier.focusRequester(closeFocus), onClick = onDismiss)
+                TvDetailAction("Cerrar", Modifier.focusRequester(closeFocus), onClick = onDismiss)
             }
         }
     }

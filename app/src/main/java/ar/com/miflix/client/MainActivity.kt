@@ -48,6 +48,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -114,7 +116,7 @@ private data class PendingResume(val key: String, val link: String, val name: St
     val nextEpisode: EpisodeNavigationTarget?)
 private val categories = listOf("Todos", "Películas", "Series", "Anime")
 
-private fun Title.matchesCategory(category: String) = category == "Todos" || tipo == when (category) {
+internal fun Title.matchesCategory(category: String) = category == "Todos" || tipo == when (category) {
     "Películas" -> "pelicula"
     "Series" -> "serie"
     else -> "anime"
@@ -143,7 +145,7 @@ private fun openTelegram(context: Context, link: String) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 private fun ClientApp(
     repository: CatalogRepository,
@@ -152,6 +154,8 @@ private fun ClientApp(
     saveSettings: (String, String) -> Unit
 ) {
     val context = LocalContext.current
+    val inputMode = LocalInputModeManager.current
+    LaunchedEffect(Unit) { if (BuildConfig.IS_TV) inputMode.requestInputMode(InputMode.Keyboard) }
     val telegramSession = remember { TelegramSession.get(context) }
     val telegramState by telegramSession.state.collectAsState()
     var url by remember { mutableStateOf(initialUrl) }
@@ -176,6 +180,7 @@ private fun ClientApp(
     var pendingResume by remember { mutableStateOf<PendingResume?>(null) }
     var playbackIssue by remember { mutableStateOf<PlaybackIssue?>(null) }
     var fullscreen by rememberSaveable { mutableStateOf(false) }
+    var tvDetailSeason by rememberSaveable(selectedId) { mutableIntStateOf(0) }
     var tvFocusKey by rememberSaveable { mutableStateOf<String?>(null) }
     var category by rememberSaveable { mutableStateOf("Todos") }
     var query by rememberSaveable { mutableStateOf("") }
@@ -471,6 +476,9 @@ private fun ClientApp(
                 }
             }
         ) { padding ->
+            TvNavigationShell(BuildConfig.IS_TV && screen in listOf(Screen.HOME, Screen.SEARCH, Screen.SECTIONS),
+                screen.name, { screen = Screen.valueOf(it) }, { screen = Screen.CONNECT }, ::openSettings,
+                ::refresh, busy) {
             when (screen) {
                 Screen.HOME -> if (BuildConfig.IS_TV) TvHome(titles, featured, continuing,
                     homeScroll, tvFocusKey, { tvFocusKey = it }, busy, problem, ::refresh,
@@ -483,6 +491,12 @@ private fun ClientApp(
                             requestPlayback(item.key, link, item.episode?.titulo ?: item.title.titulo,
                                 findPreviousPlayableEpisode(item.title, season, episode, ::validTelegramLink),
                                 findNextPlayableEpisode(item.title, season, episode, ::validTelegramLink))
+                    }, { title ->
+                        val target = tvFeaturedTarget(title, ::validTelegramLink)
+                        openDetail(title)
+                        if (target != null) requestPlayback(target.progressKey, target.link, target.name,
+                            if (target.seasonIndex >= 0) findPreviousPlayableEpisode(title, target.seasonIndex, target.episodeIndex, ::validTelegramLink) else null,
+                            if (target.seasonIndex >= 0) findNextPlayableEpisode(title, target.seasonIndex, target.episodeIndex, ::validTelegramLink) else null)
                     }) else HomeScreen(
                     modifier = Modifier.padding(padding),
                     scrollState = homeScroll,
@@ -509,7 +523,10 @@ private fun ClientApp(
                     },
                     onBrowse = { category = it; screen = Screen.SECTIONS }
                 )
-                Screen.SEARCH -> SearchScreen(
+                Screen.SEARCH -> if (BuildConfig.IS_TV) TvSearch(searchIndex, searchScroll, query,
+                    { query = it }, SearchFilters(searchType, searchGenre, searchYear, searchRating, searchLatest),
+                    { searchType = it.type; searchGenre = it.genre; searchYear = it.year; searchRating = it.minimumRating; searchLatest = it.latestReleases },
+                    searchOrder, { searchOrder = it }, ::openDetail) else SearchScreen(
                     modifier = Modifier.padding(padding),
                     index = searchIndex,
                     scrollState = searchScroll,
@@ -527,7 +544,8 @@ private fun ClientApp(
                     onOrderChange = { searchOrder = it },
                     onSelect = ::openDetail
                 )
-                Screen.SECTIONS -> SectionsScreen(
+                Screen.SECTIONS -> if (BuildConfig.IS_TV) TvSections(titles, sectionsScroll, category,
+                    { category = it }, ::openDetail) else SectionsScreen(
                     modifier = Modifier.padding(padding),
                     titles = titles,
                     scrollState = sectionsScroll,
@@ -536,7 +554,7 @@ private fun ClientApp(
                     onSelect = ::openDetail
                 )
                 Screen.DETAIL -> if (selected != null && BuildConfig.IS_TV)
-                    TvDetail(selected, ::validTelegramLink, ::requestPlayback)
+                    TvDetail(selected, ::validTelegramLink, ::requestPlayback, tvDetailSeason, { tvDetailSeason = it })
                 else if (selected != null) Detail(
                     title = selected,
                     modifier = Modifier.padding(padding),
@@ -618,6 +636,7 @@ private fun ClientApp(
                         if (nextUrl == previousUrl) refresh()
                     }
                 )
+            }
             }
         }
     }
@@ -860,16 +879,19 @@ private fun SearchScreen(
 }
 
 @Composable
-private fun <T> SearchChoice(label: String, value: T, options: List<Pair<T, String>>,
+internal fun <T> SearchChoice(label: String, value: T, options: List<Pair<T, String>>,
     active: Boolean, onSelect: (T) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        FilterChip(selected = active, onClick = { expanded = true },
+        if (BuildConfig.IS_TV) TvAction("$label: ${options.firstOrNull { it.first == value }?.second ?: value}") { expanded = true }
+        else FilterChip(selected = active, onClick = { expanded = true },
             label = { Text("$label: ${options.firstOrNull { it.first == value }?.second ?: value}") })
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false },
             modifier = Modifier.heightIn(max = 280.dp)) {
             options.forEach { (option, name) ->
-                DropdownMenuItem(text = { Text(if (option == value) "$name ✓" else name) },
+                if (BuildConfig.IS_TV) TvAction(if (option == value) "$name ✓" else name,
+                    Modifier.padding(4.dp).widthIn(max = 280.dp)) { expanded = false; onSelect(option) }
+                else DropdownMenuItem(text = { Text(if (option == value) "$name ✓" else name) },
                     onClick = { expanded = false; onSelect(option) })
             }
         }
@@ -966,8 +988,8 @@ private fun SettingsScreen(
             }
         }
         if (problem != null) item { Text(problem, color = MaterialTheme.colorScheme.error) }
-        item { SectionHeading("Reproducción") }
-        item {
+        if (!BuildConfig.IS_TV) item { SectionHeading("Reproducción") }
+        if (!BuildConfig.IS_TV) item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Reproducir trailers automáticamente", Modifier.weight(1f),
                     color = MiFlixStyle.primaryText)
@@ -977,8 +999,11 @@ private fun SettingsScreen(
         item { SectionHeading("Canal de Telegram") }
         item { Text("Cada persona abre la invitación y se une con su propia cuenta de Telegram.",
             color = MiFlixStyle.secondaryText) }
-        item { OutlinedTextField(invite, onInviteChange, label = { Text("Enlace de invitación") },
-            isError = !inviteOk, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+        item {
+            if (BuildConfig.IS_TV) TvEditableField(invite, onInviteChange, "Enlace de invitación", Modifier.fillMaxWidth())
+            else OutlinedTextField(invite, onInviteChange, label = { Text("Enlace de invitación") },
+                isError = !inviteOk, singleLine = true, modifier = Modifier.fillMaxWidth())
+        }
         if (invite.isNotBlank() && inviteOk) item {
             TextButton(onClick = onJoin) { Text("Entrar al canal en Telegram") }
         }
@@ -1002,7 +1027,8 @@ private fun SettingsScreen(
             Text(if (showAdvanced) "Ocultar opciones avanzadas" else "Opciones avanzadas")
         } }
         if (showAdvanced) item {
-            OutlinedTextField(url, onUrlChange, label = { Text("URL HTTPS del catálogo") },
+            if (BuildConfig.IS_TV) TvEditableField(url, onUrlChange, "URL HTTPS del catálogo", Modifier.fillMaxWidth())
+            else OutlinedTextField(url, onUrlChange, label = { Text("URL HTTPS del catálogo") },
                 isError = !urlOk, singleLine = true, modifier = Modifier.fillMaxWidth())
         }
         item { Button(onClick = onSave, enabled = urlOk && inviteOk,
