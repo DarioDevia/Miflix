@@ -997,6 +997,10 @@ private fun SettingsScreen(
             }
         }
         item { SectionHeading("Canal de Telegram") }
+        if (BuildConfig.IS_TV) tvTelegramSetupMessage(BuildConfig.TELEGRAM_API_ID,
+            BuildConfig.TELEGRAM_API_HASH.isNotBlank())?.let { message ->
+            item { Text(message, color = MiFlixStyle.secondaryText) }
+        }
         item { Text("Cada persona abre la invitación y se une con su propia cuenta de Telegram.",
             color = MiFlixStyle.secondaryText) }
         item {

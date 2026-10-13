@@ -14,12 +14,15 @@ import androidx.compose.ui.unit.dp
 @Composable
 private fun TvPosterGrid(titles: List<Title>, scroll: LazyGridState, onSelect: (Title) -> Unit,
     modifier: Modifier = Modifier) {
-    LazyVerticalGrid(columns = GridCells.Adaptive(154.dp), state = scroll,
-        modifier = modifier.fillMaxWidth(), contentPadding = PaddingValues(vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+    val posterWidth = tvPosterWidth(maxWidth.value).dp
+    LazyVerticalGrid(columns = GridCells.Fixed(tvPosterColumns(maxWidth.value)), state = scroll,
+        modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(TV_POSTER_GAP_DP.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(titles, key = { it.id }) { title ->
-            TvCard(title, title.id, null, onFocused = {}) { onSelect(title) }
+            TvCard(title, title.id, null, onFocused = {}, width = posterWidth) { onSelect(title) }
         }
+    }
     }
 }
 

@@ -236,6 +236,31 @@ class TvDetailInstrumentation : Instrumentation() {
                 redactInput = true; try { authInput() } finally { redactInput = false }
             }
                 .also { if (!it) failures++ }
+            runCase("rail-exit-right-and-back") {
+                val titles = listOf("pelicula", "serie", "anime").flatMap { type ->
+                    (1..9).map { n -> movie("$type mando $n", posterUrl=art("poster"))
+                        .copy(id="$type-$n", tipo=type) }
+                }
+                openHome(titles)
+                key(KeyEvent.KEYCODE_DPAD_DOWN)
+                eventually { focused().contains("mando") }
+                var lastPoster = focused()
+                fun inRail() = listOf("Inicio", "Buscar", "Secciones", "Telegram", "Configuración", "Actualizar")
+                    .any { focused().trim() == it }
+                for (step in 1..12) {
+                    if (inRail()) break
+                    lastPoster = focused()
+                    key(KeyEvent.KEYCODE_DPAD_LEFT)
+                }
+                eventually { inRail() }
+                key(KeyEvent.KEYCODE_DPAD_RIGHT)
+                eventually { focused() == lastPoster }
+                key(KeyEvent.KEYCODE_DPAD_LEFT)
+                eventually { inRail() }
+                key(KeyEvent.KEYCODE_BACK)
+                eventually { focused() == lastPoster }
+                screenshot("rail-return-restored-poster", null)
+            }.also { if (!it) failures++ }
             check(executedCases > 0) { "No matching test cases" }
             check(requests.none { it.contains("api.themoviedb") || it.contains("api.tmdb") })
             check(requests.all { Uri.parse(it).host in listOf("artwork.test", "image.tmdb.org") })

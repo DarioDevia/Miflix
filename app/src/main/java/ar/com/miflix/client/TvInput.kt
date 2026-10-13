@@ -38,7 +38,8 @@ internal fun TvEditableField(value: String, onValueChange: (String) -> Unit, lab
             unfocusedTextColor = Color.White, cursorColor = Color.White,
             focusedBorderColor = Color(0xFFEF4B4B), focusedLabelColor = Color.White,
             unfocusedLabelColor = Color.LightGray),
-        modifier = modifier.focusRequester(focus).onFocusChanged { focused = it.isFocused }
+        modifier = modifier.tvFocusTarget("input:$label", entry = initialFocus)
+            .focusRequester(focus).onFocusChanged { focused = it.isFocused }
             .border(if (focused) 3.dp else 0.dp, if (focused) Color.White else Color.Transparent,
                 RoundedCornerShape(8.dp))
             .onPreviewKeyEvent { event ->

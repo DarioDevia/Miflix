@@ -219,8 +219,8 @@ internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
                 season?.episodios.orEmpty().forEachIndexed { index, episode ->
                     item(key = "episode:$seasonIndex:$index") {
                         val link = episode.telegramUrl?.takeIf(validLink)
-                        TvDetailAction("E${episode.numero} · ${episode.titulo.orEmpty()}",
-                            Modifier.padding(horizontal = 48.dp).widthIn(max = 480.dp)
+                        TvEpisodeRow(episode,
+                            Modifier.padding(horizontal = 48.dp)
                                 .focusRequester(episodeFocus[index]).onPreviewKeyEvent { event ->
                                     val code = event.nativeKeyEvent.keyCode
                                     if (code == 19 || code == 20) {

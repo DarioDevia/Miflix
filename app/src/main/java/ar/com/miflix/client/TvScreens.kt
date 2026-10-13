@@ -26,6 +26,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Movie
 import coil.compose.AsyncImage
 
 /** Presentation only: catalog, progress and playback callbacks belong to ClientApp. */
@@ -34,6 +40,7 @@ internal fun TvAction(label: String, modifier: Modifier = Modifier, enabled: Boo
     onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     Button(onClick, enabled = enabled, modifier = modifier
+        .then(if (enabled) Modifier.tvFocusTarget("action:$label", entry = true) else Modifier)
         .onFocusChanged { focused = it.isFocused }
         .border(if (focused) 3.dp else 0.dp, if (focused) Color.White else Color.Transparent,
             RoundedCornerShape(12.dp)),
@@ -44,24 +51,26 @@ internal fun TvAction(label: String, modifier: Modifier = Modifier, enabled: Boo
 
 @Composable
 internal fun TvCard(title: Title, focusKey: String, restoreKey: String?, subtitle: String? = null,
-    fraction: Float? = null, onFocused: (String) -> Unit, onClick: () -> Unit) {
+    fraction: Float? = null, onFocused: (String) -> Unit, width: Dp = 112.dp, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
+    var imageFailed by remember(title.id, title.posterUrl) { mutableStateOf(false) }
     val requester = remember { FocusRequester() }
     LaunchedEffect(restoreKey, focusKey) {
         if (restoreKey == focusKey) { withFrameNanos { }; requester.requestFocus() }
     }
-    Column(Modifier.width(154.dp).focusRequester(requester)
+    Column(Modifier.width(width).tvFocusTarget("card:$focusKey").focusRequester(requester)
         .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocused(focusKey) }
-        .border(if (focused) 4.dp else 1.dp,
-            if (focused) Color.White else Color(0xFF252B37), RoundedCornerShape(10.dp))
-        .clip(RoundedCornerShape(10.dp))
-        .background(if (focused) Color(0xFF8A2929) else Color(0xFF181C25))
-        .clickable(onClick = onClick).padding(8.dp)) {
-        AsyncImage(tvArtworkUrl(title.posterUrl, TvArtworkKind.POSTER), title.titulo,
-            Modifier.fillMaxWidth().aspectRatio(2f / 3f), contentScale = ContentScale.Fit)
-        Text(title.titulo, Modifier.padding(top = 6.dp), maxLines = 2,
-            overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold, color = Color.White)
-        subtitle?.let { Text(it, color = Color.LightGray, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        .semantics(mergeDescendants = true) {
+            contentDescription = listOfNotNull(title.titulo, subtitle).joinToString(" · ")
+        }
+        .border(3.dp, if (focused) Color.White else Color.Transparent)
+        .clickable(role = Role.Button, onClick = onClick).padding(4.dp)) {
+        val poster = tvArtworkUrl(title.posterUrl, TvArtworkKind.POSTER)
+        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f), contentAlignment = Alignment.Center) {
+            if (poster != null && !imageFailed) AsyncImage(poster, null,
+                Modifier.fillMaxSize(), contentScale = ContentScale.Fit, onError = { imageFailed = true })
+            else Icon(Icons.Default.Movie, null, tint = Color.LightGray, modifier = Modifier.size(32.dp))
+        }
         fraction?.let { LinearProgressIndicator(progress = it,
             modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) }
     }
@@ -101,6 +110,7 @@ internal fun TvHome(titles: List<Title>, featured: Title?, continuing: List<Cont
         }
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
+        val posterWidth = tvPosterWidth((maxWidth - 124.dp).value).dp
         val heroHeight = (maxHeight * .60f).coerceAtLeast(310.dp)
         featured?.let { TvCinemaBackdrop(remember(it) { tvDetailArtwork(it) }, it.id) }
         LazyColumn(state = scroll, modifier = Modifier.fillMaxSize(),
@@ -138,10 +148,10 @@ internal fun TvHome(titles: List<Title>, featured: Title?, continuing: List<Cont
                 Text("Continuar viendo", color = Color.White, style = MaterialTheme.typography.titleLarge)
                 val initial = continuing.indexOfFirst { "continue:${it.key}" == returnKey }.coerceAtLeast(0)
                 LazyRow(state = rememberLazyListState(initial), modifier = returnToHero.focusGroup(),
-                    contentPadding = PaddingValues(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    contentPadding = PaddingValues(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(TV_POSTER_GAP_DP.dp)) {
                     items(continuing, key = { it.key }) { item ->
                         TvCard(item.title, "continue:${item.key}", pendingReturnKey, item.label, item.fraction,
-                            recordFocus) { onContinue(item) }
+                            recordFocus, width = posterWidth) { onContinue(item) }
                     }
                 }
             }
@@ -151,9 +161,10 @@ internal fun TvHome(titles: List<Title>, featured: Title?, continuing: List<Cont
                     Text(label, color = Color.White, style = MaterialTheme.typography.titleLarge)
                     val initial = row.indexOfFirst { "$type:${it.id}" == returnKey }.coerceAtLeast(0)
                     LazyRow(state = rememberLazyListState(initial), modifier = (if (continuing.isEmpty() && type == firstCategory) returnToHero else Modifier).focusGroup(),
-                        contentPadding = PaddingValues(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        contentPadding = PaddingValues(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(TV_POSTER_GAP_DP.dp)) {
                         items(row, key = { it.id }) { title ->
-                            TvCard(title, "$type:${title.id}", pendingReturnKey, onFocused = recordFocus) { onSelect(title) }
+                            TvCard(title, "$type:${title.id}", pendingReturnKey, onFocused = recordFocus,
+                                width = posterWidth) { onSelect(title) }
                         }
                     }
                 }
