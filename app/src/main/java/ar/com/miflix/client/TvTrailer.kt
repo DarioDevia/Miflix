@@ -1,6 +1,7 @@
 package ar.com.miflix.client
 
 import android.content.ActivityNotFoundException
+import android.util.Log
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.material3.Text
@@ -20,11 +21,28 @@ internal fun TvTrailerAction(title: Title) {
     var integrated by remember(title.id) { mutableStateOf(false) }
     var restore by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
-    val external = remember(title.trailerUrl) { tvTrailerExternalUrl(title.trailerUrl) }
+    val external = remember(title.trailerUrl) {
+        target?.let(::tvTrailerWatchUrl) ?: tvTrailerExternalUrl(title.trailerUrl)
+    }
     val openExternal: () -> Unit = {
-        if (external != null) try {
-            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(external)))
-        } catch (_: ActivityNotFoundException) { unavailable = true }
+        if (external != null) {
+            unavailable = true
+            for (packageName in tvTrailerLaunchPackages(target != null)) {
+                try {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(external)).apply {
+                        if (packageName != null) setPackage(packageName)
+                    })
+                    unavailable = false
+                    integrated = false
+                    restore = true
+                    break
+                } catch (_: ActivityNotFoundException) {
+                    Log.d("MiFlixTvTrailer", "EXTERNAL_HANDLER_UNAVAILABLE official=${packageName != null}")
+                } catch (_: SecurityException) {
+                    Log.w("MiFlixTvTrailer", "EXTERNAL_HANDLER_BLOCKED official=${packageName != null}")
+                }
+            }
+        }
     }
     LaunchedEffect(integrated) {
         if (!integrated && restore) { withFrameNanos { }; focus.requestFocus(); restore = false }

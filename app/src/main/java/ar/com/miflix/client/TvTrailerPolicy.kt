@@ -42,8 +42,9 @@ function onYouTubeIframeAPIReady(){
  } catch(e) {console.log('MIFLIX_TV_SCRIPT_ERROR');}
 }
 window.addEventListener('resize',fitPlayer);
+function tvPlay(){if(player && player.playVideo){console.log('MIFLIX_TV_PLAY_REQUEST');player.playVideo();}}
 function tvToggle(){if(!player || !player.getPlayerState)return;
- if(player.getPlayerState()===1)player.pauseVideo();else {console.log('MIFLIX_TV_PLAY_REQUEST');player.playVideo();}}
+ if(player.getPlayerState()===1)player.pauseVideo();else tvPlay();}
 function tvPause(){if(player && player.pauseVideo)player.pauseVideo();}
 </script><script src="https://www.youtube.com/iframe_api" onerror="console.log('MIFLIX_TV_SCRIPT_ERROR')"></script></body></html>
 """.trimIndent()
@@ -52,3 +53,13 @@ function tvPause(){if(player && player.pauseVideo)player.pauseVideo();}
 /** API readiness is not proof that a playback request produced video. */
 internal fun tvTrailerPlaybackTimedOut(requested: Boolean, state: Int, failed: Boolean): Boolean =
     requested && state !in listOf(0, 1, 2) && !failed
+
+internal fun tvTrailerWatchUrl(target: YouTubeTrailer): String {
+    require(Regex("[A-Za-z0-9_-]{11}").matches(target.videoId))
+    require(target.startSeconds in 0..86_400)
+    return "https://www.youtube.com/watch?v=${target.videoId}&t=${target.startSeconds}s"
+}
+
+/** Try the official TV app, then official mobile app, then an HTTPS handler. No installed-app query. */
+internal fun tvTrailerLaunchPackages(youtube: Boolean): List<String?> =
+    if (youtube) listOf("com.google.android.youtube.tv", "com.google.android.youtube", null) else listOf(null)

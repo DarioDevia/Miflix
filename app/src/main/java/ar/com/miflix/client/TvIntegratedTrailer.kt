@@ -1,6 +1,8 @@
 package ar.com.miflix.client
 
 import android.graphics.Rect
+import android.graphics.Bitmap
+import androidx.compose.ui.Alignment
 import android.util.Log
 import android.view.KeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -27,6 +29,15 @@ import kotlinx.coroutines.delay
 @Composable
 internal fun TvIntegratedTrailer(target: YouTubeTrailer, title: String,
     onExternal: () -> Unit, externalUnavailable: Boolean, onClose: () -> Unit) {
+    var attempt by remember(target) { mutableIntStateOf(0) }
+    key(target, attempt) {
+        TvTrailerSession(target, title, onExternal, externalUnavailable, onClose, onRetry = { attempt++ })
+    }
+}
+
+@Composable
+private fun TvTrailerSession(target: YouTubeTrailer, title: String,
+    onExternal: () -> Unit, externalUnavailable: Boolean, onClose: () -> Unit, onRetry: () -> Unit) {
     var web by remember(target) { mutableStateOf<WebView?>(null) }
     var ready by remember(target) { mutableStateOf(false) }
     var playing by remember(target) { mutableStateOf(false) }
@@ -41,7 +52,29 @@ internal fun TvIntegratedTrailer(target: YouTubeTrailer, title: String,
         delay(20_000)
         if (!ready && problem == null) problem = "El tráiler no respondió. Revisá la conexión o probá abrirlo externamente."
     }
-    LaunchedEffect(ready) { if (ready && problem == null) { withFrameNanos { }; playFocus.requestFocus() } }
+    // Opening Ver tráiler is the user's explicit playback request; don't require a second OK.
+    fun requestPlayback() {
+        val view = web ?: return
+        val visible = Rect()
+        Log.d("MiFlixTvTrailer", "PLAY_REQUEST ready=$ready width=${view.width} height=${view.height} hardware=${view.isHardwareAccelerated}")
+        if (view.isShown && view.getGlobalVisibleRect(visible) && visible.width() >= 200 && visible.height() >= 200) {
+            playerState = -1
+            playRequest++ // Native watchdog does not depend on a console callback.
+            try {
+                view.evaluateJavascript("tvPlay()", null)
+            } catch (error: RuntimeException) {
+                Log.w("MiFlixTvTrailer", "PLAY_REQUEST_FAILED class=${error.javaClass.simpleName}")
+                problem = "No se pudo iniciar el tráiler. Probá de nuevo o abrilo externamente."
+            }
+        } else problem = "No se pudo mostrar el tráiler. Probá de nuevo o abrilo externamente."
+    }
+    LaunchedEffect(ready) {
+        if (ready && problem == null) {
+            withFrameNanos { }
+            playFocus.requestFocus()
+            requestPlayback()
+        }
+    }
     LaunchedEffect(playRequest) {
         if (playRequest > 0) {
             delay(15_000)
@@ -72,7 +105,7 @@ internal fun TvIntegratedTrailer(target: YouTubeTrailer, title: String,
         Column(Modifier.fillMaxSize().background(Color.Black).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Tráiler · $title", color = Color.White, maxLines = 1)
-            AndroidView(modifier = Modifier.fillMaxWidth().weight(1f).onPreviewKeyEvent { event ->
+            if (problem == null) AndroidView(modifier = Modifier.fillMaxWidth().weight(1f).onPreviewKeyEvent { event ->
                 if (event.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_BACK) {
                     if (event.nativeKeyEvent.action == KeyEvent.ACTION_UP) onClose()
                     true
@@ -83,11 +116,20 @@ internal fun TvIntegratedTrailer(target: YouTubeTrailer, title: String,
             }, factory = { context ->
                 FrameLayout(context).apply {
                     try {
+                        val provider = WebView.getCurrentWebViewPackage()
+                        Log.d("MiFlixTvTrailer", "WEBVIEW_PROVIDER version=${provider?.versionName ?: "unknown"}")
                         val playerView = WebView(context)
                         addView(playerView, FrameLayout.LayoutParams(-1, -1))
                         web = playerView
                         playerView.apply {
                             setBackgroundColor(android.graphics.Color.BLACK)
+                            var layoutLogged = false
+                            addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
+                                if (!layoutLogged && right > left && bottom > top) {
+                                    layoutLogged = true
+                                    Log.d("MiFlixTvTrailer", "WEBVIEW_LAYOUT width=${right-left} height=${bottom-top} hardware=$isHardwareAccelerated")
+                                }
+                            }
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
                             settings.allowFileAccess = false
@@ -104,7 +146,7 @@ internal fun TvIntegratedTrailer(target: YouTubeTrailer, title: String,
                                             playing = playerState == 1
                                             Log.d("MiFlixTvTrailer", "PLAYER_STATE state=$playerState")
                                         }
-                                        value == "MIFLIX_TV_PLAY_REQUEST" -> { playerState = -1; playRequest++ }
+                                        value == "MIFLIX_TV_PLAY_REQUEST" -> Log.d("MiFlixTvTrailer", "IFRAME_PLAY_REQUEST")
                                         value == "MIFLIX_TV_SCRIPT_ERROR" -> problem = "No se pudo cargar el reproductor de YouTube. Revisá la conexión o abrilo externamente."
                                         value.startsWith("MIFLIX_TV_ERROR:") -> {
                                             val code = value.substringAfter(':').toIntOrNull() ?: 0
@@ -112,12 +154,28 @@ internal fun TvIntegratedTrailer(target: YouTubeTrailer, title: String,
                                             problem = tvTrailerError(code)
                                         }
                                         value == "MIFLIX_TV_BLOCKED" -> problem = "El dispositivo bloqueó el inicio. Podés usar los controles de YouTube o abrirlo externamente."
-                                        else -> return false
+                                        else -> {
+                                            if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR)
+                                                Log.w("MiFlixTvTrailer", "JS_CONSOLE_ERROR line=${message.lineNumber()}")
+                                            return true // Do not log arbitrary third-party console text/URLs.
+                                        }
                                     }
                                     return true
                                 }
                             }
                             webViewClient = object : WebViewClient() {
+                                override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+                                    Log.d("MiFlixTvTrailer", "PAGE_STARTED")
+                                }
+                                override fun onPageCommitVisible(view: WebView, url: String?) {
+                                    Log.d("MiFlixTvTrailer", "PAGE_COMMITTED hardware=${view.isHardwareAccelerated}")
+                                }
+                                override fun onReceivedSslError(view: WebView, handler: SslErrorHandler,
+                                    error: android.net.http.SslError) {
+                                    handler.cancel()
+                                    Log.w("MiFlixTvTrailer", "TLS_ERROR code=${error.primaryError}")
+                                    problem = "No se pudo establecer una conexión segura con YouTube."
+                                }
                                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
                                     request.isForMainFrame // External navigation is explicit via the native button.
                                 override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
@@ -141,8 +199,9 @@ internal fun TvIntegratedTrailer(target: YouTubeTrailer, title: String,
                             loadDataWithBaseURL(tvTrailerOrigin(BuildConfig.APPLICATION_ID) + "/",
                                 tvTrailerHtml(target, BuildConfig.APPLICATION_ID), "text/html", "UTF-8", null)
                         }
-                    } catch (_: Exception) {
-                        problem = "Este dispositivo no tiene un WebView disponible para mostrar el tráiler."
+                    } catch (error: Exception) {
+                        Log.w("MiFlixTvTrailer", "WEBVIEW_SETUP_FAILED class=${error.javaClass.simpleName}")
+                        problem = "No se pudo abrir el tráiler en este dispositivo."
                     }
                 }
             }, onRelease = { frame ->
@@ -152,22 +211,20 @@ internal fun TvIntegratedTrailer(target: YouTubeTrailer, title: String,
                 frame.removeAllViews()
                 view?.destroy()
             })
-            Text(problem ?: if (ready) "Presioná Reproducir para iniciar el tráiler" else "Cargando tráiler…", color = Color.LightGray, maxLines = 2)
+            else Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Text("No pudimos reproducir este tráiler dentro de MiFlix.", color = Color.White)
+            }
+            Text(problem ?: if (playing) "Tráiler de YouTube" else if (playerState == 2) "Tráiler en pausa" else if (ready) "Preparando reproducción…" else "Cargando tráiler…", color = Color.LightGray, maxLines = 2)
             if (externalUnavailable) Text("No hay una aplicación externa disponible.", color = Color.White)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TvAction(if (playing) "Pausar" else "Reproducir", Modifier.focusRequester(playFocus), enabled = ready && problem == null) {
-                    val view = web
-                    val visible = Rect()
-                    Log.d("MiFlixTvTrailer", "PLAY_REQUEST ready=$ready width=${view?.width} height=${view?.height} hardware=${view?.isHardwareAccelerated}")
-                    if (view != null && view.isShown && view.getGlobalVisibleRect(visible) &&
-                        visible.width() >= 200 && visible.height() >= 200 &&
-                        visible.width().toLong() * visible.height() * 2 > view.width.toLong() * view.height)
-                        view.evaluateJavascript("tvToggle()", null)
-                    else problem = "El área de video no está visible. Cerrá y volvé a abrir el tráiler."
-                }
-                TvAction("Controles de YouTube", enabled = ready) { web?.requestFocus() }
-                TvAction("Abrir externamente", Modifier.focusRequester(externalFocus)) { web?.evaluateJavascript("tvPause()", null); onExternal() }
-                TvAction("Cerrar", Modifier.focusRequester(closeFocus), onClick = onClose)
+                if (problem == null) {
+                    TvAction(if (playing) "Pausar" else "Reproducir", Modifier.weight(1f).focusRequester(playFocus), enabled = ready) {
+                        if (playing) web?.evaluateJavascript("tvPause()", null) else requestPlayback()
+                    }
+                    TvAction("Controles de YouTube", Modifier.weight(1f), enabled = ready) { web?.requestFocus() }
+                } else TvAction("Reintentar", Modifier.weight(1f), onClick = onRetry)
+                TvAction("Abrir externamente", Modifier.weight(1f).focusRequester(externalFocus)) { web?.evaluateJavascript("tvPause()", null); onExternal() }
+                TvAction("Cerrar", Modifier.weight(1f).focusRequester(closeFocus), onClick = onClose)
             }
         }
     }

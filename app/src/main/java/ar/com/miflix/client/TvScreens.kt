@@ -3,6 +3,7 @@ package ar.com.miflix.client
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -54,6 +55,7 @@ internal fun TvCard(title: Title, focusKey: String, restoreKey: String?, subtitl
     fraction: Float? = null, onFocused: (String) -> Unit, width: Dp = 112.dp, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     var imageFailed by remember(title.id, title.posterUrl) { mutableStateOf(false) }
+    val cardInteractions = remember { MutableInteractionSource() }
     val requester = remember { FocusRequester() }
     LaunchedEffect(restoreKey, focusKey) {
         if (restoreKey == focusKey) { withFrameNanos { }; requester.requestFocus() }
@@ -64,7 +66,8 @@ internal fun TvCard(title: Title, focusKey: String, restoreKey: String?, subtitl
             contentDescription = listOfNotNull(title.titulo, subtitle).joinToString(" · ")
         }
         .border(3.dp, if (focused) Color.White else Color.Transparent)
-        .clickable(role = Role.Button, onClick = onClick).padding(4.dp)) {
+        .clickable(interactionSource = cardInteractions, indication = null,
+            role = Role.Button, onClick = onClick).padding(4.dp)) {
         val poster = tvArtworkUrl(title.posterUrl, TvArtworkKind.POSTER)
         Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f), contentAlignment = Alignment.Center) {
             if (poster != null && !imageFailed) AsyncImage(poster, null,

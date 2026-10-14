@@ -1,5 +1,19 @@
 # Historial de MiFlix TV
 
+## 0.1.7-diagnostico / 8
+
+Base: `94790b811d0eb88d85457ecedfddf50ce755c148`, respaldo 0.1.6 / 7.
+
+- Tráiler: inicio solicitado tras apertura explícita, watchdog armado en Android,
+  retirada del WebView fallido y reintento con estado nuevo. Logs sanitizados de
+  proveedor/layout/página/TLS; apertura externa prioriza YouTube TV y móvil.
+- Controles en una sola fila con barra central flexible y tiempos visibles.
+- Pósteres con indication=null y borde de foco existente, sin filtros/alpha nuevos.
+- 38 pruebas JVM, 13 contratos estructurales y contrato JavaScript pasan.
+  Casos instrumentados de alineación/color preparados, no ejecutados aquí.
+- Compilación Android y reproducción visual/local pendientes. Tráiler real no
+  confirmado. AC3, audio y streaming sin cambios.
+
 ## 0.1.6-diagnostico / 7
 
 Base: `4d63ccdd9acd47f9fa9727ea900019addab0a968`, respaldo 0.1.5 / 6.

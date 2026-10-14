@@ -3,14 +3,31 @@
 | Variante | versionName | versionCode | applicationId | APK debug |
 | --- | --- | --- | --- | --- |
 | Mobile | 0.9.2-diagnostico | 26 | ar.com.miflix.client | app-mobile-debug.apk |
-| TV | 0.1.6-diagnostico | 7 | ar.com.miflix.client.tv | app-tv-debug.apk |
+| TV | 0.1.7-diagnostico | 8 | ar.com.miflix.client.tv | app-tv-debug.apk |
 
 TV se desarrolla en `miflix-tv`, basada en `miflix-cliente` HEAD
 `b3b3156cb6aff846822d591317f9f377c5d2df4c` (README corregido), que contiene
 el commit funcional móvil validado `5d896013478f8126c2dac3ed2f692fc305904509`.
 La rama móvil no se modifica. Cada variante conserva su propio versionado.
 
-## MiFlix TV 0.1.6: controles compactos e investigación AC3
+## MiFlix TV 0.1.7: tráiler, fila de controles y foco de carátulas
+
+Base: `94790b811d0eb88d85457ecedfddf50ce755c148`, nueva rama
+**`backup/miflix-tv-0.1.7`**. No actualiza stable ni los respaldos anteriores.
+
+- Tráiler integrado: solicitud de reproducción al quedar listo después de Ver tráiler,
+  watchdog nativo, errores que retiran WebView y permiten reintentar. Apertura externa
+  prioriza YouTube TV/móvil, con alternativa HTTPS y manejo de ausencia de aplicaciones.
+- Una sola fila: Play/Pausa → Transcurrido → Barra central → Duración → Engranaje.
+  DPAD, seek y panel mantienen sus callbacks y comportamiento.
+- Carátulas: borde de foco sin la indicación predeterminada que puede aclarar la imagen.
+
+**0.1.7 / 8 pendiente de compilación y validación visual/local. No se declara
+que los tráilers funcionen.** AC3 y audio/streaming quedan fuera de alcance; no se
+agregan FFmpeg, dependencias ni permisos. Mobile permanece sin cambios funcionales.
+Ver [informe y pruebas manuales](docs/TV_0.1.7_VALIDACION.md).
+
+## MiFlix TV 0.1.6: controles compactos e investigación AC3 (histórico)
 
 Rama **`backup/miflix-tv-0.1.6`**, desde
 `4d63ccdd9acd47f9fa9727ea900019addab0a968` (0.1.5 / 6).

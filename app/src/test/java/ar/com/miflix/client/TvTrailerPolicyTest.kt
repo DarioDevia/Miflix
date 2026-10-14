@@ -4,7 +4,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class TvTrailerPolicyTest {
-    @Test fun officialEmbedIdentifiesAppAndDoesNotAutoplayOrHideControls() {
+    @Test fun officialEmbedIdentifiesAppAndPreservesControls() {
         val html = tvTrailerHtml(YouTubeTrailer("abcdefghijk", 12), "ar.com.miflix.client.tv")
         assertTrue(html.contains("https://www.youtube.com/iframe_api"))
         assertTrue(html.contains("origin:'https://ar.com.miflix.client.tv'"))
@@ -41,5 +41,24 @@ class TvTrailerPolicyTest {
         assertTrue(tvTrailerHtml(YouTubeTrailer("abcdefghijk"), "ar.com.miflix.client.tv")
             .contains("MIFLIX_TV_SCRIPT_ERROR"))
         assertTrue(tvTrailerError(2).contains("identificador"))
+    }
+    @Test fun everySupportedLinkFormProducesTheSameExternalVideoAndStart() {
+        val links = listOf("https://youtu.be/abcdefghijk?t=12s",
+            "https://www.youtube.com/watch?v=abcdefghijk&start=12",
+            "https://www.youtube.com/embed/abcdefghijk?start=12",
+            "https://www.youtube.com/shorts/abcdefghijk?t=12")
+        for (link in links) assertEquals("https://www.youtube.com/watch?v=abcdefghijk&t=12s",
+            tvTrailerWatchUrl(TrailerLink.parse(link)!!))
+    }
+    @Test fun officialTvThenMobileThenGenericHandlerAreTriedInOrder() {
+        assertEquals(listOf("com.google.android.youtube.tv", "com.google.android.youtube", null),
+            tvTrailerLaunchPackages(true))
+        assertEquals(listOf(null), tvTrailerLaunchPackages(false))
+    }
+    @Test(expected = IllegalArgumentException::class) fun externalUrlRejectsInvalidVideoId() {
+        tvTrailerWatchUrl(YouTubeTrailer("not-an-id"))
+    }
+    @Test(expected = IllegalArgumentException::class) fun externalUrlRejectsInvalidStart() {
+        tvTrailerWatchUrl(YouTubeTrailer("abcdefghijk", -1))
     }
 }

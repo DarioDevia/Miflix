@@ -9,7 +9,6 @@ internal fun tvPlaybackRemoteAction(code: Int, visible: Boolean): TvRemoteAction
     else tvRemoteAction(code, visible)
 
 internal const val TV_PLAYER_ICON_SIZE_DP = 48
-internal const val TV_PLAYER_CONTROL_GAP_DP = 2
 
 internal enum class TvPlayerFocusTarget { PLAY, TRACKS, PROGRESS }
 

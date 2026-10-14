@@ -16,6 +16,9 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Activity
 import android.app.Instrumentation
 import android.content.Intent
+import android.graphics.Rect
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import android.graphics.BitmapFactory
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -271,6 +274,7 @@ class TvDetailInstrumentation : Instrumentation() {
             for (type in listOf("pelicula", "serie", "anime")) runCase("compact-controls-$type") {
                 compactControls(type)
             }.also { if (!it) failures++ }
+            runCase("poster-focus-original-colors") { posterFocusColors() }.also { if (!it) failures++ }
             check(executedCases > 0) { "No matching test cases" }
             check(requests.none { it.contains("api.themoviedb") || it.contains("api.tmdb") })
             check(requests.all { Uri.parse(it).host in listOf("artwork.test", "image.tmdb.org") })
@@ -388,6 +392,13 @@ class TvDetailInstrumentation : Instrumentation() {
             }
         }
         eventually { focused().contains("Reproducir") }
+        val controlBounds = listOf("Reproducir", "1:00", "Progreso de reproducción", "10:00", "Audio y subtítulos")
+            .map(::boundsFor)
+        check(controlBounds.zipWithNext().all { (left, right) -> left.right <= right.left }) {
+            "Controls must be ordered on one horizontal row"
+        }
+        val centers = controlBounds.map { it.centerY() }
+        check(centers.maxOrNull()!! - centers.minOrNull()!! <= 6) { "Control centers must align horizontally" }
         key(KeyEvent.KEYCODE_DPAD_DOWN)
         eventually { focused().contains("Audio y subtítulos") }
         key(KeyEvent.KEYCODE_DPAD_DOWN)
@@ -406,6 +417,63 @@ class TvDetailInstrumentation : Instrumentation() {
         key(KeyEvent.KEYCODE_DPAD_CENTER)
         eventually { focused().contains("Pausar") }
         check(playing && position == 60_000L)
+    }
+
+    private fun boundsFor(label: String): Rect {
+        fun find(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+            if (node == null) return null
+            val description = node.contentDescription?.toString().orEmpty()
+            if (node.text?.toString() == label || description == label ||
+                (label == "Progreso de reproducción" && description.startsWith(label))) return node
+            for (i in 0 until node.childCount) find(node.getChild(i))?.let { return it }
+            return null
+        }
+        val node = find(root) ?: error("Missing UI element: $label")
+        return Rect().also { node.getBoundsInScreen(it) }
+    }
+
+    private fun posterFocusColors() {
+        openHome(listOf(movie("Color original")))
+        var clicks = 0
+        runOnMainSync {
+            (activity as ComponentActivity).setContent {
+                MaterialTheme {
+                    val first = remember { FocusRequester() }
+                    LaunchedEffect(Unit) { withFrameNanos { }; first.requestFocus() }
+                    androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()
+                        .background(ComposeColor(0xFF15202D)).padding(24.dp)) {
+                        TvAction("Antes", Modifier.focusRequester(first)) { }
+                        TvCard(movie("Color original", posterUrl = art("poster")), "color", null,
+                            onFocused = {}, width = 160.dp) { clicks++ }
+                    }
+                }
+            }
+        }
+        fun sample(): Int {
+            val bounds = boundsFor("Color original")
+            val bitmap = uiAutomation.takeScreenshot() ?: error("Screenshot unavailable")
+            return try { bitmap.getPixel(bounds.centerX(), bounds.centerY()) }
+            finally { bitmap.recycle() }
+        }
+        eventually { focused().contains("Antes") }
+        eventually {
+            val value = sample()
+            kotlin.math.abs(Color.red(value) - 30) <= 4 &&
+                kotlin.math.abs(Color.green(value) - 65) <= 4 && kotlin.math.abs(Color.blue(value) - 200) <= 4
+        }
+        val before = sample()
+        key(KeyEvent.KEYCODE_DPAD_DOWN)
+        eventually { focused().contains("Color original") }
+        val after = sample()
+        check(kotlin.math.abs(Color.red(after) - Color.red(before)) <= 4 &&
+            kotlin.math.abs(Color.green(after) - Color.green(before)) <= 4 &&
+            kotlin.math.abs(Color.blue(after) - Color.blue(before)) <= 4) { "Focus altered poster colors" }
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        check(clicks == 1)
+        key(KeyEvent.KEYCODE_DPAD_UP)
+        eventually { focused().contains("Antes") }
+        key(KeyEvent.KEYCODE_DPAD_DOWN)
+        eventually { focused().contains("Color original") }
     }
 
     private fun playerControls(type: String, logo: String?) {

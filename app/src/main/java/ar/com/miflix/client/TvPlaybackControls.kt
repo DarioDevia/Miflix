@@ -122,27 +122,19 @@ internal fun TvPlaybackControls(title: String, playing: Boolean, position: Long,
         }
     }.focusable()) {
         if (paused) PauseIdentity(pauseTitle, logoUrl)
-        if (visible) Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+        if (visible) Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
             .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .9f))))
             .padding(horizontal = 40.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(TV_PLAYER_CONTROL_GAP_DP.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                PlaybackIcon(if (playing) "Pausar" else "Reproducir", !playing,
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            PlaybackIcon(if (playing) "Pausar" else "Reproducir", !playing,
                     Modifier.focusRequester(pauseFocus).onFocusChanged {
                         if (it.isFocused) focusTarget = TvPlayerFocusTarget.PLAY
                     }) { interaction++; onPlayPause() }
-                Text(formatProgressTime(position), color = Color.White, fontSize = 18.sp)
-                Spacer(Modifier.weight(1f))
-                Text(formatProgressTime(duration.coerceAtLeast(0)), color = Color.White, fontSize = 18.sp)
-                if (hasTracks) PlaybackIcon("Audio y subtítulos", null,
-                    Modifier.focusRequester(tracksFocus).onFocusChanged {
-                        if (it.isFocused) focusTarget = TvPlayerFocusTarget.TRACKS
-                    }) { interaction++; onTracks() }
-            }
+            Text(formatProgressTime(position), color = Color.White, fontSize = 18.sp)
             LinearProgressIndicator(progress = if (duration > 0)
                 (position.toFloat() / duration).coerceIn(0f, 1f) else 0f,
-                modifier = Modifier.fillMaxWidth().height(12.dp).focusRequester(progressFocus)
+                modifier = Modifier.weight(1f).height(12.dp).focusRequester(progressFocus)
                     .onFocusChanged {
                         progressFocused = it.isFocused
                         if (it.isFocused) focusTarget = TvPlayerFocusTarget.PROGRESS
@@ -151,6 +143,11 @@ internal fun TvPlaybackControls(title: String, playing: Boolean, position: Long,
                     .semantics { contentDescription = "Progreso de reproducción; izquierda y derecha: 10 segundos" }
                     .focusable(enabled = duration > 0).padding(3.dp),
                 color = Color(0xFFEF4B4B), trackColor = Color(0xFF50545C))
+            Text(formatProgressTime(duration.coerceAtLeast(0)), color = Color.White, fontSize = 18.sp)
+            if (hasTracks) PlaybackIcon("Audio y subtítulos", null,
+                Modifier.focusRequester(tracksFocus).onFocusChanged {
+                    if (it.isFocused) focusTarget = TvPlayerFocusTarget.TRACKS
+                }) { interaction++; onTracks() }
         }
     }
 }
