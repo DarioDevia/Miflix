@@ -48,6 +48,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.common.Format
 import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
@@ -335,7 +337,9 @@ private fun VideoPlayer(
         Log.d("MiFlixLifecycle", "PLAYER_CREATE fileId=${video.fileId} position=$resumePosition playWhenReady=$resumePlay")
         Log.d(tag, "PLAYER_CREATE fileId=${video.fileId} size=${video.size} " +
             "resumePosition=$resumePosition playWhenReady=$resumePlay")
-        ExoPlayer.Builder(context).build().apply {
+        val builder = if (BuildConfig.IS_TV) ExoPlayer.Builder(context,
+            DefaultRenderersFactory(context).setEnableDecoderFallback(true)) else ExoPlayer.Builder(context)
+        builder.build().apply {
             trackSelectionParameters = trackSelectionParameters.buildUpon()
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
             Log.d("MiFlixTracks", "DEFAULT_TEXT_DISABLED")
@@ -355,7 +359,8 @@ private fun VideoPlayer(
     val trackOptions = remember(availableTracks) { selectableMediaTracks(availableTracks) }
     val audioTracks = trackOptions.filter { it.group.type == C.TRACK_TYPE_AUDIO }
     val textTracks = trackOptions.filter { it.group.type == C.TRACK_TYPE_TEXT }
-    val hasTrackChoice = audioTracks.size > 1 || textTracks.isNotEmpty()
+    val hasTrackChoice = if (BuildConfig.IS_TV) audioTracks.isNotEmpty() || textTracks.isNotEmpty()
+        else audioTracks.size > 1 || textTracks.isNotEmpty()
     var error by remember(video) { mutableStateOf<String?>(null) }
     var buffering by remember(video) { mutableStateOf(true) }
     var playing by remember(video) { mutableStateOf(player.isPlaying) }
@@ -396,7 +401,7 @@ private fun VideoPlayer(
             .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, option.trackIndex))
             .build()
         // Submitted parameters; TRACKS_CHANGED confirms the actual renderer selection.
-        Log.d("MiFlixTracks", "${event}_SELECTION_APPLIED group=$groupIndex track=${option.trackIndex}")
+        Log.d("MiFlixTracks", "${event}_${if (BuildConfig.IS_TV) "PARAMETERS_SUBMITTED" else "SELECTION_APPLIED"} group=$groupIndex track=${option.trackIndex}")
         if (automatic) Log.d("MiFlixTracks", "DEFAULT_AUDIO_SELECTED group=$groupIndex track=${option.trackIndex}")
         controlsVisible = true
     }
@@ -459,6 +464,15 @@ private fun VideoPlayer(
             controlsVisible = false
         }
     }
+    LaunchedEffect(showTracksPanel) {
+        if (BuildConfig.IS_TV && showTracksPanel && !released) {
+            val audio = context.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
+            Log.d("MiFlixTracks", "AUDIO_OUTPUT streamVolume=${audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)} " +
+                "streamMax=${audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)} " +
+                "streamMuted=${audio.isStreamMute(android.media.AudioManager.STREAM_MUSIC)} playerVolume=${player.volume}")
+            logMediaTracks(player.currentTracks, "PANEL_OPEN")
+        }
+    }
     LaunchedEffect(indication) {
         if (indication != null) {
             delay(750)
@@ -471,6 +485,14 @@ private fun VideoPlayer(
                 availableTracks = tracks
                 logMediaTracks(tracks, "TRACKS_CHANGED")
                 applyDefaultAudio(tracks)
+                if (BuildConfig.IS_TV) Log.d("MiFlixTracks", "AUDIO_STATUS selected=${tracks.isTypeSelected(C.TRACK_TYPE_AUDIO)} " +
+                    "volume=${player.volume} playWhenReady=${player.playWhenReady}")
+            }
+            override fun onAudioSessionIdChanged(audioSessionId: Int) {
+                if (BuildConfig.IS_TV) Log.d("MiFlixTracks", "AUDIO_SESSION_READY active=${audioSessionId != 0}")
+            }
+            override fun onVolumeChanged(volume: Float) {
+                if (BuildConfig.IS_TV) Log.d("MiFlixTracks", "AUDIO_VOLUME value=$volume")
             }
             override fun onPlayerError(exception: PlaybackException) {
                 Log.e(tag, "PLAYER_ERROR code=${exception.errorCode} name=${exception.errorCodeName} " +
@@ -495,6 +517,18 @@ private fun VideoPlayer(
                     "duration=${player.duration} seekable=${player.isCurrentMediaItemSeekable}")
             }
         }
+        val audioDiagnostics = object : AnalyticsListener {
+            override fun onAudioCodecError(eventTime: AnalyticsListener.EventTime, audioCodecError: Exception) {
+                Log.w("MiFlixTracks", "AUDIO_CODEC_ERROR class=${audioCodecError.javaClass.simpleName}")
+            }
+            override fun onAudioSinkError(eventTime: AnalyticsListener.EventTime, audioSinkError: Exception) {
+                Log.w("MiFlixTracks", "AUDIO_SINK_ERROR class=${audioSinkError.javaClass.simpleName}")
+            }
+            override fun onAudioDecoderInitialized(eventTime: AnalyticsListener.EventTime,
+                decoderName: String, initializedTimestampMs: Long, initializationDurationMs: Long) {
+                Log.d("MiFlixTracks", "AUDIO_DECODER_READY name=$decoderName")
+            }
+        }
         fun releasePlayer(backgrounded: Boolean) {
             if (released) return
             released = true
@@ -507,6 +541,7 @@ private fun VideoPlayer(
             else exitProgress(position, durationMs)
             Log.d("MiFlixLifecycle", "PLAYER_RELEASE reason=${if (backgrounded) "ON_STOP" else "DISPOSE"} position=$position playWhenReady=${player.playWhenReady}")
             player.removeListener(listener)
+            if (BuildConfig.IS_TV) player.removeAnalyticsListener(audioDiagnostics)
             player.release()
             Log.d(tag, "PLAYER_RELEASED_CLEAR_VIDEO fileId=${video.fileId}")
             video.clear()
@@ -520,6 +555,7 @@ private fun VideoPlayer(
             }
         }
         player.addListener(listener)
+        if (BuildConfig.IS_TV) player.addAnalyticsListener(audioDiagnostics)
         availableTracks = player.currentTracks
         logMediaTracks(player.currentTracks, "LISTENER_ATTACHED")
         applyDefaultAudio(player.currentTracks)
@@ -532,7 +568,7 @@ private fun VideoPlayer(
             releasePlayer(backgrounded = false)
         }
     }
-    if (showTracksPanel && !released) {
+    if (showTracksPanel && !released && !BuildConfig.IS_TV) {
         ModalBottomSheet(
             onDismissRequest = { showTracksPanel = false },
             containerColor = Color(0xFF18181C), contentColor = Color.White
@@ -645,6 +681,41 @@ private fun VideoPlayer(
                 hasTrackChoice, { showTracksPanel = true },
                 pauseTitle = tvArtwork?.titulo ?: title, logoUrl = tvArtwork?.logoUrl, blocked = showTracksPanel,
                 paused = !playing && !buffering)
+            if (BuildConfig.IS_TV && showTracksPanel && !released) {
+                val rows = buildList {
+                    add(TvTrackPanelRow("text-off", "Subtítulos", "Desactivados",
+                        selected = !availableTracks.isTypeSelected(C.TRACK_TYPE_TEXT),
+                        onSelect = ::disableText))
+                    textTracks.forEachIndexed { index, option ->
+                        val format = option.group.getTrackFormat(option.trackIndex)
+                        add(TvTrackPanelRow("text:$index", "Subtítulos",
+                            tvTrackLabel(format.label, format.language, option.name,
+                                format.channelCount, false,
+                                format.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND != 0),
+                            selected = option.group.isTrackSelected(option.trackIndex),
+                            unavailable = tvTrackUnavailableReason(option.group.getTrackSupport(option.trackIndex)),
+                            onSelect = { selectTrack(option) }))
+                    }
+                    audioTracks.forEachIndexed { index, option ->
+                        val format = option.group.getTrackFormat(option.trackIndex)
+                        add(TvTrackPanelRow("audio:$index", "Audio",
+                            tvTrackLabel(format.label, format.language, option.name, format.channelCount, true, false),
+                            selected = option.group.isTrackSelected(option.trackIndex),
+                            unavailable = tvTrackUnavailableReason(option.group.getTrackSupport(option.trackIndex)),
+                            onSelect = { selectTrack(option) }))
+                    }
+                    SubtitleSize.values().forEach { size ->
+                        add(TvTrackPanelRow("size:${size.name}", "Tamaño del subtítulo", size.label,
+                            selected = subtitleSize == size, onSelect = {
+                                subtitleSize = size
+                                subtitlePreferences.edit().putString(SubtitleSize.PREFERENCE_KEY, size.name).apply()
+                            }))
+                    }
+                }
+                TvTrackPanel(rows, audioTracks.isNotEmpty() &&
+                    audioTracks.none { it.group.isTrackSupported(it.trackIndex) },
+                    onClose = { showTracksPanel = false; controlsVisible = true })
+            }
             if (controlsVisible && !BuildConfig.IS_TV) {
                 if (hasTrackChoice) {
                     TextButton(onClick = { showTracksPanel = true }, enabled = !released,

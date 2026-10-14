@@ -261,6 +261,13 @@ class TvDetailInstrumentation : Instrumentation() {
                 eventually { focused() == lastPoster }
                 screenshot("rail-return-restored-poster", null)
             }.also { if (!it) failures++ }
+            for (type in listOf("pelicula", "serie", "anime")) {
+                for (initialPlaying in listOf(true, false)) {
+                    runCase("track-panel-$type-${if (initialPlaying) "playing" else "paused"}") {
+                        trackPanel(type, initialPlaying)
+                    }.also { if (!it) failures++ }
+                }
+            }
             check(executedCases > 0) { "No matching test cases" }
             check(requests.none { it.contains("api.themoviedb") || it.contains("api.tmdb") })
             check(requests.all { Uri.parse(it).host in listOf("artwork.test", "image.tmdb.org") })
@@ -280,6 +287,78 @@ class TvDetailInstrumentation : Instrumentation() {
         }
         finish(if (failures == 0) Activity.RESULT_OK else Activity.RESULT_CANCELED, output)
     }
+    /** UI contract with synthetic renderer snapshots, not real decoding/Telegram streaming. */
+    private fun trackPanel(type: String, initialPlaying: Boolean) {
+        openHome(listOf(movie("Panel $type")))
+        var escaped = false
+        var requested = ""
+        var position = 60_000L
+        var playing = initialPlaying
+        val audioSnapshot = mutableStateOf(false)
+        val subtitleSnapshot = mutableStateOf(false)
+        runOnMainSync {
+            (activity as ComponentActivity).setContent {
+                MaterialTheme {
+                    var open by remember { mutableStateOf(true) }
+                    var visible by remember { mutableStateOf(true) }
+                    BackHandler { escaped = true }
+                    Box(Modifier.fillMaxSize().background(ComposeColor(0xFF15202D))) {
+                        androidx.compose.material3.Text("Video de prueba $type", color = ComposeColor.White)
+                        TvPlaybackControls("Panel $type", playing, position, 600_000L, visible,
+                            { visible = it }, { playing = !playing }, { playing = true }, { playing = false },
+                            { position += it }, true, { open = true }, blocked = open)
+                        if (open) TvTrackPanel(listOf(
+                            TvTrackPanelRow("off", "Subtítulos", "Desactivados", !subtitleSnapshot.value,
+                                onSelect = { requested = "off" }),
+                            TvTrackPanelRow("cc", "Subtítulos", "Español CC", subtitleSnapshot.value,
+                                onSelect = { requested = "cc" }),
+                            TvTrackPanelRow("surround", "Audio", "Surround", unavailable = "Sin decodificador compatible",
+                                onSelect = { error("Unsupported track was submitted") }),
+                            TvTrackPanelRow("stereo", "Audio", "Stereo", audioSnapshot.value,
+                                onSelect = { requested = "stereo" })
+                        ), false, onClose = { open = false; visible = true })
+                    }
+                }
+            }
+        }
+        eventually { focused().contains("Desactivados") }
+        key(KeyEvent.KEYCODE_DPAD_DOWN)
+        eventually { focused().contains("Español CC") }
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        check(requested == "cc")
+        check(!labels(root).contains("✓  Español CC")) { "Pending request must not invent a check mark" }
+        runOnMainSync { subtitleSnapshot.value = true }
+        eventually { labels(root).contains("✓  Español CC") }
+        key(KeyEvent.KEYCODE_DPAD_DOWN)
+        eventually { focused().contains("Surround") }
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        check(requested == "cc")
+        key(KeyEvent.KEYCODE_DPAD_DOWN)
+        eventually { focused().contains("Stereo") }
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        check(requested == "stereo")
+        check(!labels(root).contains("✓  Stereo"))
+        runOnMainSync { audioSnapshot.value = true }
+        eventually { labels(root).contains("✓  Stereo") }
+        key(KeyEvent.KEYCODE_DPAD_LEFT); key(KeyEvent.KEYCODE_DPAD_RIGHT)
+        check(position == 60_000L)
+        check(uiAutomation.windows.none { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD })
+        key(KeyEvent.KEYCODE_DPAD_UP)
+        eventually { focused().contains("Surround") }
+        key(KeyEvent.KEYCODE_BACK)
+        eventually { !hasText("Subtítulos") && focused().contains("Audio y subtítulos") }
+        check(!escaped && playing == initialPlaying && position == 60_000L)
+        check(audioSnapshot.value && subtitleSnapshot.value)
+        // Reopen and exercise explicit Close as well as Back.
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { focused().contains("Desactivados") }
+        repeat(4) { key(KeyEvent.KEYCODE_DPAD_DOWN) }
+        eventually { focused().contains("Cerrar") }
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { focused().contains("Audio y subtítulos") }
+        check(!escaped && playing == initialPlaying && position == 60_000L)
+    }
+
     private fun playerControls(type: String, logo: String?) {
         openDetail(movie("Control $type"))
         var back = false
@@ -370,7 +449,7 @@ class TvDetailInstrumentation : Instrumentation() {
         repeat(5) { key(KeyEvent.KEYCODE_DPAD_RIGHT) }
         screenshot("home-poster-row-scrolled", null)
         key(KeyEvent.KEYCODE_DPAD_CENTER)
-        eventually { hasText("MiFlix TV " + BuildConfig.VERSION_NAME) }
+        eventually { hasText("Sinopsis completa") }
         key(KeyEvent.KEYCODE_BACK)
         eventually { focused().contains("título") }
         screenshot("home-restored-card-focus", null)
@@ -443,9 +522,9 @@ class TvDetailInstrumentation : Instrumentation() {
         openHome(listOf(title))
         key(KeyEvent.KEYCODE_DPAD_RIGHT)
         eventually { focused().contains("Ver ficha") }; key(KeyEvent.KEYCODE_DPAD_CENTER)
-        // Both Home and Detail have a play action. Require the destination screen,
+        // Both Home and Detail have a play action. Require the detail synopsis action,
         // otherwise the test can accept Home and send the next key too early.
-        eventually { hasText("MiFlix TV " + BuildConfig.VERSION_NAME) &&
+        eventually { hasText("Sinopsis completa") &&
             (focused().contains("Reproducir") || focused().contains("Elegir episodio")) }
     }
     private fun key(code: Int) { sendKeyDownUpSync(code); waitForIdleSync(); SystemClock.sleep(250) }

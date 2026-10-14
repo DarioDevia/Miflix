@@ -121,8 +121,6 @@ internal fun TvHome(titles: List<Title>, featured: Title?, continuing: List<Cont
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("MiFlix", color = Color(0xFFEF4B4B), fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.headlineSmall)
-                    Text("TV ${BuildConfig.VERSION_NAME}", color = Color.LightGray,
-                        style = MaterialTheme.typography.labelMedium)
                     if (featured != null) Column(Modifier.widthIn(max = 430.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         TvContentIdentity(featured, tvDetailArtwork(featured).logo)

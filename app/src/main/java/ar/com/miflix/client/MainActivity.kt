@@ -962,6 +962,7 @@ private fun SettingsScreen(
     onDisconnectTelegram: () -> Unit, onSave: () -> Unit
 ) {
     var showAdvanced by rememberSaveable { mutableStateOf(false) }
+    var showAbout by rememberSaveable { mutableStateOf(false) }
     val urlOk = url.isBlank() || runCatching {
         val uri = Uri.parse(url.trim())
         uri.scheme.equals("https", true) && !uri.host.isNullOrBlank()
@@ -1034,6 +1035,14 @@ private fun SettingsScreen(
             if (BuildConfig.IS_TV) TvEditableField(url, onUrlChange, "URL HTTPS del catálogo", Modifier.fillMaxWidth())
             else OutlinedTextField(url, onUrlChange, label = { Text("URL HTTPS del catálogo") },
                 isError = !urlOk, singleLine = true, modifier = Modifier.fillMaxWidth())
+        }
+        if (BuildConfig.IS_TV) item {
+            TvAction("Acerca de MiFlix", Modifier.fillMaxWidth()) { showAbout = !showAbout }
+            if (showAbout) {
+                Text("MiFlix TV", color = Color.White)
+                Text("Versión: ${BuildConfig.VERSION_NAME}\nCompilación: ${BuildConfig.VERSION_CODE}",
+                    color = MiFlixStyle.secondaryText)
+            }
         }
         item { Button(onClick = onSave, enabled = urlOk && inviteOk,
             modifier = Modifier.fillMaxWidth()) { Text("Guardar y actualizar") } }

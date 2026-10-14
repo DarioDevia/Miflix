@@ -137,8 +137,6 @@ internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
         val heroHeight = maxHeight.coerceAtLeast(420.dp)
         val infoWidth = maxWidth * .52f
         TvCinemaBackdrop(artwork, title.id)
-        Text("MiFlix TV ${BuildConfig.VERSION_NAME}", color = Color.White.copy(alpha = .65f),
-            fontSize = 12.sp, modifier = Modifier.align(Alignment.TopEnd).padding(20.dp))
         LazyColumn(state = scroll, modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 32.dp)) {
             item(key = "hero") {

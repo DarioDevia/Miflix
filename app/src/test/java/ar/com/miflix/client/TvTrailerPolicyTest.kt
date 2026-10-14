@@ -29,4 +29,17 @@ class TvTrailerPolicyTest {
     @Test(expected = IllegalArgumentException::class) fun invalidIdCannotInjectHtml() {
         tvTrailerHtml(YouTubeTrailer("';alert(1)//"), "ar.com.miflix.client.tv")
     }
+    @Test fun apiReadinessDoesNotMaskPlaybackTimeout() {
+        assertTrue(tvTrailerPlaybackTimedOut(true, -1, false))
+        assertTrue(tvTrailerPlaybackTimedOut(true, 3, false))
+        assertTrue(tvTrailerPlaybackTimedOut(true, 5, false))
+        for (state in listOf(0, 1, 2)) assertFalse(tvTrailerPlaybackTimedOut(true, state, false))
+        assertFalse(tvTrailerPlaybackTimedOut(false, -1, false))
+        assertFalse(tvTrailerPlaybackTimedOut(true, -1, true))
+    }
+    @Test fun scriptLoadAndInvalidParametersHaveVisibleErrors() {
+        assertTrue(tvTrailerHtml(YouTubeTrailer("abcdefghijk"), "ar.com.miflix.client.tv")
+            .contains("MIFLIX_TV_SCRIPT_ERROR"))
+        assertTrue(tvTrailerError(2).contains("identificador"))
+    }
 }

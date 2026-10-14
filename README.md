@@ -3,14 +3,37 @@
 | Variante | versionName | versionCode | applicationId | APK debug |
 | --- | --- | --- | --- | --- |
 | Mobile | 0.9.2-diagnostico | 26 | ar.com.miflix.client | app-mobile-debug.apk |
-| TV | 0.1.3-diagnostico | 4 | ar.com.miflix.client.tv | app-tv-debug.apk |
+| TV | 0.1.5-diagnostico | 6 | ar.com.miflix.client.tv | app-tv-debug.apk |
 
 TV se desarrolla en `miflix-tv`, basada en `miflix-cliente` HEAD
 `b3b3156cb6aff846822d591317f9f377c5d2df4c` (README corregido), que contiene
 el commit funcional móvil validado `5d896013478f8126c2dac3ed2f692fc305904509`.
 La rama móvil no se modifica. Cada variante conserva su propio versionado.
 
-## MiFlix TV 0.1.3: respaldo para validación manual
+## MiFlix TV 0.1.5: respaldo para validación local
+
+Rama **`backup/miflix-tv-0.1.5`**, desde `a05c6a703aecb3387e64ba696522a22ca9d9e276`
+(0.1.4 / 5). La estable `miflix-tv` conserva 0.1.2 / 3 y los respaldos anteriores
+no se actualizan. **0.1.5 / 6 todavía no está validada en Android TV real/emulado.**
+
+Audio y subtítulos abre un panel a la derecha, sobre el mismo video: subtítulos,
+audio y tamaño, foco DPAD explícito, marcas tomadas de las pistas confirmadas por
+Media3 y explicación de formatos no compatibles. Back cierra sólo el panel y
+restaura el foco del control; no pausa, busca ni recrea el Player. Se aplica al
+reproductor compartido de películas, series y anime. Mobile conserva su hoja inferior,
+versionado y comportamiento.
+
+Tráiler TV conserva el IFrame oficial, identidad HTTPS de la app, reproducción
+explícita y alternativa externa. Se corrigen dimensiones de inicialización,
+foco inicial al quedar listo, mensajes de carga/inicio fallido y diagnóstico
+acotado de WebView. La versión sale de Inicio/Detalle y queda en Configuración →
+Acerca de MiFlix. No se incorporan códecs ni métodos para eludir restricciones.
+
+Ver [informe, alcance y pruebas manuales](docs/TV_0.1.5_VALIDACION.md) y
+[historial TV](CHANGELOG_TV.md). Las causas reales del silencio de House y del
+video negro de «13 fantasmas» requieren los resultados/trazas del dispositivo.
+
+## MiFlix TV 0.1.3: respaldo histórico para validación manual
 
 Disponible en **`backup/miflix-tv-0.1.3`**, reconstruida desde `28da9ac`.
 **La interfaz todavía no está validada.** La rama estable `miflix-tv` conserva

@@ -84,9 +84,14 @@ internal fun TvPlaybackControls(title: String, playing: Boolean, position: Long,
             onVisible(false)
         }
     }
-    LaunchedEffect(visible) {
+    var panelWasOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(visible, blocked) {
         withFrameNanos { }
-        if (visible) pauseFocus.requestFocus() else rootFocus.requestFocus()
+        if (!blocked) {
+            if (visible && panelWasOpen && hasTracks) tracksFocus.requestFocus()
+            else if (visible) pauseFocus.requestFocus() else rootFocus.requestFocus()
+        }
+        panelWasOpen = blocked
     }
     BackHandler(enabled = visible && !blocked) { interaction++; onVisible(false) }
     Box(Modifier.fillMaxSize().focusRequester(rootFocus).onPreviewKeyEvent { event ->

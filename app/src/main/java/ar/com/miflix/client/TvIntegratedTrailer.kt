@@ -1,6 +1,9 @@
 package ar.com.miflix.client
 
 import android.graphics.Rect
+import android.util.Log
+import android.view.KeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import android.webkit.*
 import android.widget.FrameLayout
 import androidx.compose.foundation.background
@@ -27,6 +30,10 @@ internal fun TvIntegratedTrailer(target: YouTubeTrailer, title: String,
     var web by remember(target) { mutableStateOf<WebView?>(null) }
     var ready by remember(target) { mutableStateOf(false) }
     var playing by remember(target) { mutableStateOf(false) }
+    var playerState by remember(target) { mutableIntStateOf(-1) }
+    var playRequest by remember(target) { mutableIntStateOf(0) }
+    val playFocus = remember { FocusRequester() }
+    val externalFocus = remember { FocusRequester() }
     var problem by remember(target) { mutableStateOf<String?>(null) }
     val closeFocus = remember { FocusRequester() }
     val owner = LocalLifecycleOwner.current
@@ -34,7 +41,22 @@ internal fun TvIntegratedTrailer(target: YouTubeTrailer, title: String,
         delay(20_000)
         if (!ready && problem == null) problem = "El tráiler no respondió. Revisá la conexión o probá abrirlo externamente."
     }
-    LaunchedEffect(problem) { if (problem != null) web?.evaluateJavascript("tvPause()", null) }
+    LaunchedEffect(ready) { if (ready && problem == null) { withFrameNanos { }; playFocus.requestFocus() } }
+    LaunchedEffect(playRequest) {
+        if (playRequest > 0) {
+            delay(15_000)
+            if (tvTrailerPlaybackTimedOut(true, playerState, problem != null)) {
+                Log.w("MiFlixTvTrailer", "PLAYBACK_TIMEOUT state=$playerState")
+                problem = "El tráiler no comenzó a reproducirse. Probá abrirlo externamente o actualizar el WebView del dispositivo."
+            }
+        }
+    }
+    LaunchedEffect(problem) {
+        if (problem != null) {
+            web?.evaluateJavascript("tvPause()", null)
+            withFrameNanos { }; externalFocus.requestFocus()
+        }
+    }
     DisposableEffect(owner, web) {
         val view = web
         val observer = LifecycleEventObserver { _, event ->
@@ -50,7 +72,15 @@ internal fun TvIntegratedTrailer(target: YouTubeTrailer, title: String,
         Column(Modifier.fillMaxSize().background(Color.Black).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Tráiler · $title", color = Color.White, maxLines = 1)
-            AndroidView(modifier = Modifier.fillMaxWidth().weight(1f), factory = { context ->
+            AndroidView(modifier = Modifier.fillMaxWidth().weight(1f).onPreviewKeyEvent { event ->
+                if (event.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_BACK) {
+                    if (event.nativeKeyEvent.action == KeyEvent.ACTION_UP) onClose()
+                    true
+                } else if (event.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    if (event.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) closeFocus.requestFocus()
+                    true
+                } else false
+            }, factory = { context ->
                 FrameLayout(context).apply {
                     try {
                         val playerView = WebView(context)
@@ -69,8 +99,18 @@ internal fun TvIntegratedTrailer(target: YouTubeTrailer, title: String,
                                     val value = message.message()
                                     when {
                                         value == "MIFLIX_TV_READY" -> ready = true
-                                        value.startsWith("MIFLIX_TV_STATE:") -> playing = value.substringAfter(':') == "1"
-                                        value.startsWith("MIFLIX_TV_ERROR:") -> problem = tvTrailerError(value.substringAfter(':').toIntOrNull() ?: 0)
+                                        value.startsWith("MIFLIX_TV_STATE:") -> {
+                                            playerState = value.substringAfter(':').toIntOrNull() ?: -1
+                                            playing = playerState == 1
+                                            Log.d("MiFlixTvTrailer", "PLAYER_STATE state=$playerState")
+                                        }
+                                        value == "MIFLIX_TV_PLAY_REQUEST" -> { playerState = -1; playRequest++ }
+                                        value == "MIFLIX_TV_SCRIPT_ERROR" -> problem = "No se pudo cargar el reproductor de YouTube. Revisá la conexión o abrilo externamente."
+                                        value.startsWith("MIFLIX_TV_ERROR:") -> {
+                                            val code = value.substringAfter(':').toIntOrNull() ?: 0
+                                            Log.w("MiFlixTvTrailer", "YOUTUBE_ERROR code=$code")
+                                            problem = tvTrailerError(code)
+                                        }
                                         value == "MIFLIX_TV_BLOCKED" -> problem = "El dispositivo bloqueó el inicio. Podés usar los controles de YouTube o abrirlo externamente."
                                         else -> return false
                                     }
@@ -81,7 +121,13 @@ internal fun TvIntegratedTrailer(target: YouTubeTrailer, title: String,
                                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
                                     request.isForMainFrame // External navigation is explicit via the native button.
                                 override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                                    // URLs/messages are deliberately not logged.
+                                    Log.w("MiFlixTvTrailer", "WEB_RESOURCE_ERROR code=${error.errorCode} main=${request.isForMainFrame}")
                                     if (request.isForMainFrame) problem = "No se pudo cargar el reproductor integrado."
+                                }
+                                override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
+                                    Log.w("MiFlixTvTrailer", "WEB_HTTP_ERROR status=${response.statusCode} main=${request.isForMainFrame}")
+                                    if (request.isForMainFrame) problem = "YouTube no pudo cargar el tráiler. Probá abrirlo externamente."
                                 }
                                 override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
                                     web = null
@@ -106,12 +152,13 @@ internal fun TvIntegratedTrailer(target: YouTubeTrailer, title: String,
                 frame.removeAllViews()
                 view?.destroy()
             })
-            Text(problem ?: if (ready) "Tráiler integrado de YouTube" else "Cargando tráiler…", color = Color.LightGray, maxLines = 2)
+            Text(problem ?: if (ready) "Presioná Reproducir para iniciar el tráiler" else "Cargando tráiler…", color = Color.LightGray, maxLines = 2)
             if (externalUnavailable) Text("No hay una aplicación externa disponible.", color = Color.White)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TvAction(if (playing) "Pausar" else "Reproducir", enabled = ready && problem == null) {
+                TvAction(if (playing) "Pausar" else "Reproducir", Modifier.focusRequester(playFocus), enabled = ready && problem == null) {
                     val view = web
                     val visible = Rect()
+                    Log.d("MiFlixTvTrailer", "PLAY_REQUEST ready=$ready width=${view?.width} height=${view?.height} hardware=${view?.isHardwareAccelerated}")
                     if (view != null && view.isShown && view.getGlobalVisibleRect(visible) &&
                         visible.width() >= 200 && visible.height() >= 200 &&
                         visible.width().toLong() * visible.height() * 2 > view.width.toLong() * view.height)
@@ -119,7 +166,7 @@ internal fun TvIntegratedTrailer(target: YouTubeTrailer, title: String,
                     else problem = "El área de video no está visible. Cerrá y volvé a abrir el tráiler."
                 }
                 TvAction("Controles de YouTube", enabled = ready) { web?.requestFocus() }
-                TvAction("Abrir externamente") { web?.evaluateJavascript("tvPause()", null); onExternal() }
+                TvAction("Abrir externamente", Modifier.focusRequester(externalFocus)) { web?.evaluateJavascript("tvPause()", null); onExternal() }
                 TvAction("Cerrar", Modifier.focusRequester(closeFocus), onClick = onClose)
             }
         }
