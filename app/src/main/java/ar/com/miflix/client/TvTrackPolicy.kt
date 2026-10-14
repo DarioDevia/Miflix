@@ -5,11 +5,12 @@ internal fun tvPanelNextIndex(current: Int, count: Int, down: Boolean): Int =
     if (count <= 0) 0 else (current + if (down) 1 else -1).coerceIn(0, count - 1)
 
 /** Media3 C.FORMAT_* values; no unsupported decoder capabilities are overridden. */
-internal fun tvTrackUnavailableReason(support: Int): String? = when (support) {
+internal fun tvTrackUnavailableReason(support: Int, sampleMimeType: String? = null): String? = when (support) {
     4 -> null // FORMAT_HANDLED
     3 -> "La pista excede las capacidades de este dispositivo."
     2 -> "El dispositivo no admite la protección de esta pista."
-    1 -> "Este dispositivo no tiene un decodificador compatible para esta pista."
+    1 -> if (sampleMimeType == "audio/ac3") "Este dispositivo no tiene un decodificador AC3 compatible."
+        else "Este dispositivo no tiene un decodificador compatible para esta pista."
     else -> "Este dispositivo no admite el formato de esta pista."
 }
 

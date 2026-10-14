@@ -268,6 +268,9 @@ class TvDetailInstrumentation : Instrumentation() {
                     }.also { if (!it) failures++ }
                 }
             }
+            for (type in listOf("pelicula", "serie", "anime")) runCase("compact-controls-$type") {
+                compactControls(type)
+            }.also { if (!it) failures++ }
             check(executedCases > 0) { "No matching test cases" }
             check(requests.none { it.contains("api.themoviedb") || it.contains("api.tmdb") })
             check(requests.all { Uri.parse(it).host in listOf("artwork.test", "image.tmdb.org") })
@@ -357,6 +360,52 @@ class TvDetailInstrumentation : Instrumentation() {
         key(KeyEvent.KEYCODE_DPAD_CENTER)
         eventually { focused().contains("Audio y subtítulos") }
         check(!escaped && playing == initialPlaying && position == 60_000L)
+    }
+
+    /** Synthetic callbacks: real playback and visual spacing still need local validation. */
+    private fun compactControls(type: String) {
+        openHome(listOf(movie("Controles $type")))
+        var position = 60_000L
+        var playing = false
+        var escaped = false
+        runOnMainSync {
+            (activity as ComponentActivity).setContent {
+                MaterialTheme {
+                    var playState by remember { mutableStateOf(false) }
+                    var time by remember { mutableLongStateOf(position) }
+                    var visible by remember { mutableStateOf(true) }
+                    var panel by remember { mutableStateOf(false) }
+                    BackHandler { escaped = true }
+                    Box(Modifier.fillMaxSize().background(ComposeColor(0xFF15202D))) {
+                        TvPlaybackControls("Controles $type", playState, time, 600_000L, visible,
+                            { visible = it }, { playState = !playState; playing = playState },
+                            { playState = true; playing = true }, { playState = false; playing = false },
+                            { position += it; time = position }, true, { panel = true }, blocked = panel)
+                        if (panel) TvTrackPanel(listOf(TvTrackPanelRow("off", "Subtítulos", "Desactivados", true,
+                            onSelect = {})), false, onClose = { panel = false; visible = true })
+                    }
+                }
+            }
+        }
+        eventually { focused().contains("Reproducir") }
+        key(KeyEvent.KEYCODE_DPAD_DOWN)
+        eventually { focused().contains("Audio y subtítulos") }
+        key(KeyEvent.KEYCODE_DPAD_DOWN)
+        eventually { focused().contains("Progreso de reproducción") }
+        key(KeyEvent.KEYCODE_DPAD_RIGHT); check(position == 70_000L)
+        key(KeyEvent.KEYCODE_DPAD_LEFT); check(position == 60_000L)
+        key(KeyEvent.KEYCODE_DPAD_UP)
+        eventually { focused().contains("Audio y subtítulos") }
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { focused().contains("Desactivados") }
+        key(KeyEvent.KEYCODE_BACK)
+        eventually { focused().contains("Audio y subtítulos") }
+        check(!escaped && !playing && position == 60_000L)
+        key(KeyEvent.KEYCODE_DPAD_UP)
+        eventually { focused().contains("Reproducir") }
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { focused().contains("Pausar") }
+        check(playing && position == 60_000L)
     }
 
     private fun playerControls(type: String, logo: String?) {

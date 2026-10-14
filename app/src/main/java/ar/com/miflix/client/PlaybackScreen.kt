@@ -337,6 +337,7 @@ private fun VideoPlayer(
         Log.d("MiFlixLifecycle", "PLAYER_CREATE fileId=${video.fileId} position=$resumePosition playWhenReady=$resumePlay")
         Log.d(tag, "PLAYER_CREATE fileId=${video.fileId} size=${video.size} " +
             "resumePosition=$resumePosition playWhenReady=$resumePlay")
+        if (BuildConfig.IS_TV) logTvAc3Decoders()
         val builder = if (BuildConfig.IS_TV) ExoPlayer.Builder(context,
             DefaultRenderersFactory(context).setEnableDecoderFallback(true)) else ExoPlayer.Builder(context)
         builder.build().apply {
@@ -693,7 +694,7 @@ private fun VideoPlayer(
                                 format.channelCount, false,
                                 format.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND != 0),
                             selected = option.group.isTrackSelected(option.trackIndex),
-                            unavailable = tvTrackUnavailableReason(option.group.getTrackSupport(option.trackIndex)),
+                            unavailable = tvTrackUnavailableReason(option.group.getTrackSupport(option.trackIndex), format.sampleMimeType),
                             onSelect = { selectTrack(option) }))
                     }
                     audioTracks.forEachIndexed { index, option ->
@@ -701,7 +702,7 @@ private fun VideoPlayer(
                         add(TvTrackPanelRow("audio:$index", "Audio",
                             tvTrackLabel(format.label, format.language, option.name, format.channelCount, true, false),
                             selected = option.group.isTrackSelected(option.trackIndex),
-                            unavailable = tvTrackUnavailableReason(option.group.getTrackSupport(option.trackIndex)),
+                            unavailable = tvTrackUnavailableReason(option.group.getTrackSupport(option.trackIndex), format.sampleMimeType),
                             onSelect = { selectTrack(option) }))
                     }
                     SubtitleSize.values().forEach { size ->

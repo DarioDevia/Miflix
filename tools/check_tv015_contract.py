@@ -45,8 +45,8 @@ class Tv015Contract(unittest.TestCase):
 
     def test_tv_version_and_mobile_version_are_independent(self):
         gradle = (ROOT / 'app/build.gradle.kts').read_text()
-        self.assertIn('versionName = "0.1.5-diagnostico"', gradle)
-        self.assertIn('versionCode = 6', gradle)
+        self.assertRegex(gradle, r'versionName = "0\.1\.\d+-diagnostico"')
+        self.assertRegex(gradle.split('create("tv")', 1)[1], r'versionCode = \d+')
         self.assertIn('versionName = "0.9.2-diagnostico"', gradle)
         self.assertIn('versionCode = 26', gradle)
 

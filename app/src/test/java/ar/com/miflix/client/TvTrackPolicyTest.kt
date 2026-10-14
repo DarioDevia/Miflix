@@ -41,4 +41,10 @@ class TvTrackPolicyTest {
         assertTrue(tvTrackLabel("English", "en", "Subtítulo 1", -1, false, true).contains("CC"))
         assertFalse(tvTrackLabel(null, null, "Subtítulo 1", -1, false, false).contains("CC"))
     }
+    @Test fun ac3ExplanationNeverChangesCompatibility() {
+        assertTrue(tvTrackUnavailableReason(1, "audio/ac3")!!.contains("AC3"))
+        assertNull(tvTrackUnavailableReason(4, "audio/ac3"))
+        assertNotNull(tvTrackUnavailableReason(3, "audio/ac3"))
+        assertFalse(tvTrackUnavailableReason(1, "audio/mp4a-latm")!!.contains("AC3"))
+    }
 }

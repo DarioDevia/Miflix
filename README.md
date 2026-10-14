@@ -3,14 +3,34 @@
 | Variante | versionName | versionCode | applicationId | APK debug |
 | --- | --- | --- | --- | --- |
 | Mobile | 0.9.2-diagnostico | 26 | ar.com.miflix.client | app-mobile-debug.apk |
-| TV | 0.1.5-diagnostico | 6 | ar.com.miflix.client.tv | app-tv-debug.apk |
+| TV | 0.1.6-diagnostico | 7 | ar.com.miflix.client.tv | app-tv-debug.apk |
 
 TV se desarrolla en `miflix-tv`, basada en `miflix-cliente` HEAD
 `b3b3156cb6aff846822d591317f9f377c5d2df4c` (README corregido), que contiene
 el commit funcional móvil validado `5d896013478f8126c2dac3ed2f692fc305904509`.
 La rama móvil no se modifica. Cada variante conserva su propio versionado.
 
-## MiFlix TV 0.1.5: respaldo para validación local
+## MiFlix TV 0.1.6: controles compactos e investigación AC3
+
+Rama **`backup/miflix-tv-0.1.6`**, desde
+`4d63ccdd9acd47f9fa9727ea900019addab0a968` (0.1.5 / 6).
+**Versión pendiente de compilación/validación local. AC3 software no incorporado.**
+
+Play/Pausa y transcurrido a la izquierda; duración y Audio y subtítulos a la derecha,
+alineados, con barra inmediatamente debajo. Se reduce el espacio vertical y se
+puede enfocar la barra: ↓ Play → Audio → Barra, ↑ para regresar; sin pistas,
+Play ↔ Barra. ←/→ conserva seek ±10 s. Panel/Back/progreso/pausa y reproducción
+compartida de películas, series y anime se conservan.
+
+Los registros del usuario confirman audio/ac3 UNSUPPORTED_SUBTYPE en dos emuladores.
+Se agrega diagnóstico del registro de codecs y explicación AC3 específica. La
+extensión oficial FFmpeg es viable, pero requiere build NDK/JNI verificable y
+fuentes/licencias de distribución; no se empaqueta un AAR sin verificar.
+Ver [investigación y alternativa recomendada](docs/TV_0.1.6_AC3_INVESTIGACION.md) y
+[pruebas, actualización y pendientes](docs/TV_0.1.6_VALIDACION.md).
+No hay nuevas dependencias/permisos ni cambios de streaming, Mobile o YouTube.
+
+## MiFlix TV 0.1.5: respaldo histórico para validación local
 
 Rama **`backup/miflix-tv-0.1.5`**, desde `a05c6a703aecb3387e64ba696522a22ca9d9e276`
 (0.1.4 / 5). La estable `miflix-tv` conserva 0.1.2 / 3 y los respaldos anteriores

@@ -1,5 +1,18 @@
 # Historial de MiFlix TV
 
+## 0.1.6-diagnostico / 7
+
+Base: `4d63ccdd9acd47f9fa9727ea900019addab0a968`, respaldo 0.1.5 / 6.
+
+- Fila de controles compacta: Play/transcurrido a la izquierda, duración/engranaje
+  a la derecha; barra debajo con foco DPAD y seek existente ±10 s.
+- Diagnóstico de decodificadores AC3 de plataforma y mensaje específico para pistas
+  AC3 no compatibles. No se altera su soporte real ni se fuerza la selección.
+- Investigación de FFmpeg oficial Media3 1.3.1, ABIs, build nativo, licencia, tamaño
+  y CPU. No se incorpora decoder software por ausencia de build verificable.
+- 34 pruebas JVM y 6 contratos pasan; tres casos instrumentados nuevos pendientes.
+  Compilación Android y validación local pendientes. Tráiler negro sigue pendiente.
+
 ## 0.1.5-diagnostico / 6
 
 Base: `a05c6a703aecb3387e64ba696522a22ca9d9e276`, respaldo 0.1.4 / 5.
