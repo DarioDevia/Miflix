@@ -84,6 +84,10 @@ internal fun TvHome(titles: List<Title>, featured: Title?, continuing: List<Cont
     scroll: LazyListState, restoreKey: String?, onFocused: (String) -> Unit,
     busy: Boolean, problem: String?, onRefresh: () -> Unit, onSelect: (Title) -> Unit,
     onContinue: (ContinueWatchingItem) -> Unit, onPlayFeatured: (Title) -> Unit) {
+    val suggestionYear = remember { java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) }
+    val suggestions = remember(titles) {
+        tvHomeSuggestions(titles, suggestionYear, { it.tipo }, { it.year })
+    }
     val returnKey = remember {
         restoreKey?.takeIf { key -> continuing.any { "continue:${it.key}" == key } ||
             titles.any { "${it.tipo}:${it.id}" == key } }
@@ -157,7 +161,7 @@ internal fun TvHome(titles: List<Title>, featured: Title?, continuing: List<Cont
                 }
             }
             listOf("pelicula" to "Películas", "serie" to "Series", "anime" to "Anime").forEach { (type, label) ->
-                val row = titles.filter { it.tipo == type }
+                val row = (if (type == "anime") titles else suggestions).filter { it.tipo == type }
                 if (row.isNotEmpty()) item(key = type) {
                     Text(label, color = Color.White, style = MaterialTheme.typography.titleLarge)
                     val initial = row.indexOfFirst { "$type:${it.id}" == returnKey }.coerceAtLeast(0)

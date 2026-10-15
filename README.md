@@ -3,12 +3,22 @@
 | Variante | versionName | versionCode | applicationId | APK debug |
 | --- | --- | --- | --- | --- |
 | Mobile | 0.9.2-diagnostico | 26 | ar.com.miflix.client | app-mobile-debug.apk |
-| TV | 0.1.7-diagnostico | 8 | ar.com.miflix.client.tv | app-tv-debug.apk |
+| TV | 0.1.8-diagnostico | 9 | ar.com.miflix.client.tv | app-tv-debug.apk |
 
 TV se desarrolla en `miflix-tv`, basada en `miflix-cliente` HEAD
 `b3b3156cb6aff846822d591317f9f377c5d2df4c` (README corregido), que contiene
 el commit funcional móvil validado `5d896013478f8126c2dac3ed2f692fc305904509`.
 La rama móvil no se modifica. Cada variante conserva su propio versionado.
+
+## MiFlix TV 0.1.8: idiomas y sugerencias
+
+Base exacta `94daefdaf1bebc05e8001626426fd0f1a4488b8b`, rama
+`backup/miflix-tv-0.1.8`. Sólo dos mejoras TV: etiquetas de idioma limpias y
+sugerencias de películas/series por año de estreno. Continuar viendo intacto.
+Tráilers, AC3, barra y foco de carátulas congelados. Mobile sin cambios funcionales.
+
+Pruebas de políticas y contratos superadas; compilación Android y validación visual
+pendientes del usuario. [Detalle, límites y pruebas locales](docs/TV_0.1.8_VALIDACION.md).
 
 ## MiFlix TV 0.1.7: tráiler, fila de controles y foco de carátulas
 

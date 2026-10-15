@@ -39,8 +39,8 @@ android {
         create("tv") {
             dimension = "device"
             applicationIdSuffix = ".tv"
-            versionCode = 8
-            versionName = "0.1.7-diagnostico"
+            versionCode = 9
+            versionName = "0.1.8-diagnostico"
             testInstrumentationRunner = "ar.com.miflix.client.TvDetailInstrumentation"
             buildConfigField("boolean", "IS_TV", "true")
         }

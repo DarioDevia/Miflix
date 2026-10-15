@@ -1,5 +1,16 @@
 # Historial de MiFlix TV
 
+## 0.1.8-diagnostico / 9
+
+- Etiquetas TV sólo con idioma real de Media3; localización española, ISO2/ISO3,
+  desconocidos seguros y duplicados numerados por orden original. Sin nombres de
+  canales, enlaces ni descripciones técnicas. Selección y compatibilidad intactas.
+- Inicio: películas y series por año de estreno descendente, actual primero;
+  empate estable, años inválidos al final y destacado estable durante la sesión.
+  Anime excluido de la nueva lógica; Continuar viendo sin cambios.
+- 12 pruebas JVM y 11 contratos de código pasan; sintaxis Kotlin comprobada.
+  Android no compilado ni validado visualmente aquí. Tráilers/AC3 congelados.
+
 ## 0.1.7-diagnostico / 8
 
 Base: `94790b811d0eb88d85457ecedfddf50ce755c148`, respaldo 0.1.6 / 7.

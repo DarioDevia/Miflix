@@ -213,7 +213,12 @@ private fun ClientApp(
     val activity = context as? ComponentActivity
     val titles = catalog.items.orEmpty()
     val featuredSession = remember { FeaturedSession() }
-    val featured = remember(titles) { featuredSession.select(titles) }
+    val tvFeaturedSession = remember { TvFeaturedSession() }
+    val homeYear = remember { java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) }
+    val featured = remember(titles) {
+        if (BuildConfig.IS_TV) tvFeaturedSession.select(titles, homeYear)
+        else featuredSession.select(titles)
+    }
     val fullscreenActive = if (BuildConfig.IS_TV) screen == Screen.PLAYER else
         playbackFullscreenActive(screen, fullscreen, episodeTransition)
     val searchIndex = remember(titles) { CatalogSearchIndex(titles) }

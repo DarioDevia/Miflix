@@ -683,6 +683,12 @@ private fun VideoPlayer(
                 pauseTitle = tvArtwork?.titulo ?: title, logoUrl = tvArtwork?.logoUrl, blocked = showTracksPanel,
                 paused = !playing && !buffering)
             if (BuildConfig.IS_TV && showTracksPanel && !released) {
+                val textLabels = tvNumberTrackLabels(textTracks.map {
+                    tvLanguageName(it.group.getTrackFormat(it.trackIndex).language)
+                })
+                val audioLabels = tvNumberTrackLabels(audioTracks.map {
+                    tvLanguageName(it.group.getTrackFormat(it.trackIndex).language)
+                })
                 val rows = buildList {
                     add(TvTrackPanelRow("text-off", "Subtítulos", "Desactivados",
                         selected = !availableTracks.isTypeSelected(C.TRACK_TYPE_TEXT),
@@ -690,9 +696,7 @@ private fun VideoPlayer(
                     textTracks.forEachIndexed { index, option ->
                         val format = option.group.getTrackFormat(option.trackIndex)
                         add(TvTrackPanelRow("text:$index", "Subtítulos",
-                            tvTrackLabel(format.label, format.language, option.name,
-                                format.channelCount, false,
-                                format.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND != 0),
+                            textLabels[index],
                             selected = option.group.isTrackSelected(option.trackIndex),
                             unavailable = tvTrackUnavailableReason(option.group.getTrackSupport(option.trackIndex), format.sampleMimeType),
                             onSelect = { selectTrack(option) }))
@@ -700,7 +704,7 @@ private fun VideoPlayer(
                     audioTracks.forEachIndexed { index, option ->
                         val format = option.group.getTrackFormat(option.trackIndex)
                         add(TvTrackPanelRow("audio:$index", "Audio",
-                            tvTrackLabel(format.label, format.language, option.name, format.channelCount, true, false),
+                            audioLabels[index],
                             selected = option.group.isTrackSelected(option.trackIndex),
                             unavailable = tvTrackUnavailableReason(option.group.getTrackSupport(option.trackIndex), format.sampleMimeType),
                             onSelect = { selectTrack(option) }))
