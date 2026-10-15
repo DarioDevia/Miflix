@@ -3,12 +3,24 @@
 | Variante | versionName | versionCode | applicationId | APK debug |
 | --- | --- | --- | --- | --- |
 | Mobile | 0.9.2-diagnostico | 26 | ar.com.miflix.client | app-mobile-debug.apk |
-| TV | 0.1.8-diagnostico | 9 | ar.com.miflix.client.tv | app-tv-debug.apk |
+| TV | 0.1.9-diagnostico | 10 | ar.com.miflix.client.tv | app-tv-debug.apk |
 
 TV se desarrolla en `miflix-tv`, basada en `miflix-cliente` HEAD
 `b3b3156cb6aff846822d591317f9f377c5d2df4c` (README corregido), que contiene
 el commit funcional móvil validado `5d896013478f8126c2dac3ed2f692fc305904509`.
 La rama móvil no se modifica. Cada variante conserva su propio versionado.
+
+## MiFlix TV 0.1.9: preparación para Android TV físico
+
+Base `d947969c4100b6ae22ec6e06723bd74c64b22ec7`, rama
+`backup/miflix-tv-0.1.9`. TDLib core:0.1.1 ya contiene cuatro ABI reales: ARM32,
+ARM64, x86 y x86_64. La APK 0.1.8 aportada tenía sólo x86 y testOnly=true;
+no se reemplaza TDLib. Filtros TV explícitos y comando Windows para compilar APK
+debug normal y comprobar bibliotecas, manifest y firma antes de distribuir.
+
+**AAR verificado; APK 0.1.9 no compilada/inspeccionada aquí. Compatibilidad final,
+instalación y reproducción ARM pendientes.** Sin cambios en app/src, Mobile,
+tráilers o AC3. [Procedencia, pruebas e instrucciones](docs/TV_0.1.9_COMPATIBILIDAD_FISICA.md).
 
 ## MiFlix TV 0.1.8: idiomas y sugerencias
 

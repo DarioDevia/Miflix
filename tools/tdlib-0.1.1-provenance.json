@@ -1,0 +1,35 @@
+{
+  "coordinate": "io.github.tdlib-android:core:0.1.1",
+  "url": "https://repo.maven.apache.org/maven2/io/github/tdlib-android/core/0.1.1/core-0.1.1.aar",
+  "aar_sha256": "1ec6d6c6c83b655349d8a91182145cdd5400392246136ad79432253ad6004106",
+  "bindings_sha256": "e6f921efaba2c652cde2637de3f0d74e698529ff7034e590ee842c06649b2fa0",
+  "license_declared_in_pom": "BSL-1.0",
+  "tdlib_version_string_in_all_binaries": "1.8.67",
+  "upstream_commit": "not independently established; dependency unchanged",
+  "libraries": {
+    "arm64-v8a": {
+      "sha256": "249f325cde35ba778ef019258a40b2ecd2cfbd67d45e534902281c4dfba0f1a4",
+      "size": 22729264,
+      "elf_class": 2,
+      "elf_machine": 183
+    },
+    "armeabi-v7a": {
+      "sha256": "6551a4935f888b8b80adee5e995884765f7047cd32afc64a8c98e540cffcedb6",
+      "size": 16371168,
+      "elf_class": 1,
+      "elf_machine": 40
+    },
+    "x86": {
+      "sha256": "0aa3c3482608cdc02ed8a9883e4c0832e12e1dcbf52b2dcb448edf826b5699d1",
+      "size": 27180944,
+      "elf_class": 1,
+      "elf_machine": 3
+    },
+    "x86_64": {
+      "sha256": "40738f25f9da60125c1b9add0abb55558f02798c5ca291ecacdd5b0cc140f6e0",
+      "size": 25265264,
+      "elf_class": 2,
+      "elf_machine": 62
+    }
+  }
+}

@@ -1,5 +1,17 @@
 # Historial de MiFlix TV
 
+## 0.1.9-diagnostico / 10
+
+- Preparación de empaquetado físico: ABI reales explícitas sólo en flavor TV.
+  Se mantiene core:0.1.1, con cuatro ELF y bindings del mismo AAR verificados.
+- Script Windows para build debug normal e inspección de APK/firma; rechazo de
+  testOnly, ABI faltantes, bibliotecas inesperadas y versión/manifest incorrectos.
+- APK aportada 0.1.8 inspeccionada: x86 sólo y testOnly=true; dependencia completa.
+  Run/ABI inyectada es la causa probable, sin registro de invocación original.
+- 33 pruebas JVM, 11 Python y 6 contratos del panel pasaron. app/src idéntico.
+- APK 0.1.9, firma real, instalación y reproducción física pendientes; no se declara
+  completada la compatibilidad ARM. Sin cambios funcionales ni versión nueva Mobile.
+
 ## 0.1.8-diagnostico / 9
 
 - Etiquetas TV sólo con idioma real de Media3; localización española, ISO2/ISO3,
