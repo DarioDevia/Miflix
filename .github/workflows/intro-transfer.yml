@@ -1,0 +1,23 @@
+name: Materializar recurso intro oficial
+on:
+  push:
+    branches: [feature/mobile-0.9.6-intro]
+    paths: [.intro-transfer/**]
+jobs:
+  resource:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruir y verificar MP4 adjunto
+        run: |
+          mkdir -p app/src/main/res/raw
+          cat .intro-transfer/part* > app/src/main/res/raw/miflix_intro.mp4
+          echo "2b59bb7315b537cb07958fdd5619751bd1c2ec8a3f079790f6820b48c60a99f0  app/src/main/res/raw/miflix_intro.mp4" | sha256sum -c -
+          test "$(wc -c < app/src/main/res/raw/miflix_intro.mp4)" -eq 1890276
+          test "$(git hash-object app/src/main/res/raw/miflix_intro.mp4)" = "5a37beb81aa6e9a515292ebb61b76da21077f6e6"
+          git rm -r .intro-transfer .github/workflows/intro-transfer.yml
+          git add app/src/main/res/raw/miflix_intro.mp4
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Guardar MP4 oficial verificado y retirar transporte temporal"
+          git push origin HEAD:feature/mobile-0.9.6-intro
