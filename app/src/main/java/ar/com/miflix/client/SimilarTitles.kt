@@ -15,7 +15,7 @@ internal fun playableCatalogTitle(title: Title): Boolean {
 
 /** Local explainable ranking: shared genres, type, synopsis terms, year proximity, rating. */
 internal fun similarTitles(title: Title, catalog: List<Title>, limit: Int = 12): List<Title> {
-    fun genres(t: Title) = t.generos.orEmpty().map(::normalizeSearchText).filter(String::isNotBlank).toSet()
+    fun genres(t: Title) = t.generos.orEmpty().map { normalizeSearchText(it.orEmpty()) }.filter(String::isNotBlank).toSet()
     val stop = setOf("para", "como", "pero", "esta", "este", "entre", "sobre", "cuando", "donde",
         "desde", "hasta", "tiene", "todos", "todo", "their", "with", "that", "from", "they", "which")
     fun terms(t: Title) = normalizeSearchText(t.sinopsis.orEmpty()).split(Regex("[^a-z0-9]+"))

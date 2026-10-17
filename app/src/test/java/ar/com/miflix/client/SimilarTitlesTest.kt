@@ -35,4 +35,11 @@ class SimilarTitlesTest {
         val c=candidate("c")
         assertEquals(listOf("b","a1","c"),similarTitles(s,listOf(c,a,b)).map { it.id })
     }
+    @Test fun legacyNullGenreEntriesDoNotCrashRelatedTitles() {
+        val candidate=com.google.gson.Gson().fromJson(
+            """{"id":"legacy","titulo":"Legacy","tipo":"pelicula","generos":["Accion",null],"telegram_url":"https://t.me/c/1/2"}""",
+            Title::class.java)
+        assertEquals(listOf("legacy"),similarTitles(source,listOf(candidate)).map { it.id })
+    }
+
 }
