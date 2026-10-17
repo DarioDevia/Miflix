@@ -44,6 +44,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -90,18 +95,35 @@ class MainActivity : ComponentActivity() {
         setContent {
             val introSession = remember { IntroSession(restoringActivity = savedInstanceState != null) }
             var introActive by remember { mutableStateOf(introSession.active) }
-            ClientApp(
-                introActive = introActive,
-                repository = repository,
-                initialUrl = startupCatalogUrl(preferences.getString("catalog_url", null)),
-                initialInvite = preferences.getString("channel_invite", "").orEmpty(),
-                saveSettings = { url, invite ->
-                    preferences.edit().putString("catalog_url", url).putString("channel_invite", invite).apply()
+            val library = remember { PersonalLibraryStore(AndroidLibraryStorage(applicationContext)) }
+            val libraryRevision by library.revision.collectAsState()
+            CompositionLocalProvider(LocalPersonalLibrary provides library,
+                LocalLibraryRevision provides libraryRevision) {
+                // ClientApp still initializes behind the mask; its first frame cannot expose Home.
+                Box(Modifier.fillMaxSize().background(Color(0xFF0B0D12))) {
+                    Box(Modifier.fillMaxSize().graphicsLayer { alpha = if (introActive) 0f else 1f }
+                        .then(if (introActive) Modifier.clearAndSetSemantics { } else Modifier)) {
+                        ClientApp(
+                            introActive = introActive,
+                            repository = repository,
+                            initialUrl = startupCatalogUrl(preferences.getString("catalog_url", null)),
+                            initialInvite = preferences.getString("channel_invite", "").orEmpty(),
+                            saveSettings = { url, invite ->
+                                preferences.edit().putString("catalog_url", url).putString("channel_invite", invite).apply()
+                            }
+                        )
+                    }
+                    if (introActive) Box(Modifier.matchParentSize().background(Color(0xFF0B0D12))
+                        .pointerInput(Unit) { detectTapGestures { } })
                 }
-            )
-            if (introActive) IntroPreview {
-                introSession.finish()
-                introActive = introSession.active
+                BackHandler(enabled = introActive) {
+                    introSession.finish()
+                    introActive = introSession.active
+                }
+                if (introActive) IntroPreview {
+                    introSession.finish()
+                    introActive = introSession.active
+                }
             }
         }
     }
@@ -116,7 +138,7 @@ private object MiFlixStyle {
     val secondaryText = Color(0xFFB8BEC9)
 }
 
-internal enum class Screen { HOME, SEARCH, SECTIONS, DETAIL, PLAYER, SETTINGS, CONNECT }
+internal enum class Screen { HOME, SEARCH, SECTIONS, LIBRARY, DETAIL, PLAYER, SETTINGS, CONNECT }
 internal fun playbackFullscreenActive(screen: Screen, fullscreen: Boolean, episodeTransition: Boolean): Boolean =
     fullscreen && (screen == Screen.PLAYER || (screen == Screen.DETAIL && episodeTransition))
 
@@ -449,6 +471,7 @@ private fun ClientApp(
                                 Screen.HOME -> "MiFlix"
                                 Screen.SEARCH -> "Buscar"
                                 Screen.SECTIONS -> "Secciones"
+                                Screen.LIBRARY -> "Mi Lista"
                                 Screen.SETTINGS -> "Configuración"
                                 Screen.DETAIL -> selected?.titulo.orEmpty()
                                 Screen.PLAYER -> playbackTitle
@@ -469,7 +492,7 @@ private fun ClientApp(
                         }
                     },
                     actions = {
-                        if (screen == Screen.HOME || screen == Screen.SEARCH || screen == Screen.SECTIONS) {
+                        if (screen == Screen.HOME || screen == Screen.SEARCH || screen == Screen.SECTIONS || screen == Screen.LIBRARY) {
                             if (screen != Screen.SEARCH) {
                                 IconButton(onClick = { screen = Screen.SEARCH }) {
                                     Icon(Icons.Default.Search, contentDescription = "Buscar")
@@ -484,12 +507,13 @@ private fun ClientApp(
                 )
             },
             bottomBar = {
-                if (screen == Screen.HOME || screen == Screen.SEARCH || screen == Screen.SECTIONS) {
+                if (screen == Screen.HOME || screen == Screen.SEARCH || screen == Screen.SECTIONS || screen == Screen.LIBRARY) {
                     NavigationBar(containerColor = MiFlixStyle.surface) {
                         listOf(
                             Triple(Screen.HOME, "Inicio", Icons.Default.Home),
                             Triple(Screen.SEARCH, "Buscar", Icons.Default.Search),
-                            Triple(Screen.SECTIONS, "Secciones", Icons.Default.List)
+                            Triple(Screen.SECTIONS, "Secciones", Icons.Default.List),
+                            Triple(Screen.LIBRARY, "Mi Lista", Icons.Default.Bookmark)
                         ).forEach { (destination, label, icon) ->
                             NavigationBarItem(
                                 selected = screen == destination,
@@ -562,6 +586,7 @@ private fun ClientApp(
                     onCategoryChange = { category = it },
                     onSelect = ::openDetail
                 )
+                Screen.LIBRARY -> PersonalLibraryScreen(Modifier.padding(padding), titles, ::openDetail)
                 Screen.DETAIL -> if (selected != null) Detail(
                     title = selected,
                     modifier = Modifier.padding(padding),
@@ -1092,6 +1117,14 @@ private fun Detail(title: Title, modifier: Modifier = Modifier, autoplayTrailers
         item {
             Column(Modifier.padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                val library = LocalPersonalLibrary.current
+                LocalLibraryRevision.current // Observe durable local mutations.
+                library?.let { store ->
+                    val favorite = store.isFavorite(title.id)
+                    OutlinedButton(onClick = { store.setFavorite(title.id, !favorite) }) {
+                        Text(if (favorite) "✓ En Mi Lista" else "+ Mi Lista")
+                    }
+                }
                 Text(title.titulo, color = MiFlixStyle.primaryText, fontSize = 30.sp,
                     lineHeight = 35.sp, fontWeight = FontWeight.Bold)
                 val rating = title.puntuacion?.takeIf { it.isFinite() && it in 0.0..10.0 }
@@ -1226,6 +1259,23 @@ private fun EpisodeCard(episode: Episode, onClick: () -> Unit) {
             }
             if (playable) Icon(Icons.Default.PlayArrow,
                 contentDescription = "Reproducir episodio", tint = MiFlixStyle.primaryText)
+        }
+    }
+}
+
+@Composable
+private fun PersonalLibraryScreen(modifier: Modifier, titles: List<Title>, onSelect: (Title) -> Unit) {
+    val library = LocalPersonalLibrary.current ?: return
+    LocalLibraryRevision.current
+    val items = library.favorites(titles)
+    Column(modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        SectionHeading("Mi Lista")
+        if (items.isEmpty()) Text("Agregá películas, series o anime desde su ficha. Los favoritos ausentes del catálogo se conservan.",
+            color = MiFlixStyle.secondaryText, modifier = Modifier.padding(vertical = 20.dp))
+        LazyVerticalGrid(columns = GridCells.Adaptive(112.dp),
+            contentPadding = PaddingValues(vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            items(items, key = { it.id }) { title -> MovieCard(title, onClick = { onSelect(title) }) }
         }
     }
 }
