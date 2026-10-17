@@ -603,6 +603,7 @@ private fun ClientApp(
                     progressKey = playbackKey,
                     startPosition = playbackStartPosition,
                     progressStore = progressStore,
+                    libraryStore = LocalPersonalLibrary.current!!,
                     previousEpisode = previousEpisode,
                     nextEpisode = nextEpisode,
                     onNavigateEpisode = { target ->
@@ -836,6 +837,10 @@ private fun ContentRow(
 
 @Composable
 private fun MovieCard(title: Title, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val library = LocalPersonalLibrary.current
+    LocalLibraryRevision.current
+    val seen = library?.isTitleWatched(title) == true
+    val someEpisodesSeen = !seen && library?.hasWatchedEpisode(title) == true
     Column(modifier.clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f)
             .clip(RoundedCornerShape(8.dp)).background(MiFlixStyle.surface),
@@ -846,6 +851,9 @@ private fun MovieCard(title: Title, modifier: Modifier = Modifier, onClick: () -
             }
             if (!title.posterUrl.isNullOrBlank()) AsyncImage(title.posterUrl, null,
                 contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            if (seen || someEpisodesSeen) Text(if (seen) "✓ Visto" else "Episodios vistos",
+                Modifier.align(Alignment.TopEnd).background(MiFlixStyle.background.copy(alpha = .9f))
+                    .padding(6.dp), color = MiFlixStyle.primaryText, fontSize = 11.sp)
         }
         Text(title.titulo, color = MiFlixStyle.primaryText, fontSize = 14.sp,
             lineHeight = 18.sp, fontWeight = FontWeight.SemiBold,
@@ -1124,8 +1132,14 @@ private fun Detail(title: Title, modifier: Modifier = Modifier, autoplayTrailers
                 LocalLibraryRevision.current // Observe durable local mutations.
                 library?.let { store ->
                     val favorite = store.isFavorite(title.id)
-                    OutlinedButton(onClick = { store.setFavorite(title.id, !favorite) }) {
-                        Text(if (favorite) "✓ En Mi Lista" else "+ Mi Lista")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { store.setFavorite(title.id, !favorite) }) {
+                            Text(if (favorite) "✓ Mi Lista" else "+ Mi Lista")
+                        }
+                        val seen = store.isTitleWatched(title)
+                        TextButton(onClick = { store.setTitleWatched(title, !seen) }) {
+                            Text(if (seen) "✓ Título visto" else "Marcar título visto")
+                        }
                     }
                 }
                 Text(title.titulo, color = MiFlixStyle.primaryText, fontSize = 30.sp,
@@ -1208,7 +1222,12 @@ private fun Detail(title: Title, modifier: Modifier = Modifier, autoplayTrailers
             // Algunos catálogos de Admin no incluyen Episode.id; el índice evita claves duplicadas.
             items(episodes.size) { index ->
                 val episode = episodes[index]
-                EpisodeCard(episode, onClick = {
+                val library = LocalPersonalLibrary.current
+                LocalLibraryRevision.current
+                val watchedKey = ProgressKeys.episode(title, seasons[selectedSeason], episode)
+                EpisodeCard(episode, watched = library?.isWatched(watchedKey) == true,
+                    onToggleWatched = library?.let { store -> { store.setWatched(watchedKey, !store.isWatched(watchedKey)) } },
+                    onClick = {
                     episode.telegramUrl?.let { link ->
                         seasons.getOrNull(selectedSeason)?.let { season ->
                             onPlay(ProgressKeys.episode(title, season, episode), link,
@@ -1241,7 +1260,8 @@ private fun DetailCredit(label: String, value: String) {
 }
 
 @Composable
-private fun EpisodeCard(episode: Episode, onClick: () -> Unit) {
+private fun EpisodeCard(episode: Episode, watched: Boolean = false,
+    onToggleWatched: (() -> Unit)? = null, onClick: () -> Unit) {
     val playable = episode.telegramUrl?.let(::validTelegramLink) == true
     Surface(color = MiFlixStyle.surface, shape = RoundedCornerShape(10.dp),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
@@ -1262,6 +1282,9 @@ private fun EpisodeCard(episode: Episode, onClick: () -> Unit) {
                     if (playable) "Reproducir en MiFlix" else "Sin enlace disponible")
                     .joinToString(" · "),
                     color = MiFlixStyle.secondaryText, fontSize = 12.sp)
+                if (onToggleWatched != null) TextButton(onClick = onToggleWatched) {
+                    Text(if (watched) "✓ Visto · quitar marca" else "Marcar episodio visto")
+                }
                 episode.sinopsis?.takeIf(String::isNotBlank)?.let {
                     Text(it, color = MiFlixStyle.secondaryText, fontSize = 12.sp,
                         maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -1277,10 +1300,17 @@ private fun EpisodeCard(episode: Episode, onClick: () -> Unit) {
 private fun PersonalLibraryScreen(modifier: Modifier, titles: List<Title>, onSelect: (Title) -> Unit) {
     val library = LocalPersonalLibrary.current ?: return
     LocalLibraryRevision.current
-    val items = library.favorites(titles)
+    var watchedTab by rememberSaveable { mutableStateOf(false) }
+    val items = if (watchedTab) titles.distinctBy { it.id }.filter {
+        library.isTitleWatched(it) || library.hasWatchedEpisode(it)
+    }.sortedBy { normalizeSearchText(it.titulo) } else library.favorites(titles)
     Column(modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        SectionHeading("Mi Lista")
-        if (items.isEmpty()) Text("Agregá películas, series o anime desde su ficha. Los favoritos ausentes del catálogo se conservan.",
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = !watchedTab, onClick = { watchedTab = false }, label = { Text("Mi Lista") })
+            FilterChip(selected = watchedTab, onClick = { watchedTab = true }, label = { Text("Ya vistos") })
+        }
+        if (items.isEmpty()) Text(if (watchedTab) "Todavía no hay títulos o episodios vistos en este catálogo."
+            else "Agregá películas, series o anime desde su ficha. Los favoritos ausentes del catálogo se conservan.",
             color = MiFlixStyle.secondaryText, modifier = Modifier.padding(vertical = 20.dp))
         LazyVerticalGrid(columns = GridCells.Adaptive(112.dp),
             contentPadding = PaddingValues(vertical = 16.dp),

@@ -24,7 +24,8 @@ internal fun similarTitles(title: Title, catalog: List<Title>, limit: Int = 12):
     val sourceTerms = terms(title)
     data class Match(val title: Title, val shared: Int, val sameType: Boolean, val themes: Int, val year: Int)
     return catalog.asSequence().filter { it.id.isNotBlank() && it.id != title.id && it.titulo.isNotBlank() }
-        .distinctBy { it.id }.filter(::playableCatalogTitle).map { candidate ->
+        .filter(::playableCatalogTitle).sortedWith(compareBy<Title> { it.id }.thenBy { normalizeSearchText(it.titulo) }
+            .thenBy { it.year ?: Int.MAX_VALUE }.thenBy { it.telegramUrl.orEmpty() }).distinctBy { it.id }.map { candidate ->
             Match(candidate, (sourceGenres intersect genres(candidate)).size, candidate.tipo == title.tipo,
                 (sourceTerms intersect terms(candidate)).size,
                 if (title.year != null && candidate.year != null) abs(title.year.toLong() - candidate.year).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()

@@ -64,6 +64,7 @@ internal fun PlaybackScreen(
     progressKey: String,
     startPosition: Long,
     progressStore: PlaybackProgressStore,
+    libraryStore: PersonalLibraryStore,
     previousEpisode: EpisodeNavigationTarget?,
     nextEpisode: EpisodeNavigationTarget?,
     onNavigateEpisode: (EpisodeNavigationTarget) -> Unit,
@@ -150,6 +151,7 @@ internal fun PlaybackScreen(
     when {
         !foreground -> Box(Modifier.fillMaxSize())
         video != null -> VideoPlayer(video!!, title, fullscreen, onFullscreenToggle,
+            libraryStore, progressKey,
             resumePosition, resumePlay, previousEpisode, nextEpisode, onNavigateEpisode,
             onPlaybackFailure = onPlaybackFailure,
             onStopped = { video = null },
@@ -302,6 +304,8 @@ private fun VideoPlayer(
     title: String,
     fullscreen: Boolean,
     onFullscreenToggle: () -> Unit,
+    libraryStore: PersonalLibraryStore,
+    progressKey: String,
     resumePosition: Long,
     resumePlay: Boolean,
     previousEpisode: EpisodeNavigationTarget?,
@@ -342,6 +346,7 @@ private fun VideoPlayer(
             Log.d(tag, "PLAYER_PREPARE state=$playbackState duration=$duration")
         }
     }
+    val watchCoverage = rememberPlaybackCoverage(player, progressKey, libraryStore)
     var released by remember(player) { mutableStateOf(false) }
     var availableTracks by remember(player) { mutableStateOf(player.currentTracks) }
     var showTracksPanel by remember(player) { mutableStateOf(false) }
@@ -451,6 +456,7 @@ private fun VideoPlayer(
 
     LaunchedEffect(player) {
         while (!released) {
+            watchCoverage?.sample()
             currentPosition = player.currentPosition
             duration = player.duration
             checkpoint(currentPosition, player.playWhenReady)
@@ -518,6 +524,7 @@ private fun VideoPlayer(
             else exitProgress(position, durationMs)
             Log.d("MiFlixLifecycle", "PLAYER_RELEASE reason=${if (backgrounded) "ON_STOP" else "DISPOSE"} position=$position playWhenReady=${player.playWhenReady}")
             player.removeListener(listener)
+            watchCoverage?.finish()
             val releaseStarted = SystemClock.elapsedRealtime()
             player.release()
             Log.d("MiFlixLifecycle", "PLAYER_RELEASE_COMPLETE elapsedMs=${SystemClock.elapsedRealtime() - releaseStarted}")
