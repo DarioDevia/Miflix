@@ -1,8 +1,19 @@
-# MiFlix Cliente Android 0.9.6-diagnostico
+# MiFlix Cliente Android 0.9.7-diagnostico
 
-**Versión actual:** MiFlix Mobile `0.9.6-diagnostico` · `versionName = "0.9.6-diagnostico"` · `versionCode = 30` · `applicationId = "ar.com.miflix.client"`.
+**Versión actual:** MiFlix Mobile `0.9.7-diagnostico` · `versionName = "0.9.7-diagnostico"` · `versionCode = 31` · `applicationId = "ar.com.miflix.client"`.
 
-## 0.9.6 diagnóstico: intro oficial local
+## 0.9.7 diagnóstico: arranque y biblioteca local
+
+- **Intro:** la Activity oculta visualmente ClientApp y bloquea su interacción desde el primer frame mientras la intro esté activa. El catálogo y Telegram siguen inicializándose en paralelo. Se mantiene el Dialog/Player independiente, MP4/audio original, watchdog de 8 s, restauración y salida por error/background. Se retira el icono adicional del placeholder; queda fondo oscuro. El destello reportado se explica por Inicio visible antes de abrir el Dialog; la desaparición física debe comprobarse en Samsung, no se da por probada por compilar.
+- **Mi Lista:** entrada propia en navegación y botón en ficha. IDs de título únicos, persistidos incluso cuando desaparecen del catálogo. No cambia el JSON público.
+- **Ya vistos:** pestaña dentro de Mi Lista, indicadores y marcado/desmarcado manual en fichas y episodios. Historial independiente del progreso. Un episodio no marca la serie entera. Marcar manualmente el título tampoco marca todos sus episodios. Un marcador automático requiere unión de intervalos realmente reproducidos >=80 % y llegada reproducida a `min(5 min, 5 %)` del final. Seek, pausa y buffering no rellenan huecos. Repetir intervalos no suma cobertura nueva; fragmentos de distintas sesiones sí se unen. El progreso anterior a esta versión no demuestra consumo y no se convierte en vistos. Desmarcar borra la cobertura de ese elemento para evitar remarcarlo inmediatamente con datos antiguos.
+- **Similares:** en Detalle, candidatos reproducibles con géneros compartidos, ordenados por número de géneros, mismo tipo, palabras significativas comunes de sinopsis, cercanía de año, puntuación, título e ID. Sin APIs ni personalización. Abrir un relacionado conserva el retorno a la sección de origen.
+
+Las preferencias nuevas están separadas en `miflix_library/library_v1`: envelope JSON `schemaVersion: 1`, `favorites` (IDs), `watched` (claves estables existentes) y `coverage` (duración e intervalos en ms). Formato exportable internamente, sin botón/exportación ni sincronización en esta versión. No guarda enlaces privados, pistas, sesiones o credenciales. Cobertura se guarda cada 15 s y antes de liberar; una terminación abrupta del proceso puede perder el tramo no guardado. No escribe PlaybackProgressStore ni modifica sus reglas de Continuar viendo/completado.
+
+[Auditoría y pruebas Samsung de 0.9.7](docs/mobile-0.9.7.md). La cobertura se observa mediante Player.Listener y la muestra de posición ya existente; no crea Player ni sesión, ni toca el seek/rangos. Las pruebas JVM cubren lógica; no sustituyen validación de UI/lifecycle, reproducción real o del destello.
+
+## 0.9.6 diagnóstico: intro oficial local (histórico)
 
 El MP4 oficial de 4,01 s (720 × 1280, H.264/AAC) se incluye sin modificar en `res/raw/miflix_intro.mp4`. Un Player Media3 independiente reproduce imagen y audio una vez por lanzamiento nuevo en una ventana inmersiva, sin controles y con ajuste FIT: en horizontal se conservan bandas laterales, sin estirar ni recortar. No usa Internet ni inicializa otra sesión Telegram. Catálogo y autenticación mantienen su inicialización habitual en paralelo, y las novedades esperan a que termine la intro.
 

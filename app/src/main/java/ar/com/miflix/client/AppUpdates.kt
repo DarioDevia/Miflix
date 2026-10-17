@@ -13,6 +13,12 @@ internal object AppUpdates {
     fun installedVersion() = InstalledVersion(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
 
     val history = listOf(
+        AppUpdate("0.9.7-diagnostico", 31, listOf(
+            "Inicio oculto durante la preparación de la intro, sin retrasos artificiales.",
+            "Mi Lista persistente y sección Ya vistos con marcado manual por título o episodio.",
+            "Vistos automáticos: cobertura reproducida mínima del 80 % y llegada a la zona final.",
+            "Más títulos similares según géneros y metadatos locales del catálogo."
+        )),
         AppUpdate("0.9.6-diagnostico", 30, listOf(
             "Intro oficial local con imagen y audio al iniciar MiFlix.",
             "Se muestra una vez por lanzamiento nuevo; no se repite al navegar o volver de segundo plano."
