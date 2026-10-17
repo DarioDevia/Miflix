@@ -88,7 +88,10 @@ class MainActivity : ComponentActivity() {
         val preferences = getSharedPreferences("miflix_client", MODE_PRIVATE)
         val repository = CatalogRepository(this)
         setContent {
+            val introSession = remember { IntroSession(restoringActivity = savedInstanceState != null) }
+            var introActive by remember { mutableStateOf(introSession.active) }
             ClientApp(
+                introActive = introActive,
                 repository = repository,
                 initialUrl = startupCatalogUrl(preferences.getString("catalog_url", null)),
                 initialInvite = preferences.getString("channel_invite", "").orEmpty(),
@@ -96,6 +99,10 @@ class MainActivity : ComponentActivity() {
                     preferences.edit().putString("catalog_url", url).putString("channel_invite", invite).apply()
                 }
             )
+            if (introActive) IntroPreview {
+                introSession.finish()
+                introActive = introSession.active
+            }
         }
     }
 }
@@ -155,6 +162,7 @@ private fun openTelegram(context: Context, link: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ClientApp(
+    introActive: Boolean,
     repository: CatalogRepository,
     initialUrl: String,
     initialInvite: String,
@@ -226,8 +234,8 @@ private fun ClientApp(
             }
         })
     }
-    LaunchedEffect(screen, appResumed, showUpdates) {
-        if (!showUpdates && updateNotice.presentIfEligible(BuildConfig.VERSION_CODE,
+    LaunchedEffect(screen, appResumed, showUpdates, introActive) {
+        if (!introActive && !showUpdates && updateNotice.presentIfEligible(BuildConfig.VERSION_CODE,
                 screen == Screen.HOME, appResumed)) showUpdates = true
     }
     val activity = context as? ComponentActivity
@@ -398,7 +406,7 @@ private fun ClientApp(
     )) {
         if (showAbout && screen == Screen.SETTINGS && appResumed)
             AboutMiFlix { showAbout = false }
-        if (showUpdates && screen == Screen.HOME && appResumed)
+        if (!introActive && showUpdates && screen == Screen.HOME && appResumed)
             UpdateNoticeDialog { showUpdates = false }
         playbackIssue?.let { issue ->
             AlertDialog(

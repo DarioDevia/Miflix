@@ -1,8 +1,16 @@
-# MiFlix Cliente Android 0.9.5-diagnostico
+# MiFlix Cliente Android 0.9.6-diagnostico
 
-**Versión actual:** MiFlix Mobile `0.9.5-diagnostico` · `versionName = "0.9.5-diagnostico"` · `versionCode = 29` · `applicationId = "ar.com.miflix.client"`.
+**Versión actual:** MiFlix Mobile `0.9.6-diagnostico` · `versionName = "0.9.6-diagnostico"` · `versionCode = 30` · `applicationId = "ar.com.miflix.client"`.
 
-## 0.9.5 diagnóstico: Acerca de, novedades y segundo plano
+## 0.9.6 diagnóstico: intro oficial local
+
+El MP4 oficial de 4,01 s (720 × 1280, H.264/AAC) se incluye sin modificar en `res/raw/miflix_intro.mp4`. Un Player Media3 independiente reproduce imagen y audio una vez por lanzamiento nuevo en una ventana inmersiva, sin controles y con ajuste FIT: en horizontal se conservan bandas laterales, sin estirar ni recortar. No usa Internet ni inicializa otra sesión Telegram. Catálogo y autenticación mantienen su inicialización habitual en paralelo, y las novedades esperan a que termine la intro.
+
+Rotar mantiene el mismo Player gracias al manejo de orientación/screenSize ya existente. Si Android recrea/restaura la Activity por otro motivo, se omite la intro pendiente en lugar de reiniciarla. Al navegar, volver de Player o regresar desde background no se repite. Si se interrumpe enviando la app a background o apagando la pantalla, se termina y libera inmediatamente, sin audio oculto; al volver se continúa en la pantalla normal (Inicio o conexión Telegram si todavía falta autenticarse). Final, error, Atrás o límite de seguridad de 8 s liberan el Player independiente y permiten entrar. La ventana Activity y el reproductor principal no cambian; un fondo oscuro y el icono existente cubren la preparación hasta el primer fotograma.
+
+[Implementación y pruebas de la intro](docs/intro-mobile-0.9.6.md). Las pruebas JVM cubren exclusivamente la decisión de lanzamiento y finalización idempotente. Audio/video sincronizados, composición, inmersión, giro y lifecycle Android requieren validación real en A21s/A14; no se dan por verificados por compilar.
+
+## 0.9.5 diagnóstico: Acerca de, novedades y segundo plano (histórico)
 
 Configuración incluye **Acerca de**: nombre MiFlix, versión/code tomados del BuildConfig instalado, desarrollador DarioDevia (identidad del repositorio) e historial documentado 0.9.0–0.9.5 incluido en la APK. No descarga novedades ni necesita Internet. Las revisiones internas de 0.9.1 permanecen agrupadas bajo esa versión, sin inventar releases adicionales.
 
@@ -12,9 +20,9 @@ Las novedades se presentan una sola vez por versionCode al llegar a Inicio con l
 
 [Diagnóstico y pruebas Samsung](docs/diagnostico-segundo-plano-0.9.5.md) detalla cómo distinguir resolución pendiente, reconexión, bloqueo de liberación y buffering. La instrumentación solo observa los estados de conexión: no los usa para reiniciar TDLib. Las pruebas JVM nuevas cubren versión/historial/aviso y contabilidad de solicitudes; no simulan reconexión Telegram, Doze ni gestos reales. No se ejecutan emulador ni teléfono en CI; esas pruebas quedan pendientes. Actions mantiene tests, lint, debug y release unsigned, sin configuración privada.
 
-### Intro cinematográfica: pendiente separado
+### Intro: pendiente en 0.9.5, incorporada en 0.9.6
 
-Punto recomendado: un contenedor inicial separado, después de disponer de la primera UI/copia cacheada, con una marca de sesión en estado del contenedor de la Activity para el lanzamiento frío. Una futura intro local podría usar Media3 ya incluido y un Player independiente del de Telegram, sin audio inesperado, con opción de omitir y salida inmediata ante error. El catálogo/autenticación deben seguir cargando; no bloquearlos esperando el video. Conservar la marca durante recreaciones y no disparar en ON_START/ON_RESUME ni al volver de Player. Liberar ese Player independiente al finalizar/salir. Se definirá la política exacta cuando exista el material final. Esta versión no incorpora video, animación, dependencias ni código de intro.
+0.9.5 documentó el punto de integración sin incluir material audiovisual. 0.9.6 incorpora el MP4 oficial en el contenedor inicial y conserva la separación del Player principal descrita arriba.
 
 ## 0.9.4 diagnóstico: corrección táctil de progreso (histórico)
 

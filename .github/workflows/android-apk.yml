@@ -2,7 +2,7 @@ name: Compilar MiFlix cliente
 on:
   workflow_dispatch:
   push:
-    branches: [miflix-cliente]
+    branches: [miflix-cliente, feature/mobile-0.9.6-intro]
 jobs:
   build:
     runs-on: ubuntu-latest
