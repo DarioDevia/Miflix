@@ -56,7 +56,7 @@ internal class PersonalLibraryStore(private val storage: LibraryStorage) {
     fun isWatched(key: String) = key in watched
     // A manual title mark never fans out to episodes. An episode mark never marks the parent series.
     fun isTitleWatched(title: Title): Boolean = isWatched("title:${title.id}") ||
-        (title.tipo == "pelicula" && isWatched(ProgressKeys.title(title)))
+        (title.tipo == "pelicula" && (isWatched(ProgressKeys.title(title)) || hasWatchedEpisode(title)))
     fun hasWatchedEpisode(title: Title): Boolean = title.temporadas.orEmpty().any { season ->
         season.episodios.orEmpty().any { isWatched(ProgressKeys.episode(title, season, it)) }
     }
@@ -67,9 +67,20 @@ internal class PersonalLibraryStore(private val storage: LibraryStorage) {
         changed()
     }
     fun setTitleWatched(title: Title, seen: Boolean) {
-        if (title.tipo == "pelicula" && ProgressKeys.title(title) != "title:${title.id}")
-            setWatched(ProgressKeys.title(title), seen)
-        setWatched("title:${title.id}", seen)
+        if (!writable || title.id.isBlank()) return
+        val keys = mutableSetOf("title:${title.id}")
+        // Movie publications are alternative playable identities of the movie, not series episodes.
+        if (title.tipo == "pelicula" && !seen) {
+            keys += ProgressKeys.title(title)
+            title.temporadas.orEmpty().forEach { season ->
+                season.episodios.orEmpty().forEach { keys += ProgressKeys.episode(title, season, it) }
+            }
+        }
+        keys.forEach { key ->
+            coverage.remove(key)
+            if (seen) watched.add(key) else watched.remove(key)
+        }
+        changed()
     }
     fun record(key: String, interval: WatchedInterval, durationMs: Long) {
         if (!writable || key.isBlank() || durationMs <= 0 || isWatched(key)) return

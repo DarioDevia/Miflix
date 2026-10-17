@@ -215,6 +215,7 @@ private fun ClientApp(
     var pendingResume by remember { mutableStateOf<PendingResume?>(null) }
     var playbackIssue by remember { mutableStateOf<PlaybackIssue?>(null) }
     var fullscreen by rememberSaveable { mutableStateOf(false) }
+    var libraryWatchedTab by rememberSaveable { mutableStateOf(false) }
     var category by rememberSaveable { mutableStateOf("Todos") }
     var query by rememberSaveable { mutableStateOf("") }
     var searchType by rememberSaveable { mutableStateOf<String?>(null) }
@@ -586,7 +587,8 @@ private fun ClientApp(
                     onCategoryChange = { category = it },
                     onSelect = ::openDetail
                 )
-                Screen.LIBRARY -> PersonalLibraryScreen(Modifier.padding(padding), titles, ::openDetail)
+                Screen.LIBRARY -> PersonalLibraryScreen(Modifier.padding(padding), titles,
+                    libraryWatchedTab, { libraryWatchedTab = it }, ::openDetail)
                 Screen.DETAIL -> if (selected != null) key(selected.id) { Detail(
                     title = selected,
                     modifier = Modifier.padding(padding),
@@ -1297,17 +1299,17 @@ private fun EpisodeCard(episode: Episode, watched: Boolean = false,
 }
 
 @Composable
-private fun PersonalLibraryScreen(modifier: Modifier, titles: List<Title>, onSelect: (Title) -> Unit) {
+private fun PersonalLibraryScreen(modifier: Modifier, titles: List<Title>, watchedTab: Boolean,
+    onTabChange: (Boolean) -> Unit, onSelect: (Title) -> Unit) {
     val library = LocalPersonalLibrary.current ?: return
     LocalLibraryRevision.current
-    var watchedTab by rememberSaveable { mutableStateOf(false) }
     val items = if (watchedTab) titles.distinctBy { it.id }.filter {
         library.isTitleWatched(it) || library.hasWatchedEpisode(it)
     }.sortedBy { normalizeSearchText(it.titulo) } else library.favorites(titles)
     Column(modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = !watchedTab, onClick = { watchedTab = false }, label = { Text("Mi Lista") })
-            FilterChip(selected = watchedTab, onClick = { watchedTab = true }, label = { Text("Ya vistos") })
+            FilterChip(selected = !watchedTab, onClick = { onTabChange(false) }, label = { Text("Mi Lista") })
+            FilterChip(selected = watchedTab, onClick = { onTabChange(true) }, label = { Text("Ya vistos") })
         }
         if (items.isEmpty()) Text(if (watchedTab) "Todavía no hay títulos o episodios vistos en este catálogo."
             else "Agregá películas, series o anime desde su ficha. Los favoritos ausentes del catálogo se conservan.",

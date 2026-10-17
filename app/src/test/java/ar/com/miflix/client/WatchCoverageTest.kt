@@ -111,4 +111,29 @@ class WatchCoverageTest {
         assertTrue(key.startsWith("publication:anime:"))
         store.setWatched(key,true); assertTrue(store.hasWatchedEpisode(title)); assertFalse(store.isTitleWatched(title))
     }
+    @Test fun moviePublicationCountsForMovieButUnmarkClearsAliases() {
+        val e=Episode(id="publication",telegramUrl="https://t.me/c/1/2")
+        val season=Season(numero=1,episodios=listOf(e))
+        val movie=Title(id="movie",tipo="pelicula",temporadas=listOf(season))
+        val store=PersonalLibraryStore(Disk())
+        store.record(ProgressKeys.episode(movie,season,e),range(0,100_000),100_000)
+        assertTrue(store.isTitleWatched(movie))
+        store.setTitleWatched(movie,false)
+        assertFalse(store.isTitleWatched(movie)); assertFalse(store.hasWatchedEpisode(movie))
+    }
+    @Test fun watchingHistoryDoesNotEraseSavedPlaybackPosition() {
+        val values=mutableMapOf<String,SavedProgress>()
+        val progress=PlaybackProgressStore(object:ProgressStorage {
+            override fun read(key:String)=values[key]
+            override fun write(key:String,progress:SavedProgress){values[key]=progress}
+            override fun remove(key:String){values.remove(key)}
+        })
+        progress.save("title:a",50_000,200_000,123)
+        val library=PersonalLibraryStore(Disk())
+        library.setWatched("title:a",true)
+        assertEquals(50_000L,progress.resumablePosition("title:a"))
+        library.setWatched("title:a",false)
+        assertEquals(50_000L,progress.resumablePosition("title:a"))
+    }
+
 }
