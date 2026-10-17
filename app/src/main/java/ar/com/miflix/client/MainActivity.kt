@@ -587,12 +587,14 @@ private fun ClientApp(
                     onSelect = ::openDetail
                 )
                 Screen.LIBRARY -> PersonalLibraryScreen(Modifier.padding(padding), titles, ::openDetail)
-                Screen.DETAIL -> if (selected != null) Detail(
+                Screen.DETAIL -> if (selected != null) key(selected.id) { Detail(
                     title = selected,
                     modifier = Modifier.padding(padding),
                     autoplayTrailers = autoplayTrailers && pendingResume == null && pendingNavigation == null,
+                    related = similarTitles(selected, titles),
+                    onRelated = { selectedId = it.id },
                     onPlay = ::requestPlayback
-                )
+                ) }
                 // Cada episodio posee su Player/TelegramVideo; Dispose libera el anterior
                 // antes de que el efecto del nuevo episodio resuelva su archivo.
                 Screen.PLAYER -> key(playbackKey, playbackLink) { PlaybackScreen(
@@ -813,7 +815,7 @@ private fun Hero(title: Title, onClick: () -> Unit) {
 
 @Composable
 private fun ContentRow(
-    label: String, titles: List<Title>, onSelect: (Title) -> Unit, onMore: () -> Unit
+    label: String, titles: List<Title>, onSelect: (Title) -> Unit, onMore: (() -> Unit)? = null
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -821,7 +823,7 @@ private fun ContentRow(
             verticalAlignment = Alignment.CenterVertically) {
             Text(label, fontSize = 20.sp, fontWeight = FontWeight.Bold,
                 color = MiFlixStyle.primaryText)
-            TextButton(onClick = onMore) { Text("Ver todo", color = MiFlixStyle.secondaryText) }
+            if (onMore != null) TextButton(onClick = onMore) { Text("Ver todo", color = MiFlixStyle.secondaryText) }
         }
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1081,6 +1083,7 @@ private fun DetailBackdrop(title: Title) {
 
 @Composable
 private fun Detail(title: Title, modifier: Modifier = Modifier, autoplayTrailers: Boolean,
+    related: List<Title>, onRelated: (Title) -> Unit,
     onPlay: (String, String, String, EpisodeNavigationTarget?, EpisodeNavigationTarget?) -> Unit) {
     val seasons = title.temporadas.orEmpty()
     var selectedSeason by remember(title.id) { mutableIntStateOf(0) }
@@ -1217,6 +1220,13 @@ private fun Detail(title: Title, modifier: Modifier = Modifier, autoplayTrailers
                         }
                     }
                 })
+            }
+        }
+        item {
+            if (related.isNotEmpty()) ContentRow("Más títulos similares", related, onRelated)
+            else Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionHeading("Más títulos similares")
+                Text("Todavía no hay títulos similares disponibles en tu catálogo.", color = MiFlixStyle.secondaryText)
             }
         }
     }
