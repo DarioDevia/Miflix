@@ -40,7 +40,7 @@ internal fun MiFlixAccountSection(account: MutableState<AccountState>) {
     val config = remember { IdentityConfig(BuildConfig.GOOGLE_WEB_CLIENT_ID, BuildConfig.MIFLIX_IDENTITY_URL) }
     val state = account.value.expire(System.currentTimeMillis() / 1000)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Cuenta MiFlix", style = MaterialTheme.typography.titleLarge)
+        Text("Cuenta MiFlix", color = MiFlixStyle.primaryText, style = MaterialTheme.typography.titleLarge)
         Text("Identificación opcional para futuros servicios de MiFlix. Es independiente de Telegram y no sincroniza tu biblioteca.",
             color = MiFlixStyle.secondaryText)
         if (!config.enabled) {
@@ -88,7 +88,7 @@ internal fun MiFlixAccountSection(account: MutableState<AccountState>) {
                 }
             }) { Text("Iniciar sesión con Google") }
         } else {
-            identity.name?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
+            identity.name?.let { Text(it, color = MiFlixStyle.primaryText, style = MaterialTheme.typography.titleMedium) }
             identity.email?.let { Text(it, color = MiFlixStyle.secondaryText) }
             Text("Identidad confirmada por el servidor", color = MiFlixStyle.secondaryText)
             TextButton(enabled = !state.busy, onClick = {

@@ -130,7 +130,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private object MiFlixStyle {
+internal object MiFlixStyle {
     val background = Color(0xFF0B0D12)
     val surface = Color(0xFF181C25)
     val raised = Color(0xFF252B37)

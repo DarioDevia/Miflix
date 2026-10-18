@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.net.URI
 
 plugins {
     id("com.android.application")
@@ -24,7 +25,7 @@ val identityUrl = providers.gradleProperty("MIFLIX_IDENTITY_URL").orElse("").get
 require(identityWebId.isEmpty() || identityWebId.matches(Regex("[0-9]+-[A-Za-z0-9_-]+\\.apps\\.googleusercontent\\.com"))) {
     "MIFLIX_GOOGLE_WEB_CLIENT_ID debe ser el cliente OAuth Web público."
 }
-require(identityUrl.isEmpty() || runCatching { val u = java.net.URI(identityUrl)
+require(identityUrl.isEmpty() || runCatching { val u = URI(identityUrl)
     u.scheme == "https" && !u.host.isNullOrBlank() && u.rawUserInfo == null && u.rawQuery == null &&
         u.rawFragment == null && (u.path.isNullOrEmpty() || u.path == "/")
 }.getOrDefault(false)) { "MIFLIX_IDENTITY_URL debe ser un origen HTTPS sin credenciales ni rutas." }
