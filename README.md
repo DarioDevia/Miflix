@@ -12,6 +12,9 @@ La rama móvil no se modifica. Cada variante conserva su propio versionado.
 
 ## Corrección de Lint TV 0.1.11
 
+Segunda corrección: `fix/tv-0.1.11-lint-videoplayer` agrega el OptIn pendiente
+en VideoPlayer; no cambia su cuerpo. Lint requiere confirmación local.
+
 Rama `fix/tv-0.1.11-lint-physical`: aceptación acotada de API Media3 y
 exported explícito en TV, sin cambio de versión ni lógica de reproducción.
 **Lint y compilación Android pendientes de ejecución local.**

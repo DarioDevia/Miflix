@@ -109,3 +109,38 @@ seek/progreso y retorno sin repetir la intro. Esta lista es pendiente, no aproba
 - https://developer.android.com/media/media3/exoplayer/troubleshooting
 - https://developer.android.com/build/manage-manifests
 - https://developer.android.com/guide/topics/manifest/activity-element#exported
+
+## Segunda corrección: ámbito de VideoPlayer
+
+Base: `5bf99da4323d132c57b13df7faa30ef7335081d7`.
+Rama: `fix/tv-0.1.11-lint-videoplayer`.
+El segundo informe local confirma 20 errores UnsafeOptInUsageError, todos dentro
+de VideoPlayer, y 17 advertencias. Manifiesto TV y TelegramVideo ya no presentan
+errores en esa ejecución. La aceptación en PlaybackScreen no cubre una función
+independiente: faltaba aceptar UnstableApi en VideoPlayer.
+
+Se agrega una única anotación AndroidX OptIn sobre VideoPlayer, conservando su
+OptIn de Material3. No cambia ninguna instrucción del reproductor, Gradle, versión,
+manifiesto ni recurso. El contrato se amplía para exigir esa ubicación y conservar
+la comparación exacta de los cuerpos. Esta sección actualiza el recuento histórico:
+son cinco anotaciones en total, tres en PlaybackScreen.kt y dos en TelegramVideo.kt.
+
+Verificación de esta segunda corrección: 38 comprobaciones Python aprobadas,
+54 pruebas JVM reejecutadas desde las clases previamente compiladas de fuentes
+sin cambios, análisis sintáctico del Kotlin modificado y git diff --check aprobados.
+Pendientes: compilación Kotlin Android TV/Mobile, Lint, tests Gradle, APK e inspección
+ARM y prueba física. No hay SDK/JDK de desarrollo completo en este entorno.
+No se afirma que Lint tenga cero errores; debe confirmarse en la PC.
+
+Para recuperar esta segunda corrección, sustituir la rama del comando anterior:
+
+```powershell
+git fetch origin
+git switch --track origin/fix/tv-0.1.11-lint-videoplayer
+.\gradlew.bat :app:compileTvDebugKotlin :app:compileMobileDebugKotlin :app:lintTvDebug :app:testTvDebugUnitTest :app:testMobileDebugUnitTest
+.\tools\build_tv_physical_debug.ps1
+```
+
+Archivos de esta segunda entrega: PlaybackScreen.kt,
+tools/check_tv0111_lint_contract.py, este documento, README.md y CHANGELOG_TV.md.
+Las 17 advertencias se conservan para reevaluación; sin supresiones ni baseline.

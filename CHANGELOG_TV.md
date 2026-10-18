@@ -2,6 +2,10 @@
 
 ## 0.1.11-diagnostico / 12
 
+- Segunda corrección Lint: OptIn específico en VideoPlayer para los 20 errores
+  restantes del informe local. Cuerpo intacto; versión conservada.
+  Rama fix/tv-0.1.11-lint-videoplayer; nueva ejecución Lint pendiente en PC.
+
 - Corrección independiente de los 51 errores del informe local: cuatro OptIn
   específicos de Media3 y exported=true explícito en TV. Sin cambios funcionales.
 - 38 contratos y 54 pruebas JVM reejecutadas pasan; Lint/compilación Android

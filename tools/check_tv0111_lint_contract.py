@@ -13,7 +13,7 @@ class LintFixContracts(unittest.TestCase):
     def test_only_annotations_change_in_media_and_range_source(self):
         for name in ('PlaybackScreen.kt','TelegramVideo.kt'):
             path=PREFIX+name;actual=(ROOT/path).read_text()
-            self.assertEqual(2,actual.count(ANN),name)
+            self.assertEqual(3 if name == "PlaybackScreen.kt" else 2,actual.count(ANN),name)
             stripped=re.sub(r'(?m)^[ \t]*'+re.escape(ANN)+r'\n','',actual)
             self.assertEqual(old(path),stripped,name)
     def test_opt_ins_have_specific_declaration_scopes(self):
@@ -21,6 +21,11 @@ class LintFixContracts(unittest.TestCase):
         ranges=(ROOT/PREFIX/'TelegramVideo.kt').read_text()
         self.assertIn(ANN+'\n@Composable\ninternal fun PlaybackScreen(',playback)
         self.assertIn(ANN+'\nprivate fun logMediaTracks(',playback)
+        self.assertIn(ANN+'\n@OptIn(ExperimentalMaterial3Api::class)\n@Composable\nprivate fun VideoPlayer(',playback)
+        second_base='5bf99da4323d132c57b13df7faa30ef7335081d7'
+        previous=subprocess.check_output(['git','show',second_base+':'+PREFIX+'PlaybackScreen.kt'],cwd=ROOT,text=True)
+        target='@OptIn(ExperimentalMaterial3Api::class)\n@Composable\nprivate fun VideoPlayer('
+        self.assertEqual(previous.replace(target,ANN+'\n'+target),playback)
         self.assertIn('    '+ANN+'\n    fun factory()',ranges)
         self.assertIn(ANN+'\nprivate class TelegramRangeDataSource(',ranges)
     def test_main_and_tv_agree_on_existing_exported_activity(self):

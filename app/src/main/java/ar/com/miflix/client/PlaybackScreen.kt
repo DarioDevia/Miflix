@@ -303,6 +303,7 @@ private fun TelegramLogin(
     }
 }
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun VideoPlayer(
