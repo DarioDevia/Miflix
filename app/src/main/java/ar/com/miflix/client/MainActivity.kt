@@ -213,11 +213,8 @@ private fun ClientApp(
     val activity = context as? ComponentActivity
     val titles = catalog.items.orEmpty()
     val featuredSession = remember { FeaturedSession() }
-    val tvFeaturedSession = remember { TvFeaturedSession() }
-    val homeYear = remember { java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) }
     val featured = remember(titles) {
-        if (BuildConfig.IS_TV) tvFeaturedSession.select(titles, homeYear)
-        else featuredSession.select(titles)
+        if (BuildConfig.IS_TV) null else featuredSession.select(titles)
     }
     val fullscreenActive = if (BuildConfig.IS_TV) screen == Screen.PLAYER else
         playbackFullscreenActive(screen, fullscreen, episodeTransition)
@@ -485,7 +482,7 @@ private fun ClientApp(
                 screen.name, { screen = Screen.valueOf(it) }, { screen = Screen.CONNECT }, ::openSettings,
                 ::refresh, busy) {
             when (screen) {
-                Screen.HOME -> if (BuildConfig.IS_TV) TvHome(titles, featured, continuing,
+                Screen.HOME -> if (BuildConfig.IS_TV) TvHome(titles, continuing,
                     homeScroll, tvFocusKey, { tvFocusKey = it }, busy, problem, ::refresh,
                     ::openDetail, { item ->
                         openDetail(item.title)

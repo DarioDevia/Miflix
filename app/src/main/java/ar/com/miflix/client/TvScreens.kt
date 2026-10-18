@@ -80,7 +80,7 @@ internal fun TvCard(title: Title, focusKey: String, restoreKey: String?, subtitl
 }
 
 @Composable
-internal fun TvHome(titles: List<Title>, featured: Title?, continuing: List<ContinueWatchingItem>,
+internal fun TvHome(titles: List<Title>, continuing: List<ContinueWatchingItem>,
     scroll: LazyListState, restoreKey: String?, onFocused: (String) -> Unit,
     busy: Boolean, problem: String?, onRefresh: () -> Unit, onSelect: (Title) -> Unit,
     onContinue: (ContinueWatchingItem) -> Unit, onPlayFeatured: (Title) -> Unit) {
@@ -99,6 +99,12 @@ internal fun TvHome(titles: List<Title>, featured: Title?, continuing: List<Cont
         if (pendingReturnKey == key) pendingReturnKey = null
         onFocused(key)
     }
+    var heroFocused by remember { mutableStateOf(false) }
+    val heroVisible by remember(scroll) { derivedStateOf {
+        scroll.layoutInfo.visibleItemsInfo.any { it.key == "hero" && it.offset + it.size > 0 }
+    } }
+    val hero = rememberTvDynamicHero(titles, heroVisible, heroFocused)
+    val featured = hero.title
     val featuredFocus = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
     val firstCategory = listOf("pelicula", "serie", "anime").firstOrNull { type -> titles.any { it.tipo == type } }
@@ -109,8 +115,10 @@ internal fun TvHome(titles: List<Title>, featured: Title?, continuing: List<Cont
             }; true
         } else false
     }
-    LaunchedEffect(featured) {
-        if (returnKey == null && featured != null) {
+    var initialHeroFocusPending by remember { mutableStateOf(returnKey == null) }
+    LaunchedEffect(featured != null) {
+        if (initialHeroFocusPending && featured != null) {
+            initialHeroFocusPending = false
             scroll.scrollToItem(0)
             withFrameNanos { }
             featuredFocus.requestFocus()
@@ -119,12 +127,13 @@ internal fun TvHome(titles: List<Title>, featured: Title?, continuing: List<Cont
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val posterWidth = tvPosterWidth((maxWidth - 124.dp).value).dp
         val heroHeight = (maxHeight * .60f).coerceAtLeast(310.dp)
-        featured?.let { TvCinemaBackdrop(remember(it) { tvDetailArtwork(it) }, it.id) }
+        TvDynamicHeroBackdrop(featured, hero.rejectBackdrop)
         LazyColumn(state = scroll, modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 100.dp, end = 24.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)) {
             item(key = "hero") {
-                Column(Modifier.heightIn(min = heroHeight).padding(top = 22.dp, bottom = 18.dp),
+                Column(Modifier.heightIn(min = heroHeight).padding(top = 22.dp, bottom = 18.dp)
+                    .onFocusChanged { heroFocused = it.hasFocus }.focusGroup(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("MiFlix", color = Color(0xFFEF4B4B), fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.headlineSmall)

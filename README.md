@@ -3,12 +3,26 @@
 | Variante | versionName | versionCode | applicationId | APK debug |
 | --- | --- | --- | --- | --- |
 | Mobile | 0.9.2-diagnostico | 26 | ar.com.miflix.client | app-mobile-debug.apk |
-| TV | 0.1.9-diagnostico | 10 | ar.com.miflix.client.tv | app-tv-debug.apk |
+| TV | 0.1.10-diagnostico | 11 | ar.com.miflix.client.tv | app-tv-debug.apk |
 
 TV se desarrolla en `miflix-tv`, basada en `miflix-cliente` HEAD
 `b3b3156cb6aff846822d591317f9f377c5d2df4c` (README corregido), que contiene
 el commit funcional móvil validado `5d896013478f8126c2dac3ed2f692fc305904509`.
 La rama móvil no se modifica. Cada variante conserva su propio versionado.
+
+## MiFlix TV 0.1.10: Hero dinámico
+
+Base `2f067c63fcee7c0378d30ad565745fc01d5999e3`, rama
+`feature/tv-0.1.10-dynamic-hero`. Hero de hasta diez películas aleatorias,
+variedad de géneros y menor repetición entre sesiones; rotación cada 8 s,
+fade de fondo, precarga siguiente y pausa por foco/visibilidad/lifecycle.
+Lista e índice conservados durante el proceso de app. Filas, reproductor,
+tráilers, ARM/firma y Mobile intactos.
+
+El usuario confirmó películas, tráilers y navegación en un TV físico con la base.
+**0.1.10 no compilada aquí; nueva APK e inspección ARM pendientes. No está declarada
+preparada para prueba física.** Pasan políticas y contratos; revisión visual local
+pendiente. [Comportamiento, pruebas y build](docs/TV_0.1.10_HERO_DINAMICO.md).
 
 ## MiFlix TV 0.1.9: preparación para Android TV físico
 

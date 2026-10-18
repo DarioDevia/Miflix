@@ -12,8 +12,8 @@ from verify_tv_physical_apk import PROVENANCE, packaging_errors, inspect_apk, ve
 class PackagingPolicyTest(unittest.TestCase):
     def setUp(self):
         self.provenance=json.loads(PROVENANCE.read_text())
-        self.report={"package":"ar.com.miflix.client.tv","versionName":"0.1.9-diagnostico",
-            "versionCode":10,"minSdk":26,"targetSdk":34,"testOnly":False,"debuggable":True,
+        self.report={"package":"ar.com.miflix.client.tv","versionName":"0.1.10-diagnostico",
+            "versionCode":11,"minSdk":26,"targetSdk":34,"testOnly":False,"debuggable":True,
             "leanbackRequired":True,"touchscreenRequired":False,"leanbackLauncher":True,
             "cleartextTraffic":False,"permissions":["android.permission.INTERNET"],
             "libraries":copy.deepcopy(self.provenance['libraries'])}
@@ -61,20 +61,19 @@ class PackagingPolicyTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'Duplicate'): inspect_apk(p)
 
 class FrozenSourcesTest(unittest.TestCase):
-    def test_all_application_sources_and_resources_identical_to_018(self):
+    def test_protected_application_sources_and_resources_identical_to_019(self):
         root=Path(__file__).resolve().parents[1]
         changed=subprocess.check_output(['git','diff','--name-only',
-            'd947969c4100b6ae22ec6e06723bd74c64b22ec7','--','app/src'],cwd=root,text=True)
-        self.assertEqual('',changed)
-    def test_only_tv_gradle_version_and_abi_changes(self):
+            '2f067c63fcee7c0378d30ad565745fc01d5999e3','--','app/src'],cwd=root,text=True).splitlines()
+        prefix='app/src/main/java/ar/com/miflix/client/'
+        allowed={prefix+name for name in ('MainActivity.kt','TvScreens.kt','TvFeaturedSession.kt','TvDynamicHero.kt')}
+        allowed.add('app/src/test/java/ar/com/miflix/client/TvFeaturedSessionTest.kt')
+        self.assertTrue(set(changed)<=allowed,set(changed)-allowed)
+    def test_only_tv_version_changes_and_arm_configuration_is_identical(self):
         root=Path(__file__).resolve().parents[1]
         old=subprocess.check_output(['git','show',
-            'd947969c4100b6ae22ec6e06723bd74c64b22ec7:app/build.gradle.kts'],cwd=root,text=True)
-        expected=old.replace('versionCode = 9','versionCode = 10').replace(
-            'versionName = "0.1.8-diagnostico"','versionName = "0.1.9-diagnostico"').replace(
-            '            applicationIdSuffix = ".tv"',
-            '            applicationIdSuffix = ".tv"\n'
-            '            // These libraries already exist together in core:0.1.1. No native build here.\n'
-            '            ndk { abiFilters += setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64") }')
+            '2f067c63fcee7c0378d30ad565745fc01d5999e3:app/build.gradle.kts'],cwd=root,text=True)
+        expected=old.replace('versionCode = 10','versionCode = 11').replace(
+            'versionName = "0.1.9-diagnostico"','versionName = "0.1.10-diagnostico"')
         self.assertEqual(expected,(root/'app/build.gradle.kts').read_text())
 if __name__=='__main__': unittest.main()

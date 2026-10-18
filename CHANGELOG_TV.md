@@ -1,5 +1,19 @@
 # Historial de MiFlix TV
 
+## 0.1.10-diagnostico / 11
+
+- Hero TV: hasta diez películas aleatorias por sesión de proceso, priorizando
+  alternativas a la sesión anterior y variedad de géneros, sin ranking por votos.
+- Rotación 8 s, fade de fondos 500 ms y precarga acotada del siguiente. Pausa por
+  foco del Hero, visibilidad y lifecycle; lista/índice estables al volver de ficha.
+- Acciones originales, sin recrear el reproductor ni trasladar foco por rotación.
+  Fondos inválidos/verticales se descartan; logo conserva sustitución por texto.
+- ARM, firma, TDLib, Media3, Telegram, tráilers y pistas intactos. Mobile sin cambios.
+- 44 tests JVM y 23 comprobaciones Python/contratos pasan; AAR de cuatro ABI
+  verificado. Compilación Android, APK nueva/inspección ARM y UI física pendientes.
+- Usuario confirmó pruebas físicas de películas/tráilers/navegación con la base;
+  eso no constituye validación de 0.1.10. Sin fusión automática.
+
 ## 0.1.9-diagnostico / 10
 
 - Preparación de empaquetado físico: ABI reales explícitas sólo en flavor TV.
