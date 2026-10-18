@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "miflix-usuarios",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-17",
+  "workers_dev": true,
+  "observability": { "enabled": false },
+  "vars": {
+    "GOOGLE_WEB_CLIENT_IDS": "",
+    "GOOGLE_ANDROID_CLIENT_IDS": ""
+  },
+  "ratelimits": [{
+    "name": "AUTH_RATE_LIMITER",
+    "namespace_id": "1099001",
+    "simple": { "limit": 20, "period": 60 }
+  }]
+}

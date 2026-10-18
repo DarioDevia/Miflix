@@ -13,6 +13,11 @@ internal object AppUpdates {
     fun installedVersion() = InstalledVersion(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
 
     val history = listOf(
+        AppUpdate("0.9.9-diagnostico", 33, listOf(
+            "Cuenta MiFlix opcional mediante Google y verificación en un Worker independiente.",
+            "Integración preparada: requiere configurar OAuth y desplegar el servicio de identidad.",
+            "Sin sincronización de biblioteca, sin alterar Telegram ni reproducción."
+        )),
         AppUpdate("0.9.8-diagnostico", 32, listOf(
             "Mi Lista en Inicio y carruseles dinámicos por géneros del catálogo.",
             "Ver todo reutiliza Mi Lista, Secciones y los filtros de búsqueda existentes.",

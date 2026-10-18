@@ -1,8 +1,14 @@
-# MiFlix Cliente Android 0.9.8-diagnostico
+# MiFlix Cliente Android 0.9.9-diagnostico
 
-**Versión actual:** MiFlix Mobile `0.9.8-diagnostico` · `versionName = "0.9.8-diagnostico"` · `versionCode = 32` · `applicationId = "ar.com.miflix.client"`.
+**Versión actual:** MiFlix Mobile `0.9.9-diagnostico` · `versionName = "0.9.9-diagnostico"` · `versionCode = 33` · `applicationId = "ar.com.miflix.client"`.
 
-## 0.9.8 diagnóstico: carruseles de Inicio
+## 0.9.9 diagnóstico: Cuenta MiFlix opcional
+
+Configuración incorpora identificación Google por Credential Manager. El servicio independiente [MiFlix Identidad 0.1.0](cloud/miflix-usuarios/README.md) verifica criptográficamente el ID token; no es el Worker del catálogo. Sin configuración OAuth/HTTPS la función aparece deshabilitada y toda la app continúa funcionando. No hay usuario simulado, despliegue automático, sesión persistente, D1 ni sincronización. La confirmación solo vive en memoria hasta vencer; después se solicita nuevamente Google. Telegram, datos locales y reproducción permanecen independientes.
+
+[Configuración, seguridad y pruebas Samsung](docs/mobile-0.9.9-identidad.md). La autenticación real queda pendiente de configurar Google y autorizar el despliegue del Worker. Los tests usan claves efímeras de prueba; no prueban una cuenta Google real.
+
+## 0.9.8 diagnóstico: carruseles de Inicio (histórico)
 
 Inicio mantiene Destacado y Continuar viendo, y añade Mi Lista si hay favoritos disponibles, seguido de Películas/Series/Anime y hasta ocho géneros presentes. El modelo de filas se calcula una vez por snapshot de catálogo; favoritos reutiliza PersonalLibraryStore sin escribir ni borrar IDs ausentes. No hay consultas Cloudflare adicionales ni dependencias nuevas.
 

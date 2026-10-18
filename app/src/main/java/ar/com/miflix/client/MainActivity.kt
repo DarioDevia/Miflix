@@ -229,6 +229,7 @@ private fun ClientApp(
     var cacheLoaded by remember { mutableStateOf(false) }
     val homeScroll = rememberLazyListState()
     val homeSavedState = rememberSaveableStateHolder()
+    val miFlixAccount = rememberMiFlixAccount()
     val searchScroll = rememberLazyGridState()
     val sectionsScroll = rememberLazyGridState()
     val progressStore = remember(context) {
@@ -655,6 +656,7 @@ private fun ClientApp(
                 ) }
                 Screen.CONNECT -> Box(Modifier.padding(padding)) { TelegramConnectScreen() }
                 Screen.SETTINGS -> SettingsScreen(
+                    account = miFlixAccount,
                     onAbout = { showAbout = true },
                     modifier = Modifier.padding(padding),
                     url = editUrl,
@@ -1021,6 +1023,7 @@ private fun EmptyState(
 
 @Composable
 private fun SettingsScreen(
+    account: MutableState<AccountState>,
     modifier: Modifier, url: String, invite: String, source: String,
     problem: String?, busy: Boolean, count: Int,
     autoplayTrailers: Boolean, onAutoplayTrailersChange: (Boolean) -> Unit,
@@ -1039,6 +1042,7 @@ private fun SettingsScreen(
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item { TextButton(onClick = onAbout) { Text("Acerca de") } }
+        item { MiFlixAccountSection(account) }
         item { SectionHeading("Catálogo") }
         item { Text("La última copia válida queda disponible sin conexión. MiFlix busca cambios al abrir y al volver a Inicio.", color = MiFlixStyle.secondaryText) }
         item {

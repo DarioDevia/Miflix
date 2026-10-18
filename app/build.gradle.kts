@@ -18,6 +18,18 @@ require((telegramIdText.isEmpty() && telegramHash.isEmpty()) ||
 }
 val telegramId = telegramIdText.toIntOrNull() ?: 0
 
+// Public OAuth client ID and HTTPS endpoint only; absent by default. No client secret.
+val identityWebId = providers.gradleProperty("MIFLIX_GOOGLE_WEB_CLIENT_ID").orElse("").get().trim()
+val identityUrl = providers.gradleProperty("MIFLIX_IDENTITY_URL").orElse("").get().trim()
+require(identityWebId.isEmpty() || identityWebId.matches(Regex("[0-9]+-[A-Za-z0-9_-]+\\.apps\\.googleusercontent\\.com"))) {
+    "MIFLIX_GOOGLE_WEB_CLIENT_ID debe ser el cliente OAuth Web público."
+}
+require(identityUrl.isEmpty() || runCatching { val u = java.net.URI(identityUrl)
+    u.scheme == "https" && !u.host.isNullOrBlank() && u.rawUserInfo == null && u.rawQuery == null &&
+        u.rawFragment == null && (u.path.isNullOrEmpty() || u.path == "/")
+}.getOrDefault(false)) { "MIFLIX_IDENTITY_URL debe ser un origen HTTPS sin credenciales ni rutas." }
+
+
 android {
     namespace = "ar.com.miflix.client"
     compileSdk = 34
@@ -25,8 +37,10 @@ android {
         applicationId = "ar.com.miflix.client"
         minSdk = 26
         targetSdk = 34
-        versionCode = 32
-        versionName = "0.9.8-diagnostico"
+        versionCode = 33
+        versionName = "0.9.9-diagnostico"
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$identityWebId\"")
+        buildConfigField("String", "MIFLIX_IDENTITY_URL", "\"$identityUrl\"")
         buildConfigField("int", "TELEGRAM_API_ID", telegramId.toString())
         buildConfigField("String", "TELEGRAM_API_HASH", "\"$telegramHash\"")
     }
@@ -40,6 +54,9 @@ android {
 }
 
 dependencies {
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation(platform("androidx.compose:compose-bom:2024.02.00"))
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.activity:activity-compose:1.8.2")

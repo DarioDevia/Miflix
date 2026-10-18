@@ -2,7 +2,7 @@ name: Compilar MiFlix cliente
 on:
   workflow_dispatch:
   push:
-    branches: [miflix-cliente, feature/mobile-0.9.6-intro, feature/mobile-0.9.7-library, feature/mobile-0.9.8-home-rows]
+    branches: [miflix-cliente, feature/mobile-0.9.6-intro, feature/mobile-0.9.7-library, feature/mobile-0.9.8-home-rows, feature/mobile-0.9.9-google-identity]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -34,3 +34,25 @@ jobs:
             app/build/reports/tests/testDebugUnitTest/
             app/build/reports/lint-results-debug.*
           if-no-files-found: warn
+
+  identity:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: cloud/miflix-usuarios
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: cloud/miflix-usuarios/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm audit --omit=dev
+      - run: npm run build
