@@ -1,5 +1,15 @@
 # Historial de MiFlix TV
 
+## 0.1.11-diagnostico / 12
+
+- Recuperados los cambios locales de la tarea interrumpida desde la base exacta 0.1.10.
+- MP4 original TV de 4,01 s; reproductor Media3 independiente sin controles visibles.
+- Inicio se compone tras terminar/omitir, error o timeout de 10 s; liberación previa.
+- OK/Enter/Atrás omiten; segundo plano cancela sin repetir al volver.
+- Tema inicial negro exclusivo TV; versión Mobile y cuatro ABI TDLib intactas.
+- Pruebas de política, sintaxis y contratos ejecutadas; Gradle bloqueado por descarga
+  inaccesible. Sin APK ni validación física. Detalles en docs/TV_0.1.11_INTRO.md.
+
 ## 0.1.10-diagnostico / 11
 
 - Hero TV: hasta diez películas aleatorias por sesión de proceso, priorizando

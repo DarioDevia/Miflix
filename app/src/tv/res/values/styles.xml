@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark starting window for TV only; the normal app theme is inherited. -->
+    <style name="Theme.MiFlix.TV" parent="Theme.MiFlix">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+</resources>

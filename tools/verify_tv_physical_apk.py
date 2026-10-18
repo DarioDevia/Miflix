@@ -1,6 +1,6 @@
 """Inspect only manifest/native packaging, never DEX, sessions or BuildConfig.
 
-Default mode requires a signed universal TV 0.1.10 debug APK and Android apksigner.
+Default mode requires a signed universal TV 0.1.11 debug APK and Android apksigner.
 --inspect diagnoses older APKs without claiming verification or installability.
 Uses Python 3 standard library; does not execute or modify the APK.
 """
@@ -47,6 +47,10 @@ def manifest_elements(data):
             yield name,attrs
         offset+=size
 
+INTRO_PATH = "assets/miflix_tv_intro.mp4"
+INTRO_SHA256 = "ecede13d1d994ba31de549b7d3ca557e64d69c4f3518bbae07caae5841423b17"
+INTRO_SIZE = 2134895
+
 PROVENANCE = Path(__file__).with_name("tdlib-0.1.1-provenance.json")
 
 def inspect_apk(path):
@@ -69,7 +73,9 @@ def inspect_apk(path):
                 libraries[name.split('/')[1]] = {
                     "sha256": hashlib.sha256(data).hexdigest(), "size": len(data),
                     "elf_class": data[4], "elf_machine": struct.unpack_from('<H',data,18)[0]}
+        intro = apk.read(INTRO_PATH) if INTRO_PATH in apk.namelist() else None
         return {
+            "intro": {"sha256": hashlib.sha256(intro).hexdigest(), "size": len(intro)} if intro is not None else None,
             "package": manifest.get("package"), "versionName": manifest.get("versionName"),
             "versionCode": manifest.get("versionCode"), "minSdk": sdk.get("minSdkVersion"),
             "targetSdk": sdk.get("targetSdkVersion"), "testOnly": app.get("testOnly",False),
@@ -83,12 +89,14 @@ def inspect_apk(path):
 
 def packaging_errors(report, provenance):
     errors=[]
-    expected = {"package":"ar.com.miflix.client.tv", "versionName":"0.1.10-diagnostico",
-        "versionCode":11,"minSdk":26,"targetSdk":34,"testOnly":False,"debuggable":True,
+    expected = {"package":"ar.com.miflix.client.tv", "versionName":"0.1.11-diagnostico",
+        "versionCode":12,"minSdk":26,"targetSdk":34,"testOnly":False,"debuggable":True,
         "leanbackRequired":True,"touchscreenRequired":False,"leanbackLauncher":True,
         "cleartextTraffic":False}
     for key,value in expected.items():
         if report.get(key) != value: errors.append(f"{key}: expected {value}, found {report.get(key)}")
+    if report.get("intro") != {"sha256": INTRO_SHA256, "size": INTRO_SIZE}:
+        errors.append("Original TV intro MP4 missing or altered (path/hash/size)")
     allowed = {"android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE",
         "ar.com.miflix.client.tv.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"}
     if not set(report.get("permissions",[])) <= allowed:
@@ -115,6 +123,11 @@ def main():
     args=parser.parse_args()
     try:
         report=inspect_apk(args.apk)
+        digest = hashlib.sha256()
+        with args.apk.open("rb") as source:
+            for block in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(block)
+        report["apkSha256"] = digest.hexdigest()
         print(json.dumps(report,indent=2,ensure_ascii=False))
         if args.inspect:
             print("INSPECTION ONLY: no signature, installation or playback verified")
@@ -126,7 +139,7 @@ def main():
             print("REJECTED: " + "; ".join(errors),file=sys.stderr)
             return 1
         verify_signature(args.apksigner,args.apk)
-        print("PASS: inspected TV 0.1.10 debug packaging and signature. Physical installation/playback still untested.")
+        print("PASS: inspected TV 0.1.11 debug packaging and signature. Physical installation/playback still untested.")
         return 0
     except (OSError,ValueError,KeyError,IndexError,struct.error,BadZipFile) as error:
         print("REJECTED: " + str(error),file=sys.stderr)

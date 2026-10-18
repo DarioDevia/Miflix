@@ -80,15 +80,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val preferences = getSharedPreferences("miflix_client", MODE_PRIVATE)
         val repository = CatalogRepository(this)
+        val showTvIntro = BuildConfig.IS_TV && TvIntroProcess.session.claim(savedInstanceState != null)
         setContent {
-            ClientApp(
-                repository = repository,
-                initialUrl = startupCatalogUrl(preferences.getString("catalog_url", null)),
-                initialInvite = preferences.getString("channel_invite", "").orEmpty(),
-                saveSettings = { url, invite ->
-                    preferences.edit().putString("catalog_url", url).putString("channel_invite", invite).apply()
-                }
-            )
+            TvStartupGate(showTvIntro) {
+                ClientApp(
+                    repository = repository,
+                    initialUrl = startupCatalogUrl(preferences.getString("catalog_url", null)),
+                    initialInvite = preferences.getString("channel_invite", "").orEmpty(),
+                    saveSettings = { url, invite ->
+                        preferences.edit().putString("catalog_url", url).putString("channel_invite", invite).apply()
+                    }
+                )
+            }
         }
     }
 }

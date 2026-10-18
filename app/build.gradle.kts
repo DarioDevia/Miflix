@@ -41,8 +41,8 @@ android {
             applicationIdSuffix = ".tv"
             // These libraries already exist together in core:0.1.1. No native build here.
             ndk { abiFilters += setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64") }
-            versionCode = 11
-            versionName = "0.1.10-diagnostico"
+            versionCode = 12
+            versionName = "0.1.11-diagnostico"
             testInstrumentationRunner = "ar.com.miflix.client.TvDetailInstrumentation"
             buildConfigField("boolean", "IS_TV", "true")
         }

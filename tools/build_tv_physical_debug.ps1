@@ -15,7 +15,7 @@ Push-Location (Split-Path $PSScriptRoot -Parent)
 try {
     # Explicit target set prevents carrying a single emulator ABI into this build.
     # testOnly=false is for this normal APK task only; no global/manifest override.
-    & .\gradlew.bat :app:testTvDebugUnitTest :app:testMobileDebugUnitTest :app:assembleTvDebug `
+    & .\gradlew.bat :app:testTvDebugUnitTest :app:testMobileDebugUnitTest :app:lintTvDebug :app:lintMobileDebug :app:assembleTvDebug `
         '-Pandroid.injected.build.abi=armeabi-v7a,arm64-v8a,x86,x86_64' `
         '-Pandroid.injected.testOnly=false'
     if ($LASTEXITCODE -ne 0) { throw 'Gradle failed. Do not distribute the APK.' }

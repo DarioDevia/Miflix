@@ -7,14 +7,15 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from zipfile import ZipFile
-from verify_tv_physical_apk import PROVENANCE, packaging_errors, inspect_apk, verify_signature
+from verify_tv_physical_apk import INTRO_SHA256, INTRO_SIZE, PROVENANCE, packaging_errors, inspect_apk, verify_signature
 
 class PackagingPolicyTest(unittest.TestCase):
     def setUp(self):
         self.provenance=json.loads(PROVENANCE.read_text())
-        self.report={"package":"ar.com.miflix.client.tv","versionName":"0.1.10-diagnostico",
-            "versionCode":11,"minSdk":26,"targetSdk":34,"testOnly":False,"debuggable":True,
+        self.report={"package":"ar.com.miflix.client.tv","versionName":"0.1.11-diagnostico",
+            "versionCode":12,"minSdk":26,"targetSdk":34,"testOnly":False,"debuggable":True,
             "leanbackRequired":True,"touchscreenRequired":False,"leanbackLauncher":True,
+            "intro":{"sha256":INTRO_SHA256,"size":INTRO_SIZE},
             "cleartextTraffic":False,"permissions":["android.permission.INTERNET"],
             "libraries":copy.deepcopy(self.provenance['libraries'])}
     def errors(self): return packaging_errors(self.report,self.provenance)
@@ -61,19 +62,33 @@ class PackagingPolicyTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'Duplicate'): inspect_apk(p)
 
 class FrozenSourcesTest(unittest.TestCase):
-    def test_protected_application_sources_and_resources_identical_to_019(self):
+    def test_protected_application_sources_identical_to_0110(self):
         root=Path(__file__).resolve().parents[1]
         changed=subprocess.check_output(['git','diff','--name-only',
-            '2f067c63fcee7c0378d30ad565745fc01d5999e3','--','app/src'],cwd=root,text=True).splitlines()
+            '5fed7e317710d8ad71e19212bffa6f88a727b3f4','--','app/src'],cwd=root,text=True).splitlines()
         prefix='app/src/main/java/ar/com/miflix/client/'
-        allowed={prefix+name for name in ('MainActivity.kt','TvScreens.kt','TvFeaturedSession.kt','TvDynamicHero.kt')}
-        allowed.add('app/src/test/java/ar/com/miflix/client/TvFeaturedSessionTest.kt')
+        allowed={prefix+name for name in ('MainActivity.kt','TvCinematicIntro.kt','TvIntroPolicy.kt')}
+        allowed.update({'app/src/tv/AndroidManifest.xml','app/src/tv/res/layout/miflix_tv_intro_player.xml',
+            'app/src/tv/res/values/styles.xml','app/src/tv/assets/miflix_tv_intro.mp4',
+            'app/src/test/java/ar/com/miflix/client/TvIntroPolicyTest.kt'})
         self.assertTrue(set(changed)<=allowed,set(changed)-allowed)
     def test_only_tv_version_changes_and_arm_configuration_is_identical(self):
         root=Path(__file__).resolve().parents[1]
         old=subprocess.check_output(['git','show',
-            '2f067c63fcee7c0378d30ad565745fc01d5999e3:app/build.gradle.kts'],cwd=root,text=True)
-        expected=old.replace('versionCode = 10','versionCode = 11').replace(
-            'versionName = "0.1.9-diagnostico"','versionName = "0.1.10-diagnostico"')
+            '5fed7e317710d8ad71e19212bffa6f88a727b3f4:app/build.gradle.kts'],cwd=root,text=True)
+        expected=old.replace('versionCode = 11','versionCode = 12').replace(
+            'versionName = "0.1.10-diagnostico"','versionName = "0.1.11-diagnostico"')
         self.assertEqual(expected,(root/'app/build.gradle.kts').read_text())
+class IntroAssetPolicyTest(unittest.TestCase):
+    setUp = PackagingPolicyTest.setUp
+    errors = PackagingPolicyTest.errors
+    def test_missing_intro_is_rejected(self):
+        self.report['intro']=None
+        self.assertTrue(any('MP4' in e for e in self.errors()))
+    def test_altered_intro_is_rejected(self):
+        self.report['intro']['sha256']='0'*64
+        self.assertTrue(any('MP4' in e for e in self.errors()))
+    def test_wrong_intro_size_is_rejected(self):
+        self.report['intro']['size']=0
+        self.assertTrue(any('MP4' in e for e in self.errors()))
 if __name__=='__main__': unittest.main()

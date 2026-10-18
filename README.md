@@ -3,12 +3,23 @@
 | Variante | versionName | versionCode | applicationId | APK debug |
 | --- | --- | --- | --- | --- |
 | Mobile | 0.9.2-diagnostico | 26 | ar.com.miflix.client | app-mobile-debug.apk |
-| TV | 0.1.10-diagnostico | 11 | ar.com.miflix.client.tv | app-tv-debug.apk |
+| TV | 0.1.11-diagnostico | 12 | ar.com.miflix.client.tv | app-tv-debug.apk |
 
 TV se desarrolla en `miflix-tv`, basada en `miflix-cliente` HEAD
 `b3b3156cb6aff846822d591317f9f377c5d2df4c` (README corregido), que contiene
 el commit funcional móvil validado `5d896013478f8126c2dac3ed2f692fc305904509`.
 La rama móvil no se modifica. Cada variante conserva su propio versionado.
+
+## MiFlix TV 0.1.11: intro cinematográfica
+
+Rama `feature/tv-0.1.11-cinematic-intro`, base exacta
+`5fed7e317710d8ad71e19212bffa6f88a727b3f4`. Recupera la implementación
+interrumpida: MP4 original local, Media3 independiente, OK/Atrás para omitir,
+timeout de 10 s y liberación antes de mostrar Inicio. No repite al volver de
+películas, fichas, tráilers ni segundo plano. Hero y reproductores conservados.
+
+**Código publicado; compilación Android, lint, APK y prueba física pendientes.**
+[Recuperación, validación y pasos de compilación](docs/TV_0.1.11_INTRO.md).
 
 ## MiFlix TV 0.1.10: Hero dinámico
 

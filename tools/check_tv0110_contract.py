@@ -8,15 +8,12 @@ BASE='2f067c63fcee7c0378d30ad565745fc01d5999e3'
 def old(name):return subprocess.check_output(['git','show',BASE+':'+PREFIX+name],cwd=ROOT,text=True)
 def now(name):return (ROOT/PREFIX/name).read_text()
 class HeroContracts(unittest.TestCase):
-    def test_main_activity_only_changes_tv_hero_source(self):
-        text=old('MainActivity.kt')
-        a=text.index('    val tvFeaturedSession = remember');b=text.index('    val fullscreenActive',a)
-        text=text[:a]+'''    val featured = remember(titles) {
-        if (BuildConfig.IS_TV) null else featuredSession.select(titles)
-    }
-'''+text[b:]
-        text=text.replace('TvHome(titles, featured, continuing,','TvHome(titles, continuing,')
-        self.assertEqual(text,now('MainActivity.kt'))
+    def test_main_activity_preserves_hero_and_application_after_startup_gate(self):
+        base=subprocess.check_output(['git','show','5fed7e317710d8ad71e19212bffa6f88a727b3f4:'+PREFIX+'MainActivity.kt'],cwd=ROOT,text=True)
+        # Only Activity startup may change; the complete ClientApp and Hero integration remain exact.
+        marker='private fun ClientApp('
+        self.assertEqual(base[base.index(marker):],now('MainActivity.kt')[now('MainActivity.kt').index(marker):])
+        self.assertIn('BuildConfig.IS_TV && TvIntroProcess.session.claim',now('MainActivity.kt'))
     def test_cards_and_all_home_rows_unchanged(self):
         before=old('TvScreens.kt');after=now('TvScreens.kt')
         self.assertEqual(before[:before.index('internal fun TvHome')],after[:after.index('internal fun TvHome')])
@@ -46,5 +43,9 @@ class HeroContracts(unittest.TestCase):
         for path in ('tools/tdlib-0.1.1-provenance.json','tools/build_tv_physical_debug.ps1',
             'app/src/tv/AndroidManifest.xml','app/src/main/AndroidManifest.xml'):
             before=subprocess.check_output(['git','show',BASE+':'+path],cwd=ROOT,text=True)
+            if path == 'tools/build_tv_physical_debug.ps1':
+                before=before.replace(':app:assembleTvDebug', ':app:lintTvDebug :app:lintMobileDebug :app:assembleTvDebug')
+            if path == 'app/src/tv/AndroidManifest.xml':
+                before=before.replace('android:name=".MainActivity"', 'android:name=".MainActivity" android:theme="@style/Theme.MiFlix.TV"')
             self.assertEqual(before,(ROOT/path).read_text())
 if __name__=='__main__':unittest.main()
