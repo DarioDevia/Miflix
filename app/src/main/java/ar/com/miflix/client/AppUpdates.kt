@@ -13,6 +13,11 @@ internal object AppUpdates {
     fun installedVersion() = InstalledVersion(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
 
     val history = listOf(
+        AppUpdate("0.9.8-diagnostico", 32, listOf(
+            "Mi Lista en Inicio y carruseles dinámicos por géneros del catálogo.",
+            "Ver todo reutiliza Mi Lista, Secciones y los filtros de búsqueda existentes.",
+            "Estado guardable de Inicio y claves estables para conservar desplazamiento al volver."
+        )),
         AppUpdate("0.9.7-diagnostico", 31, listOf(
             "Inicio oculto durante la preparación de la intro, sin retrasos artificiales.",
             "Mi Lista persistente y sección Ya vistos con marcado manual por título o episodio.",

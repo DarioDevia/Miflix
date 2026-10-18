@@ -1,8 +1,18 @@
-# MiFlix Cliente Android 0.9.7-diagnostico
+# MiFlix Cliente Android 0.9.8-diagnostico
 
-**Versión actual:** MiFlix Mobile `0.9.7-diagnostico` · `versionName = "0.9.7-diagnostico"` · `versionCode = 31` · `applicationId = "ar.com.miflix.client"`.
+**Versión actual:** MiFlix Mobile `0.9.8-diagnostico` · `versionName = "0.9.8-diagnostico"` · `versionCode = 32` · `applicationId = "ar.com.miflix.client"`.
 
-## 0.9.7 diagnóstico: arranque y biblioteca local
+## 0.9.8 diagnóstico: carruseles de Inicio
+
+Inicio mantiene Destacado y Continuar viendo, y añade Mi Lista si hay favoritos disponibles, seguido de Películas/Series/Anime y hasta ocho géneros presentes. El modelo de filas se calcula una vez por snapshot de catálogo; favoritos reutiliza PersonalLibraryStore sin escribir ni borrar IDs ausentes. No hay consultas Cloudflare adicionales ni dependencias nuevas.
+
+Se normalizan mayúsculas, acentos y espacios para géneros, compartiendo la regla con CatalogSearchIndex. No se crean alias semánticos ni se convierten tipos en géneros. Los títulos se ordenan por nombre/ID. Se eligen los ocho géneros con más títulos (empate por clave), presentados alfabéticamente; una fila con el mismo conjunto exacto de IDs que una general u otro género ya seleccionado se omite para no repetirla. La categoría no se elimina del catálogo ni del filtro de búsqueda. Por eso un catálogo pequeño puede mostrar solo sus filas generales. Mi Lista conserva su propósito propio aunque coincida con otra fila.
+
+Ver todo abre Mi Lista en la pestaña de favoritos, Secciones para un tipo o Buscar con el género y sin filtros anteriores que oculten resultados. Las tarjetas reutilizan la ficha existente. SaveableStateHolder conserva el estado interno de Inicio al abrir otra pantalla; las claves de filas y títulos permiten mantener el desplazamiento horizontal aunque aparezca Mi Lista o cambie la composición de las filas. La posición vertical existente permanece en ClientApp. Las imágenes siguen usando Coil/LazyRow y los pósteres 2:3; encabezados largos se truncan para dejar visible Ver todo.
+
+Hero, selección del Destacado, continuación, intro, Player, cobertura y persistencia no se modifican. Las comprobaciones físicas de fluidez, scroll y navegación quedan pendientes en A21s/A14; [plan de pruebas](docs/mobile-0.9.8.md). Los tests JVM verifican agrupación, filtros, favoritos y entrega del título al callback de ficha, no ejecutan taps ni scroll Android.
+
+## 0.9.7 diagnóstico: arranque y biblioteca local (histórico)
 
 - **Intro:** la Activity oculta visualmente ClientApp y bloquea su interacción desde el primer frame mientras la intro esté activa. El catálogo y Telegram siguen inicializándose en paralelo. Se mantiene el Dialog/Player independiente, MP4/audio original, watchdog de 8 s, restauración y salida por error/background. Se retira el icono adicional del placeholder; queda fondo oscuro. El destello reportado se explica por Inicio visible antes de abrir el Dialog; la desaparición física debe comprobarse en Samsung, no se da por probada por compilar.
 - **Mi Lista:** entrada propia en navegación y botón en ficha. IDs de título únicos, persistidos incluso cuando desaparecen del catálogo. No cambia el JSON público.

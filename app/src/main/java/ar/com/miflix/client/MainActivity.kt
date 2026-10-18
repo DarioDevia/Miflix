@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -227,6 +228,7 @@ private fun ClientApp(
     var busy by remember { mutableStateOf(false) }
     var cacheLoaded by remember { mutableStateOf(false) }
     val homeScroll = rememberLazyListState()
+    val homeSavedState = rememberSaveableStateHolder()
     val searchScroll = rememberLazyGridState()
     val sectionsScroll = rememberLazyGridState()
     val progressStore = remember(context) {
@@ -263,6 +265,12 @@ private fun ClientApp(
     }
     val activity = context as? ComponentActivity
     val titles = catalog.items.orEmpty()
+    val homeRows = remember(titles) { buildHomeRows(titles) }
+    val homeLibrary = LocalPersonalLibrary.current
+    val homeLibraryRevision = LocalLibraryRevision.current
+    val homeFavorites = remember(titles, homeLibrary, homeLibraryRevision) {
+        homeFavoriteRow(titles, homeLibrary)
+    }
     val featuredSession = remember { FeaturedSession() }
     val featured = remember(titles) { featuredSession.select(titles) }
     val fullscreenActive = playbackFullscreenActive(screen, fullscreen, episodeTransition)
@@ -535,7 +543,7 @@ private fun ClientApp(
             }
         ) { padding ->
             when (screen) {
-                Screen.HOME -> HomeScreen(
+                Screen.HOME -> homeSavedState.SaveableStateProvider("home") { HomeScreen(
                     modifier = Modifier.padding(padding),
                     scrollState = homeScroll,
                     titles = titles,
@@ -559,8 +567,25 @@ private fun ClientApp(
                                 findNextPlayableEpisode(item.title, season, episode, ::validTelegramLink))
                         }
                     },
-                    onBrowse = { category = it; screen = Screen.SECTIONS }
-                )
+                    rows = homeRows,
+                    favorites = homeFavorites,
+                    onMore = { target ->
+                        when (target) {
+                            is HomeMoreTarget.Category -> { category = target.label; screen = Screen.SECTIONS }
+                            is HomeMoreTarget.Genre -> {
+                                query = ""
+                                searchType = null
+                                searchGenre = target.key
+                                searchYear = null
+                                searchRating = null
+                                searchLatest = false
+                                searchOrder = SearchOrder.AZ
+                                screen = Screen.SEARCH
+                            }
+                            HomeMoreTarget.Library -> { libraryWatchedTab = false; screen = Screen.LIBRARY }
+                        }
+                    }
+                ) }
                 Screen.SEARCH -> SearchScreen(
                     modifier = Modifier.padding(padding),
                     index = searchIndex,
@@ -693,7 +718,9 @@ private fun HomeScreen(
     onSelect: (Title) -> Unit,
     continuing: List<ContinueWatchingItem>,
     onContinue: (ContinueWatchingItem) -> Unit,
-    onBrowse: (String) -> Unit
+    rows: HomeCatalogRows,
+    favorites: HomeRow?,
+    onMore: (HomeMoreTarget) -> Unit
 ) {
     val pullState = rememberPullRefreshState(refreshing = busy, onRefresh = onRefresh)
     Box(modifier.fillMaxSize().pullRefresh(pullState)) {
@@ -703,7 +730,7 @@ private fun HomeScreen(
         contentPadding = PaddingValues(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        if (!telegramConnected) item {
+        if (!telegramConnected) item(key = "home:connect") {
             Surface(color = MiFlixStyle.surface, shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -714,7 +741,7 @@ private fun HomeScreen(
             }
         }
         if (problem != null && titles.isNotEmpty()) {
-            item {
+            item(key = "home:notice") {
                 Surface(
                     color = MiFlixStyle.surface,
                     shape = RoundedCornerShape(10.dp),
@@ -726,7 +753,7 @@ private fun HomeScreen(
             }
         }
         if (titles.isEmpty()) {
-            item {
+            item(key = "home:empty") {
                 EmptyState(
                     title = if (busy) "Cargando catálogo…" else "Tu videoteca empieza acá",
                     message = when {
@@ -739,8 +766,8 @@ private fun HomeScreen(
                 )
             }
         } else {
-            if (featured != null) item { Hero(featured, onClick = { onSelect(featured) }) }
-            if (continuing.isNotEmpty()) item {
+            if (featured != null) item(key = "home:hero") { Hero(featured, onClick = { onSelect(featured) }) }
+            if (continuing.isNotEmpty()) item(key = "home:continue") {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Continuar viendo", Modifier.padding(horizontal = 16.dp),
                         fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -758,15 +785,17 @@ private fun HomeScreen(
                     }
                 }
             }
-            item {
+            if (favorites != null) item(key = favorites.key) {
+                ContentRow(favorites.label, favorites.titles,
+                    onSelect = { favorites.select(it.id, onSelect) }, onMore = { onMore(favorites.more) })
+            }
+            if (rows.general.isNotEmpty() || rows.genres.isNotEmpty()) item(key = "home:explore") {
                 Text("Explorá tu videoteca", Modifier.padding(horizontal = 16.dp),
                     fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MiFlixStyle.primaryText)
             }
-            listOf("Películas", "Series", "Anime").forEach { name ->
-                val group = titles.filter { it.matchesCategory(name) }
-                if (group.isNotEmpty()) item {
-                    ContentRow(name, group, onSelect, onMore = { onBrowse(name) })
-                }
+            items(rows.general + rows.genres, key = { it.key }) { row ->
+                ContentRow(row.label, row.titles,
+                    onSelect = { row.select(it.id, onSelect) }, onMore = { onMore(row.more) })
             }
         }
     }
@@ -824,8 +853,8 @@ private fun ContentRow(
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically) {
-            Text(label, fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                color = MiFlixStyle.primaryText)
+            Text(label, Modifier.weight(1f), fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, color = MiFlixStyle.primaryText)
             if (onMore != null) TextButton(onClick = onMore) { Text("Ver todo", color = MiFlixStyle.secondaryText) }
         }
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp),

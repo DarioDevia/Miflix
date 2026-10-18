@@ -7,6 +7,11 @@ internal fun normalizeSearchText(value: String): String = Normalizer
     .normalize(value.trim(), Normalizer.Form.NFD)
     .replace(SEARCH_MARKS, "").lowercase(Locale.ROOT)
 
+/** Shared with Home: spelling/whitespace only; no genre/type aliases or semantic merges. */
+internal fun normalizeCatalogGenre(value: String): String =
+    normalizeSearchText(value).replace(GENRE_SPACE, " ")
+private val GENRE_SPACE = Regex("\\s+")
+
 private val SEARCH_MARKS = Regex("\\p{M}+")
 
 internal enum class SearchOrder(val label: String) {
@@ -40,7 +45,7 @@ internal class CatalogSearchIndex(titles: List<Title>) {
     private val genreLabels = linkedMapOf<String, String>()
     private val entries = titles.map { title ->
         val genres = title.generos.orEmpty().mapNotNull { raw ->
-            val key = normalizeSearchText(raw.orEmpty())
+            val key = normalizeCatalogGenre(raw.orEmpty())
             key.takeIf { it.isNotEmpty() }?.also { genreLabels.putIfAbsent(it, raw.trim()) }
         }.toSet()
         Entry(title, normalizeSearchText(title.titulo.orEmpty()), genres,
@@ -68,7 +73,7 @@ internal class CatalogSearchIndex(titles: List<Title>) {
     fun search(query: String, filters: SearchFilters = SearchFilters(),
         order: SearchOrder = SearchOrder.AZ): List<Title> {
         val needle = normalizeSearchText(query)
-        val genre = filters.genre?.let(::normalizeSearchText)
+        val genre = filters.genre?.let(::normalizeCatalogGenre)
         val maximumYear = latestYear
         return sorted.getValue(order).asSequence().filter { entry ->
             (needle.isEmpty() || needle in entry.name || entry.genres.any { needle in it }) &&
