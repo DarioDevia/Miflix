@@ -2,6 +2,11 @@
 
 ## 0.1.11-diagnostico / 12
 
+- Corrección independiente de los 51 errores del informe local: cuatro OptIn
+  específicos de Media3 y exported=true explícito en TV. Sin cambios funcionales.
+- 38 contratos y 54 pruebas JVM reejecutadas pasan; Lint/compilación Android
+  de esta corrección pendientes. Detalles en docs/TV_0.1.11_LINT.md.
+
 - Recuperados los cambios locales de la tarea interrumpida desde la base exacta 0.1.10.
 - MP4 original TV de 4,01 s; reproductor Media3 independiente sin controles visibles.
 - Inicio se compone tras terminar/omitir, error o timeout de 10 s; liberación previa.

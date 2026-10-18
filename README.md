@@ -10,6 +10,13 @@ TV se desarrolla en `miflix-tv`, basada en `miflix-cliente` HEAD
 el commit funcional móvil validado `5d896013478f8126c2dac3ed2f692fc305904509`.
 La rama móvil no se modifica. Cada variante conserva su propio versionado.
 
+## Corrección de Lint TV 0.1.11
+
+Rama `fix/tv-0.1.11-lint-physical`: aceptación acotada de API Media3 y
+exported explícito en TV, sin cambio de versión ni lógica de reproducción.
+**Lint y compilación Android pendientes de ejecución local.**
+[Diagnóstico, pruebas y comandos Windows](docs/TV_0.1.11_LINT.md).
+
 ## MiFlix TV 0.1.11: intro cinematográfica
 
 Rama `feature/tv-0.1.11-cinematic-intro`, base exacta

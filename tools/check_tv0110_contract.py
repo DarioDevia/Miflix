@@ -46,6 +46,6 @@ class HeroContracts(unittest.TestCase):
             if path == 'tools/build_tv_physical_debug.ps1':
                 before=before.replace(':app:assembleTvDebug', ':app:lintTvDebug :app:lintMobileDebug :app:assembleTvDebug')
             if path == 'app/src/tv/AndroidManifest.xml':
-                before=before.replace('android:name=".MainActivity"', 'android:name=".MainActivity" android:theme="@style/Theme.MiFlix.TV"')
+                before=before.replace('android:name=".MainActivity"', 'android:name=".MainActivity" android:exported="true" android:theme="@style/Theme.MiFlix.TV"')
             self.assertEqual(before,(ROOT/path).read_text())
 if __name__=='__main__':unittest.main()

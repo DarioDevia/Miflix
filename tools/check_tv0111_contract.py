@@ -1,5 +1,6 @@
 """Startup/asset source guards only; not Android UI, decoder or focus execution."""
 import hashlib
+import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -20,7 +21,10 @@ class IntroContracts(unittest.TestCase):
             'TvTrackPanel.kt','MediaTrackPolicy.kt','TvTrackPolicy.kt','TelegramVideo.kt','TelegramSession.kt',
             'TvTrailer.kt','TvIntegratedTrailer.kt','TvTrailerPolicy.kt','FeaturedSession.kt','Catalog.kt'):
             path='app/src/main/java/ar/com/miflix/client/'+name
-            self.assertEqual(old(path),(ROOT/path).read_bytes(),name)
+            actual=(ROOT/path).read_bytes()
+            if name in ('PlaybackScreen.kt','TelegramVideo.kt'):
+                actual=re.sub(rb'(?m)^[ \t]*@androidx\.annotation\.OptIn\(androidx\.media3\.common\.util\.UnstableApi::class\)\n',b'',actual)
+            self.assertEqual(old(path),actual,name)
     def test_actual_application_and_auth_body_is_unchanged(self):
         path='app/src/main/java/ar/com/miflix/client/MainActivity.kt'
         before=old(path).decode();after=(ROOT/path).read_text();marker='private fun ClientApp('
@@ -48,6 +52,6 @@ class IntroContracts(unittest.TestCase):
         for path in ('tools/tdlib-0.1.1-provenance.json','app/src/main/AndroidManifest.xml'):
             self.assertEqual(old(path),(ROOT/path).read_bytes())
         path='app/src/tv/AndroidManifest.xml'
-        expected=old(path).decode().replace('android:name=".MainActivity"','android:name=".MainActivity" android:theme="@style/Theme.MiFlix.TV"')
+        expected=old(path).decode().replace('android:name=".MainActivity"','android:name=".MainActivity" android:exported="true" android:theme="@style/Theme.MiFlix.TV"')
         self.assertEqual(expected,(ROOT/path).read_text())
 if __name__=='__main__':unittest.main()

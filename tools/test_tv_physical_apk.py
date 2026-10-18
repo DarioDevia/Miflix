@@ -67,7 +67,7 @@ class FrozenSourcesTest(unittest.TestCase):
         changed=subprocess.check_output(['git','diff','--name-only',
             '5fed7e317710d8ad71e19212bffa6f88a727b3f4','--','app/src'],cwd=root,text=True).splitlines()
         prefix='app/src/main/java/ar/com/miflix/client/'
-        allowed={prefix+name for name in ('MainActivity.kt','TvCinematicIntro.kt','TvIntroPolicy.kt')}
+        allowed={prefix+name for name in ('MainActivity.kt','TvCinematicIntro.kt','TvIntroPolicy.kt','PlaybackScreen.kt','TelegramVideo.kt')}
         allowed.update({'app/src/tv/AndroidManifest.xml','app/src/tv/res/layout/miflix_tv_intro_player.xml',
             'app/src/tv/res/values/styles.xml','app/src/tv/assets/miflix_tv_intro.mp4',
             'app/src/test/java/ar/com/miflix/client/TvIntroPolicyTest.kt'})

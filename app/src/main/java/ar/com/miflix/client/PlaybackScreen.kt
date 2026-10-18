@@ -59,6 +59,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.CancellationException
 import java.util.Locale
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 internal fun PlaybackScreen(
     link: String,
@@ -844,6 +845,7 @@ private fun EpisodeControls(previous: EpisodeNavigationTarget?, next: EpisodeNav
 }
 
 /** Read-only snapshots: no track preferences, IDs, URIs or player state are logged here. */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 private fun logMediaTracks(tracks: Tracks, event: String) {
     val tag = "MiFlixTracks"
     fun text(value: String?): String = value?.takeIf { it.isNotBlank() }
