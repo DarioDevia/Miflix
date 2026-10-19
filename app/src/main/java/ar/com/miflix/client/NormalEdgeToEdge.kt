@@ -26,7 +26,8 @@ internal fun NormalEdgeToEdge(activity: ComponentActivity?, enabled: Boolean) {
             val statusDarkIcons = bars.isAppearanceLightStatusBars
             val navigationDarkIcons = bars.isAppearanceLightNavigationBars
             val flags = window.attributes.flags
-            val cutoutMode = if (Build.VERSION.SDK_INT >= 28) window.attributes.layoutInDisplayCutoutMode else 0
+            val cutoutMode = if (Build.VERSION.SDK_INT >= 28) window.attributes.layoutInDisplayCutoutMode
+                else WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
             val dividerColor = if (Build.VERSION.SDK_INT >= 28) window.navigationBarDividerColor else 0
             val statusContrast = if (Build.VERSION.SDK_INT >= 29) window.isStatusBarContrastEnforced else false
             val navigationContrast = if (Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced else false
