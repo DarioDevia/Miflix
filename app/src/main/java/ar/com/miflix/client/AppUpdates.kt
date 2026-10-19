@@ -13,6 +13,10 @@ internal object AppUpdates {
     fun installedVersion() = InstalledVersion(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
 
     val history = listOf(
+        AppUpdate("0.9.10-diagnostico", 34, listOf(
+            "Inicio muestra carátulas sin títulos ni nombres de episodios debajo; conserva vistos y progreso.",
+            "Especiales se muestra al final del selector de temporadas, conservando números e índices originales."
+        )),
         AppUpdate("0.9.9-diagnostico", 33, listOf(
             "Cuenta MiFlix opcional mediante Google y verificación en un Worker independiente.",
             "Integración preparada: requiere configurar OAuth y desplegar el servicio de identidad.",

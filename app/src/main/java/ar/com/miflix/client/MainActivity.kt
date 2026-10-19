@@ -47,6 +47,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.filled.Bookmark
@@ -777,9 +779,9 @@ private fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(continuing, key = { it.key }) { item ->
                             Column(Modifier.width(126.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                                MovieCard(item.title, onClick = { onContinue(item) })
-                                item.label?.let { Text(it, fontSize = 12.sp, maxLines = 2,
-                                    color = MiFlixStyle.secondaryText, overflow = TextOverflow.Ellipsis) }
+                                MovieCard(item.title, showTitle = false,
+                                    accessibilityLabel = listOfNotNull(item.title.titulo, item.label).joinToString(" · "),
+                                    onClick = { onContinue(item) })
                                 item.fraction?.let { LinearProgressIndicator(progress = it,
                                     modifier = Modifier.fillMaxWidth()) }
                             }
@@ -788,7 +790,7 @@ private fun HomeScreen(
                 }
             }
             if (favorites != null) item(key = favorites.key) {
-                ContentRow(favorites.label, favorites.titles,
+                ContentRow(favorites.label, favorites.titles, showTitles = false,
                     onSelect = { favorites.select(it.id, onSelect) }, onMore = { onMore(favorites.more) })
             }
             if (rows.general.isNotEmpty() || rows.genres.isNotEmpty()) item(key = "home:explore") {
@@ -796,7 +798,7 @@ private fun HomeScreen(
                     fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MiFlixStyle.primaryText)
             }
             items(rows.general + rows.genres, key = { it.key }) { row ->
-                ContentRow(row.label, row.titles,
+                ContentRow(row.label, row.titles, showTitles = false,
                     onSelect = { row.select(it.id, onSelect) }, onMore = { onMore(row.more) })
             }
         }
@@ -849,7 +851,8 @@ private fun Hero(title: Title, onClick: () -> Unit) {
 
 @Composable
 private fun ContentRow(
-    label: String, titles: List<Title>, onSelect: (Title) -> Unit, onMore: (() -> Unit)? = null
+    label: String, titles: List<Title>, onSelect: (Title) -> Unit, onMore: (() -> Unit)? = null,
+    showTitles: Boolean = true
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -862,19 +865,23 @@ private fun ContentRow(
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(titles, key = { it.id }) { title ->
-                MovieCard(title, Modifier.width(126.dp), onClick = { onSelect(title) })
+                MovieCard(title, Modifier.width(126.dp), showTitle = showTitles, onClick = { onSelect(title) })
             }
         }
     }
 }
 
 @Composable
-private fun MovieCard(title: Title, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun MovieCard(title: Title, modifier: Modifier = Modifier, showTitle: Boolean = true,
+    accessibilityLabel: String = title.titulo, onClick: () -> Unit) {
     val library = LocalPersonalLibrary.current
     LocalLibraryRevision.current
     val seen = library?.isTitleWatched(title) == true
     val someEpisodesSeen = !seen && library?.hasWatchedEpisode(title) == true
-    Column(modifier.clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+    Column(modifier.clickable(onClick = onClick)
+        .then(if (!showTitle) Modifier.semantics(mergeDescendants = true) {
+            contentDescription = accessibilityLabel
+        } else Modifier), verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f)
             .clip(RoundedCornerShape(8.dp)).background(MiFlixStyle.surface),
             contentAlignment = Alignment.Center) {
@@ -888,7 +895,7 @@ private fun MovieCard(title: Title, modifier: Modifier = Modifier, onClick: () -
                 Modifier.align(Alignment.TopEnd).background(MiFlixStyle.background.copy(alpha = .9f))
                     .padding(6.dp), color = MiFlixStyle.primaryText, fontSize = 11.sp)
         }
-        Text(title.titulo, color = MiFlixStyle.primaryText, fontSize = 14.sp,
+        if (showTitle) Text(title.titulo, color = MiFlixStyle.primaryText, fontSize = 14.sp,
             lineHeight = 18.sp, fontWeight = FontWeight.SemiBold,
             maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
@@ -1129,7 +1136,10 @@ private fun Detail(title: Title, modifier: Modifier = Modifier, autoplayTrailers
     related: List<Title>, onRelated: (Title) -> Unit,
     onPlay: (String, String, String, EpisodeNavigationTarget?, EpisodeNavigationTarget?) -> Unit) {
     val seasons = title.temporadas.orEmpty()
-    var selectedSeason by remember(title.id) { mutableIntStateOf(0) }
+    val seasonOptions = remember(title) { detailSeasonOptions(title) }
+    var selectedSeason by remember(title.id) {
+        mutableIntStateOf(seasonOptions.firstOrNull()?.catalogIndex ?: 0)
+    }
     val trailer = remember(title.trailerUrl, autoplayTrailers) {
         TrailerLink.autoplayTarget(title.trailerUrl, autoplayTrailers)
     }
@@ -1239,17 +1249,12 @@ private fun Detail(title: Title, modifier: Modifier = Modifier, autoplayTrailers
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SectionHeading(if (title.tipo == "pelicula") "Publicaciones" else "Episodios")
                     if (seasons.size > 1) LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(seasons.size) { index ->
-                            val season = seasons[index]
-                            FilterChip(selected = index == selectedSeason,
-                                onClick = { selectedSeason = index },
-                                label = { Text(season.nombre?.takeIf(String::isNotBlank)
-                                    ?: season.titulo?.takeIf(String::isNotBlank)
-                                    ?: "Temporada " + season.numero) })
+                        items(seasonOptions, key = { it.catalogIndex }) { option ->
+                            FilterChip(selected = option.catalogIndex == selectedSeason,
+                                onClick = { selectedSeason = option.catalogIndex },
+                                label = { Text(option.label) })
                         }
-                    } else Text(seasons.first().nombre?.takeIf(String::isNotBlank)
-                        ?: seasons.first().titulo?.takeIf(String::isNotBlank)
-                        ?: "Temporada " + seasons.first().numero,
+                    } else Text(seasonOptions.first().label,
                         color = MiFlixStyle.secondaryText)
                 }
             }

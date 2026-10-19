@@ -1,8 +1,14 @@
-# MiFlix Cliente Android 0.9.9-diagnostico
+# MiFlix Cliente Android 0.9.10-diagnostico
 
-**Versión actual:** MiFlix Mobile `0.9.9-diagnostico` · `versionName = "0.9.9-diagnostico"` · `versionCode = 33` · `applicationId = "ar.com.miflix.client"`.
+**Versión actual:** MiFlix Mobile `0.9.10-diagnostico` · `versionName = "0.9.10-diagnostico"` · `versionCode = 34` · `applicationId = "ar.com.miflix.client"`.
 
-## 0.9.9 diagnóstico: Cuenta MiFlix opcional
+## 0.9.10 diagnóstico: pendientes visuales Mobile
+
+Las filas horizontales de Inicio muestran las carátulas sin títulos ni datos de episodio debajo, conservando indicadores de visto, barras de progreso y callbacks de navegación. Los textos no se componen ni dejan altura reservada; los nombres siguen en accesibilidad, fichas, búsquedas, biblioteca y similares. El selector de temporadas presenta la temporada 0 como Especiales al final; conserva índices, datos, publicaciones y orden interno de episodios. No cambia Anterior/Siguiente ni el reproductor. La agrupación sintética Publicaciones del anime mantiene su nombre.
+
+[Auditoría, límites y pruebas Samsung](docs/mobile-0.9.10-visual-pending.md). Sin cambios en Telegram, identidad Google, Workers, dependencias o datos locales. La comprobación visual física queda pendiente.
+
+## 0.9.9 diagnóstico: Cuenta MiFlix opcional (histórico)
 
 Configuración incorpora identificación Google por Credential Manager. El servicio independiente [MiFlix Identidad 0.1.0](cloud/miflix-usuarios/README.md) verifica criptográficamente el ID token; no es el Worker del catálogo. Sin configuración OAuth/HTTPS la función aparece deshabilitada y toda la app continúa funcionando. No hay usuario simulado, despliegue automático, sesión persistente, D1 ni sincronización. La confirmación solo vive en memoria hasta vencer; después se solicita nuevamente Google. Telegram, datos locales y reproducción permanecen independientes.
 
