@@ -1,8 +1,14 @@
-# MiFlix Cliente Android 0.9.10-diagnostico
+# MiFlix Cliente Android 0.9.11-diagnostico
 
-**Versión actual:** MiFlix Mobile `0.9.10-diagnostico` · `versionName = "0.9.10-diagnostico"` · `versionCode = 34` · `applicationId = "ar.com.miflix.client"`.
+**Versión actual:** MiFlix Mobile `0.9.11-diagnostico` · `versionName = "0.9.11-diagnostico"` · `versionCode = 35` · `applicationId = "ar.com.miflix.client"`.
 
-## 0.9.10 diagnóstico: pendientes visuales Mobile
+## 0.9.11 diagnóstico: Edge-to-Edge Mobile
+
+El fondo de las pantallas normales se dibuja detrás de la barra de estado transparente, con íconos claros y controles protegidos por insets de barras y recortes de cámara. La navegación inferior conserva sus áreas seguras. Se usa enableEdgeToEdge disponible en Activity 1.8.2, sin actualizar dependencias. Un efecto acotado restaura la configuración previa al entrar al Player; el bloque existente de fullscreen, orientación y liberación no cambia. La intro conserva su ventana independiente.
+
+[Implementación, límites y pruebas Samsung](docs/mobile-0.9.11-edge-to-edge.md). Sin cambios de Hero, carátulas, datos o autenticación. La validación visual y de gestos/tres botones requiere dispositivo o emulador y no se declara realizada por compilar.
+
+## 0.9.10 diagnóstico: pendientes visuales Mobile (histórico)
 
 Las filas horizontales de Inicio muestran las carátulas sin títulos ni datos de episodio debajo, conservando indicadores de visto, barras de progreso y callbacks de navegación. Los textos no se componen ni dejan altura reservada; los nombres siguen en accesibilidad, fichas, búsquedas, biblioteca y similares. El selector de temporadas presenta la temporada 0 como Especiales al final; conserva índices, datos, publicaciones y orden interno de episodios. No cambia Anterior/Siguiente ni el reproductor. La agrupación sintética Publicaciones del anime mantiene su nombre.
 

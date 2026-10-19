@@ -277,6 +277,8 @@ private fun ClientApp(
     val featuredSession = remember { FeaturedSession() }
     val featured = remember(titles) { featuredSession.select(titles) }
     val fullscreenActive = playbackFullscreenActive(screen, fullscreen, episodeTransition)
+    val normalEdgeToEdge = normalEdgeToEdgeActive(screen, fullscreenActive, introActive)
+    NormalEdgeToEdge(activity, normalEdgeToEdge)
     val searchIndex = remember(titles) { CatalogSearchIndex(titles) }
     LaunchedEffect(searchIndex, query, searchType, searchGenre, searchYear, searchRating,
         searchLatest, searchOrder) { searchScroll.scrollToItem(0) }
@@ -473,10 +475,15 @@ private fun ClientApp(
                 }) { Text("Empezar desde el principio") } }
             )
         }
+        val safeBars = WindowInsets.systemBars.union(WindowInsets.displayCutout)
         Scaffold(
+            modifier = if (normalEdgeToEdge) Modifier.imePadding() else Modifier,
+            contentWindowInsets = if (normalEdgeToEdge) safeBars else ScaffoldDefaults.contentWindowInsets,
             containerColor = MiFlixStyle.background,
             topBar = {
                 if (!fullscreenActive) TopAppBar(
+                    windowInsets = if (normalEdgeToEdge) safeBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+                        else TopAppBarDefaults.windowInsets,
                     title = {
                         Text(
                             when (screen) {
@@ -520,7 +527,9 @@ private fun ClientApp(
             },
             bottomBar = {
                 if (screen == Screen.HOME || screen == Screen.SEARCH || screen == Screen.SECTIONS || screen == Screen.LIBRARY) {
-                    NavigationBar(containerColor = MiFlixStyle.surface) {
+                    NavigationBar(containerColor = MiFlixStyle.surface,
+                        windowInsets = if (normalEdgeToEdge) safeBars.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
+                            else NavigationBarDefaults.windowInsets) {
                         listOf(
                             Triple(Screen.HOME, "Inicio", Icons.Default.Home),
                             Triple(Screen.SEARCH, "Buscar", Icons.Default.Search),

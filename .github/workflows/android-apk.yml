@@ -2,7 +2,7 @@ name: Compilar MiFlix cliente
 on:
   workflow_dispatch:
   push:
-    branches: [miflix-cliente, feature/mobile-0.9.6-intro, feature/mobile-0.9.7-library, feature/mobile-0.9.8-home-rows, feature/mobile-0.9.9-google-identity, fix/mobile-0.9.10-visual-pending]
+    branches: [miflix-cliente, feature/mobile-0.9.6-intro, feature/mobile-0.9.7-library, feature/mobile-0.9.8-home-rows, feature/mobile-0.9.9-google-identity, fix/mobile-0.9.10-visual-pending, feature/mobile-0.9.11-edge-to-edge]
 jobs:
   build:
     runs-on: ubuntu-latest
