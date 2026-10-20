@@ -38,8 +38,8 @@ android {
         applicationId = "ar.com.miflix.client"
         minSdk = 26
         targetSdk = 34
-        versionCode = 35
-        versionName = "0.9.11-diagnostico"
+        versionCode = 36
+        versionName = "0.9.12-diagnostico"
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$identityWebId\"")
         buildConfigField("String", "MIFLIX_IDENTITY_URL", "\"$identityUrl\"")
         buildConfigField("int", "TELEGRAM_API_ID", telegramId.toString())

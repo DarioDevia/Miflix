@@ -13,6 +13,10 @@ internal object AppUpdates {
     fun installedVersion() = InstalledVersion(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
 
     val history = listOf(
+        AppUpdate("0.9.12-diagnostico", 36, listOf(
+            "Continuar viendo excluye películas y episodios vistos sin borrar su progreso ni historial.",
+            "Actualización local al cambiar Visto, regresar a Inicio o volver de segundo plano."
+        )),
         AppUpdate("0.9.11-diagnostico", 35, listOf(
             "Fondo extendido detrás de la barra de estado, con indicadores Android visibles.",
             "Áreas seguras para controles, cámara y navegación; Player e intro conservan sus ventanas."

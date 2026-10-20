@@ -323,8 +323,10 @@ private fun ClientApp(
     LaunchedEffect(screen, cacheLoaded, url) {
         if (cacheLoaded && screen == Screen.HOME) refreshIfDue()
     }
-    LaunchedEffect(screen, catalog) {
-        if (screen == Screen.HOME) continuing = continueWatching(titles, progressStore)
+    // Run after composition/disposal so the departing Player has saved its last position.
+    // Watched mutations and foreground return refresh locally, without a catalog request.
+    LaunchedEffect(screen, catalog, homeLibrary, homeLibraryRevision, appResumed) {
+        if (screen == Screen.HOME) continuing = continueWatching(titles, progressStore, homeLibrary)
     }
     DisposableEffect(owner, url, screen, cacheLoaded, catalog) {
         val observer = LifecycleEventObserver { _, event ->
@@ -332,7 +334,6 @@ private fun ClientApp(
             if (event == Lifecycle.Event.ON_PAUSE) appResumed = false
             if (event == Lifecycle.Event.ON_RESUME && cacheLoaded && screen == Screen.HOME) {
                 refreshIfDue()
-                continuing = continueWatching(catalog.items.orEmpty(), progressStore)
             }
         }
         owner.lifecycle.addObserver(observer)

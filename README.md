@@ -1,8 +1,14 @@
-# MiFlix Cliente Android 0.9.11-diagnostico
+# MiFlix Cliente Android 0.9.12-diagnostico
 
-**Versión actual:** MiFlix Mobile `0.9.11-diagnostico` · `versionName = "0.9.11-diagnostico"` · `versionCode = 35` · `applicationId = "ar.com.miflix.client"`.
+**Versión actual:** MiFlix Mobile `0.9.12-diagnostico` · `versionName = "0.9.12-diagnostico"` · `versionCode = 36` · `applicationId = "ar.com.miflix.client"`.
 
-## 0.9.11 diagnóstico: Edge-to-Edge Mobile
+## 0.9.12 diagnóstico: Continuar viendo coherente con Vistos
+
+La fila consulta el progreso pendiente y el estado local de Vistos. Oculta películas o episodios vistos, manuales o automáticos, sin eliminar sus registros. Se recalcula al cambiar Vistos, volver a Inicio y regresar de segundo plano. Desmarcar solo permite reaparecer si todavía existe progreso pendiente válido. Se conservan las reglas, claves y almacenamiento existentes; no cambia el reproductor ni se agrega reproducción automática.
+
+[Auditoría, compatibilidad y pruebas Samsung/TV](docs/mobile-0.9.12-continue-watching.md). La validación física queda pendiente; la versión 0.9.11 permanece intacta en su rama.
+
+## 0.9.11 diagnóstico: Edge-to-Edge Mobile (histórico)
 
 El fondo de las pantallas normales se dibuja detrás de la barra de estado transparente, con íconos claros y controles protegidos por insets de barras y recortes de cámara. La navegación inferior conserva sus áreas seguras. Se usa enableEdgeToEdge disponible en Activity 1.8.2, sin actualizar dependencias. Un efecto acotado restaura la configuración previa al entrar al Player; el bloque existente de fullscreen, orientación y liberación no cambia. La intro conserva su ventana independiente.
 

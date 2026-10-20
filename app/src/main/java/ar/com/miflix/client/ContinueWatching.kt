@@ -18,15 +18,19 @@ internal data class ContinueWatchingItem(
     }
 }
 
-/** Resolve existing keys against the current catalog; orphan preferences are never enumerated. */
-internal fun continueWatching(titles: List<Title>, store: PlaybackProgressStore): List<ContinueWatchingItem> {
+/** Read-only projection of pending progress and watched state; never deletes persisted records. */
+internal fun continueWatching(titles: List<Title>, store: PlaybackProgressStore,
+    library: PersonalLibraryStore? = null): List<ContinueWatchingItem> {
     val items = mutableListOf<ContinueWatchingItem>()
     titles.forEach { title ->
+        // Movie publications are alternative identities of the same movie.
+        // Series/anime remain episode-scoped: a parent title mark never fans out.
+        if (title.tipo == "pelicula" && library?.isTitleWatched(title) == true) return@forEach
         title.temporadas.orEmpty().forEachIndexed { seasonIndex, season ->
             season.episodios.orEmpty().forEachIndexed { episodeIndex, episode ->
                 if (!episode.telegramUrl.isNullOrBlank()) {
                     val key = ProgressKeys.episode(title, season, episode)
-                    store.resumableProgress(key)?.let {
+                    if (library?.isWatched(key) != true) store.resumableProgress(key)?.let {
                         items += ContinueWatchingItem(title, key, it, seasonIndex, episodeIndex)
                     }
                 }
@@ -34,9 +38,10 @@ internal fun continueWatching(titles: List<Title>, store: PlaybackProgressStore)
         }
         if (!title.telegramUrl.isNullOrBlank()) {
             val key = ProgressKeys.title(title)
-            if (items.none { it.key == key }) store.resumableProgress(key)?.let {
-                items += ContinueWatchingItem(title, key, it)
-            }
+            if (library?.isWatched(key) != true && items.none { it.key == key })
+                store.resumableProgress(key)?.let {
+                    items += ContinueWatchingItem(title, key, it)
+                }
         }
     }
     return items.distinctBy { it.key }.sortedByDescending { it.progress.updatedAtMs }
