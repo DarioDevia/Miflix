@@ -104,7 +104,10 @@ internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
     onPlay: (String, String, String, EpisodeNavigationTarget?, EpisodeNavigationTarget?) -> Unit,
     initialSeasonIndex: Int = 0, onSeasonSelected: (Int) -> Unit = {}) {
     val artwork = remember(title) { tvDetailArtwork(title) }
-    var seasonIndex by rememberSaveable(title.id) { mutableIntStateOf(initialSeasonIndex.coerceIn(0, (title.temporadas.orEmpty().size - 1).coerceAtLeast(0))) }
+    val seasonOrder = remember(title.temporadas) { tvSeasonIndices(title.temporadas.orEmpty()) }
+    var seasonIndex by rememberSaveable(title.id) {
+        mutableIntStateOf(initialSeasonIndex.takeIf { it in seasonOrder } ?: seasonOrder.firstOrNull() ?: 0)
+    }
     var synopsisOverflow by remember(title.id, title.sinopsis) { mutableStateOf(false) }
     var fullSynopsis by rememberSaveable(title.id) { mutableStateOf(false) }
     var restoreSynopsis by remember { mutableStateOf(false) }
@@ -194,7 +197,7 @@ internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
                     Column(Modifier.fillMaxWidth().background(detailBase.copy(alpha = .9f)).padding(horizontal = 48.dp)) {
                         Text("Temporadas y episodios", color = Color.White,
                             style = MaterialTheme.typography.headlineSmall)
-                        LazyRow(state = rememberLazyListState(seasonIndex), modifier = Modifier.focusGroup().padding(vertical = 12.dp).onPreviewKeyEvent { event ->
+                        LazyRow(state = rememberLazyListState(seasonOrder.indexOf(seasonIndex).coerceAtLeast(0)), modifier = Modifier.focusGroup().padding(vertical = 12.dp).onPreviewKeyEvent { event ->
                             val code = event.nativeKeyEvent.keyCode
                             if (code == 19 || code == 20) {
                                 if (event.type == KeyEventType.KeyDown) {
@@ -205,9 +208,10 @@ internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
                             } else false
                         },
                             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            items(seasons.size) { index ->
+                            items(seasonOrder.size, key = { seasonOrder[it] }) { displayIndex ->
+                                val index = seasonOrder[displayIndex]
                                 val season = seasons[index]
-                                TvDetailAction((if (index == seasonIndex) "✓ " else "") + "Temporada ${season.numero}",
+                                TvDetailAction((if (index == seasonIndex) "✓ " else "") + tvSeasonLabel(season),
                                     Modifier.focusRequester(seasonFocus[index])) { seasonIndex = index; onSeasonSelected(index) }
                             }
                         }

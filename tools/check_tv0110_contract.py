@@ -1,3 +1,4 @@
+from tv012_contract_support import without_tv012_progress_wiring
 """Focused source invariants. Does not replace Android compilation or DPAD/UI execution."""
 import subprocess
 import unittest
@@ -12,7 +13,7 @@ class HeroContracts(unittest.TestCase):
         base=subprocess.check_output(['git','show','5fed7e317710d8ad71e19212bffa6f88a727b3f4:'+PREFIX+'MainActivity.kt'],cwd=ROOT,text=True)
         # Only Activity startup may change; the complete ClientApp and Hero integration remain exact.
         marker='private fun ClientApp('
-        self.assertEqual(base[base.index(marker):],now('MainActivity.kt')[now('MainActivity.kt').index(marker):])
+        self.assertEqual(base[base.index(marker):],without_tv012_progress_wiring(now('MainActivity.kt'))[without_tv012_progress_wiring(now('MainActivity.kt')).index(marker):])
         self.assertIn('BuildConfig.IS_TV && TvIntroProcess.session.claim',now('MainActivity.kt'))
     def test_cards_and_all_home_rows_unchanged(self):
         before=old('TvScreens.kt');after=now('TvScreens.kt')

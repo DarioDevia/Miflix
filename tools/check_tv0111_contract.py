@@ -1,3 +1,4 @@
+from tv012_contract_support import without_tv012_progress_wiring
 """Startup/asset source guards only; not Android UI, decoder or focus execution."""
 import hashlib
 import re
@@ -27,7 +28,7 @@ class IntroContracts(unittest.TestCase):
             self.assertEqual(old(path),actual,name)
     def test_actual_application_and_auth_body_is_unchanged(self):
         path='app/src/main/java/ar/com/miflix/client/MainActivity.kt'
-        before=old(path).decode();after=(ROOT/path).read_text();marker='private fun ClientApp('
+        before=old(path).decode();after=without_tv012_progress_wiring((ROOT/path).read_text());marker='private fun ClientApp('
         self.assertEqual(before[before.index(marker):],after[after.index(marker):])
         self.assertIn('BuildConfig.IS_TV && TvIntroProcess.session.claim(savedInstanceState != null)',after)
         intro=(SRC/'TvCinematicIntro.kt').read_text()

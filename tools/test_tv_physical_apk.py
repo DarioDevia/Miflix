@@ -12,8 +12,8 @@ from verify_tv_physical_apk import INTRO_SHA256, INTRO_SIZE, PROVENANCE, packagi
 class PackagingPolicyTest(unittest.TestCase):
     def setUp(self):
         self.provenance=json.loads(PROVENANCE.read_text())
-        self.report={"package":"ar.com.miflix.client.tv","versionName":"0.1.11-diagnostico",
-            "versionCode":12,"minSdk":26,"targetSdk":34,"testOnly":False,"debuggable":True,
+        self.report={"package":"ar.com.miflix.client.tv","versionName":"0.1.12-diagnostico",
+            "versionCode":13,"minSdk":26,"targetSdk":34,"testOnly":False,"debuggable":True,
             "leanbackRequired":True,"touchscreenRequired":False,"leanbackLauncher":True,
             "intro":{"sha256":INTRO_SHA256,"size":INTRO_SIZE},
             "cleartextTraffic":False,"permissions":["android.permission.INTERNET"],
@@ -67,17 +67,19 @@ class FrozenSourcesTest(unittest.TestCase):
         changed=subprocess.check_output(['git','diff','--name-only',
             '5fed7e317710d8ad71e19212bffa6f88a727b3f4','--','app/src'],cwd=root,text=True).splitlines()
         prefix='app/src/main/java/ar/com/miflix/client/'
-        allowed={prefix+name for name in ('MainActivity.kt','TvCinematicIntro.kt','TvIntroPolicy.kt','PlaybackScreen.kt','TelegramVideo.kt')}
+        allowed={prefix+name for name in ('MainActivity.kt','TvDetailScreen.kt','TvProgressStorage.kt','TvSeasonPresentation.kt','TvCinematicIntro.kt','TvIntroPolicy.kt','PlaybackScreen.kt','TelegramVideo.kt')}
         allowed.update({'app/src/tv/AndroidManifest.xml','app/src/tv/res/layout/miflix_tv_intro_player.xml',
             'app/src/tv/res/values/styles.xml','app/src/tv/assets/miflix_tv_intro.mp4',
-            'app/src/test/java/ar/com/miflix/client/TvIntroPolicyTest.kt'})
+            'app/src/test/java/ar/com/miflix/client/TvIntroPolicyTest.kt',
+            'app/src/test/java/ar/com/miflix/client/TvProgressStorageTest.kt',
+            'app/src/test/java/ar/com/miflix/client/TvSeasonPresentationTest.kt'})
         self.assertTrue(set(changed)<=allowed,set(changed)-allowed)
     def test_only_tv_version_changes_and_arm_configuration_is_identical(self):
         root=Path(__file__).resolve().parents[1]
         old=subprocess.check_output(['git','show',
             '5fed7e317710d8ad71e19212bffa6f88a727b3f4:app/build.gradle.kts'],cwd=root,text=True)
-        expected=old.replace('versionCode = 11','versionCode = 12').replace(
-            'versionName = "0.1.10-diagnostico"','versionName = "0.1.11-diagnostico"')
+        expected=old.replace('versionCode = 11','versionCode = 13').replace(
+            'versionName = "0.1.10-diagnostico"','versionName = "0.1.12-diagnostico"')
         self.assertEqual(expected,(root/'app/build.gradle.kts').read_text())
 class IntroAssetPolicyTest(unittest.TestCase):
     setUp = PackagingPolicyTest.setUp

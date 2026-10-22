@@ -199,7 +199,8 @@ private fun ClientApp(
     val searchScroll = rememberLazyGridState()
     val sectionsScroll = rememberLazyGridState()
     val progressStore = remember(context) {
-        PlaybackProgressStore(SharedPreferencesProgressStorage(context))
+        val storage = SharedPreferencesProgressStorage(context)
+        PlaybackProgressStore(if (BuildConfig.IS_TV) TvProgressStorage(storage) else storage)
     }
     var continuing by remember { mutableStateOf(emptyList<ContinueWatchingItem>()) }
     val refreshPreferences = remember(context) {
@@ -277,6 +278,18 @@ private fun ClientApp(
         }
         owner.lifecycle.addObserver(observer)
         onDispose { owner.lifecycle.removeObserver(observer) }
+    }
+
+    // TV Home also reacts to persistence changes without requiring screen/lifecycle changes.
+    DisposableEffect(context, screen, catalog) {
+        val prefs = context.getSharedPreferences("miflix_playback_progress", Context.MODE_PRIVATE)
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+            if (BuildConfig.IS_TV && screen == Screen.HOME)
+                continuing = continueWatching(catalog.items.orEmpty(), progressStore)
+        }
+        val observing = BuildConfig.IS_TV && screen == Screen.HOME
+        if (observing) prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { if (observing) prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
 
     fun openDetail(title: Title) {

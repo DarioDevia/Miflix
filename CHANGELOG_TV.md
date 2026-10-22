@@ -1,5 +1,15 @@
 # Historial de MiFlix TV
 
+## 0.1.12-diagnostico / 13
+
+- TV conserva duración conocida cuando un guardado informa duración desconocida;
+  evita que un checkpoint final vuelva a presentar un contenido completado.
+- Inicio escucha cambios persistidos del progreso; no incorpora marcado Visto.
+- Especiales al final del selector, usando índices originales para foco/reproducción.
+- Reproductor, Hero, intro, ARM y Mobile conservados; 87 tests JVM y 43 contratos
+  aprobados. Compilación/Lint Android requieren CI o PC; prueba física pendiente.
+- Detalles: docs/TV_0.1.12_CONTINUAR_ESPECIALES.md.
+
 ## 0.1.11-diagnostico / 12
 
 - Segunda corrección Lint: OptIn específico en VideoPlayer para los 20 errores

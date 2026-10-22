@@ -3,12 +3,21 @@
 | Variante | versionName | versionCode | applicationId | APK debug |
 | --- | --- | --- | --- | --- |
 | Mobile | 0.9.2-diagnostico | 26 | ar.com.miflix.client | app-mobile-debug.apk |
-| TV | 0.1.11-diagnostico | 12 | ar.com.miflix.client.tv | app-tv-debug.apk |
+| TV | 0.1.12-diagnostico | 13 | ar.com.miflix.client.tv | app-tv-debug.apk |
 
 TV se desarrolla en `miflix-tv`, basada en `miflix-cliente` HEAD
 `b3b3156cb6aff846822d591317f9f377c5d2df4c` (README corregido), que contiene
 el commit funcional móvil validado `5d896013478f8126c2dac3ed2f692fc305904509`.
 La rama móvil no se modifica. Cada variante conserva su propio versionado.
+
+## MiFlix TV 0.1.12: Continuar viendo y Especiales
+
+Base física confirmada: `68953b2c1d02bf8796a8d36364d885c28d9420b9`.
+Rama `fix/tv-0.1.12-continue-specials`. Conserva duración conocida ante checkpoints
+sin duración, actualiza la fila ante cambios persistidos y muestra temporada 0
+como Especiales al final, manteniendo índices originales. Sin biblioteca personal.
+87 pruebas JVM y 43 contratos aprobados; validación Android/CI y física se informa
+por separado. [Diagnóstico, límites y pruebas](docs/TV_0.1.12_CONTINUAR_ESPECIALES.md).
 
 ## Corrección de Lint TV 0.1.11
 
