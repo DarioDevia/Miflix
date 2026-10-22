@@ -137,9 +137,15 @@ Esta versión no está declarada físicamente validada.
 
 CI ejecutó correctamente tests unitarios TV/Mobile, compilación Kotlin Mobile,
 Lint TV, assembleTvDebug y assembleTvRelease en el commit inicial d2ace82.
-La inspección posterior falló porque el nombre fijo esperado de APK no existía.
+La inspección posterior falló porque el ruta fija esperada de APK no existía.
 Se reemplaza esa suposición por lectura de output-metadata.json de AGP, tanto en
 CI como en PowerShell. Se exige una única salida tvDebug real y se conserva toda
 la inspección de contenido/firma. Tres pruebas adicionales cubren nombres variables,
 variantes, ambigüedad y rutas fuera del directorio de salida. No es un cambio de
 empaquetado ni del código de aplicación. La segunda ejecución se informa en la entrega.
+
+La segunda ejecución repitió con éxito Gradle, tests y Lint, pero confirmó que
+la APK tampoco estaba bajo app/build/outputs/apk. El localizador busca ahora los
+metadatos AGP dentro de app/build (incluidos intermediates), sin inferir nombres
+ni cambiar opciones de ABI. La inspección sigue siendo obligatoria y CI activa
+pipefail para que tee no oculte un eventual rechazo del verificador.

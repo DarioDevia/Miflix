@@ -12,7 +12,8 @@ class LocateApkTest(unittest.TestCase):
     def test_uses_metadata_output_name_and_excludes_release(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)
-            debug=self.seed(root,'tvDebug','custom-abi-name.apk')
+            intermediates=root/'intermediates';intermediates.mkdir()
+            debug=self.seed(intermediates,'tvDebug','custom-abi-name.apk')
             self.seed(root,'tvRelease','app-release-unsigned.apk')
             self.assertEqual(debug.resolve(),locate_tv_apk(root))
     def test_missing_and_ambiguous_outputs_are_rejected(self):

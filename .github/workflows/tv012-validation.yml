@@ -35,6 +35,7 @@ jobs:
           ./gradlew :app:testTvDebugUnitTest :app:testMobileDebugUnitTest :app:lintTvDebug :app:compileMobileDebugKotlin :app:assembleTvDebug $(cat tv-release-task.txt) --console=plain '-Pandroid.injected.testOnly=false' '-Pandroid.injected.build.abi=armeabi-v7a,arm64-v8a,x86,x86_64'
       - name: Contratos y APK (firma CI, no distribución familiar)
         run: |
+          set -euo pipefail
           python3 tools/check_tv012_contract.py
           python3 tools/check_tv0111_contract.py
           python3 tools/check_tv0111_lint_contract.py
@@ -42,6 +43,7 @@ jobs:
           python3 tools/test_locate_tv_apk.py
           apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
           apk=$(python3 tools/locate_tv_apk.py)
+          echo "Inspecting APK: $apk"
           python3 tools/verify_tv_physical_apk.py "$apk" --apksigner "$apksigner" | tee tv-apk-verification.txt
       - uses: actions/upload-artifact@v4
         if: always()
