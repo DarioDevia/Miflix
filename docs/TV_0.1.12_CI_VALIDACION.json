@@ -1,0 +1,79 @@
+{
+  "sourceCommit": "771d9b8c2dd5c5f38449220412de160c42f39388",
+  "baseCommit": "68953b2c1d02bf8796a8d36364d885c28d9420b9",
+  "workflowRun": "https://github.com/DarioDevia/Miflix/actions/runs/39721350586",
+  "result": "success",
+  "unitTests": {
+    "tv": {
+      "tests": 208,
+      "failures": 0,
+      "ignored": 0
+    },
+    "mobile": {
+      "tests": 208,
+      "failures": 0,
+      "ignored": 0
+    }
+  },
+  "lintTvDebug": {
+    "errors": 0,
+    "warnings": 17
+  },
+  "builds": {
+    "tvDebug": "success",
+    "tvRelease": "success (unsigned release)",
+    "mobileDebugKotlin": "success"
+  },
+  "apkPath": "app/build/intermediates/apk/tv/debug/app-tv-debug.apk",
+  "apkSignature": "apksigner verification passed; temporary CI debug key, not family distribution",
+  "physicalValidation": "pending",
+  "apk": {
+    "intro": {
+      "sha256": "ecede13d1d994ba31de549b7d3ca557e64d69c4f3518bbae07caae5841423b17",
+      "size": 2134895
+    },
+    "package": "ar.com.miflix.client.tv",
+    "versionName": "0.1.12-diagnostico",
+    "versionCode": 13,
+    "minSdk": 26,
+    "targetSdk": 34,
+    "testOnly": false,
+    "debuggable": true,
+    "leanbackRequired": true,
+    "touchscreenRequired": false,
+    "leanbackLauncher": true,
+    "permissions": [
+      "android.permission.ACCESS_NETWORK_STATE",
+      "android.permission.INTERNET",
+      "ar.com.miflix.client.tv.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+    ],
+    "cleartextTraffic": false,
+    "libraries": {
+      "arm64-v8a": {
+        "sha256": "249f325cde35ba778ef019258a40b2ecd2cfbd67d45e534902281c4dfba0f1a4",
+        "size": 22729264,
+        "elf_class": 2,
+        "elf_machine": 183
+      },
+      "armeabi-v7a": {
+        "sha256": "6551a4935f888b8b80adee5e995884765f7047cd32afc64a8c98e540cffcedb6",
+        "size": 16371168,
+        "elf_class": 1,
+        "elf_machine": 40
+      },
+      "x86": {
+        "sha256": "0aa3c3482608cdc02ed8a9883e4c0832e12e1dcbf52b2dcb448edf826b5699d1",
+        "size": 27180944,
+        "elf_class": 1,
+        "elf_machine": 3
+      },
+      "x86_64": {
+        "sha256": "40738f25f9da60125c1b9add0abb55558f02798c5ca291ecacdd5b0cc140f6e0",
+        "size": 25265264,
+        "elf_class": 2,
+        "elf_machine": 62
+      }
+    },
+    "apkSha256": "574bc4001b80cd5b339f422849bd85b996ab317b502e0563dbae9edc46297435"
+  }
+}

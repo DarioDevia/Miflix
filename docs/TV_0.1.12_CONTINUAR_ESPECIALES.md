@@ -79,7 +79,8 @@ No se crean temporadas ni episodios y no se cambia el orden de reproducción.
   del código existente, incluidos los reproductores y recursos, sea byte idéntico.
 
 No hay SDK ni javac en este entorno. Gradle Android, Lint, APK Debug/Release y
-verificación ARM de una APK nueva requieren ejecución CI o local. Se incorpora
+verificación ARM se ejecutaron finalmente en GitHub Actions, como registra la sección
+de resultados final. La instalación y reproducción física siguen pendientes. Se incorpora
 `.github/workflows/tv012-validation.yml`: enumera tareas antes de utilizarlas,
 compila TV Debug y Release si está disponible, ejecuta tests TV/Mobile, Lint TV,
 compila Kotlin Mobile e inspecciona la APK Debug con apksigner. No usa secretos.
@@ -149,3 +150,72 @@ la APK tampoco estaba bajo app/build/outputs/apk. El localizador busca ahora los
 metadatos AGP dentro de app/build (incluidos intermediates), sin inferir nombres
 ni cambiar opciones de ABI. La inspección sigue siendo obligatoria y CI activa
 pipefail para que tee no oculte un eventual rechazo del verificador.
+
+## Resultado final de CI (22 de octubre de 2026)
+
+Ejecución aprobada: https://github.com/DarioDevia/Miflix/actions/runs/39721350586
+Código compilado: `771d9b8c2dd5c5f38449220412de160c42f39388`.
+El commit posterior de documentación conserva exactamente ese código y configuración.
+Evidencia estructurada: TV_0.1.12_CI_VALIDACION.json.
+
+- 208 tests TV y 208 tests Mobile: aprobados, cero fallos y cero omitidos.
+- compileTvDebugKotlin y compileMobileDebugKotlin: aprobados.
+- lintTvDebug: aprobado, cero errores y 17 advertencias.
+- assembleTvDebug y assembleTvRelease: aprobados. Release sin firma de distribución.
+- Verificación real de APK Debug: aprobada, firma verificada con apksigner.
+- versionName 0.1.12-diagnostico, versionCode 13, minSdk 26, targetSdk 34,
+  applicationId ar.com.miflix.client.tv, testOnly=false, debuggable=true.
+- LEANBACK_LAUNCHER presente y pantalla táctil no requerida.
+- libtdjni.so real para armeabi-v7a, arm64-v8a, x86 y x86_64: tamaños, SHA-256
+  y arquitectura ELF coinciden con la procedencia TDLib conservada.
+- MP4 original: 2.134.895 bytes y SHA-256 original comprobados dentro de la APK.
+- Las 46 comprobaciones Python locales pasan; CI vuelve a ejecutar las de alcance,
+  intro, Lint, empaquetado y localización que se usan en el workflow.
+
+Salida real comprobada con los parámetros del script físico:
+`app/build/intermediates/apk/tv/debug/app-tv-debug.apk`.
+La causa de las dos inspecciones fallidas previas fue asumir outputs/apk; AGP
+colocó esta salida en intermediates/apk. El localizador definitivo utiliza los
+metadatos dentro de app/build para soportar ambos directorios.
+
+SHA-256 de la APK CI:
+`574bc4001b80cd5b339f422849bd85b996ab317b502e0563dbae9edc46297435`.
+Esta huella identifica sólo esa compilación CI, con clave temporal y sin credenciales
+Telegram privadas. La APK compilada en la PC tendrá otra huella. Los artefactos del
+workflow contienen informes, no la APK para distribución. Compilar localmente con
+la firma existente para actualizar el TV sin borrar datos.
+
+Advertencias conservadas: ObsoleteLintCustomCheck (Compose omite detectores por
+incompatibilidad de API), ApplySharedPref, OldTargetApi, UnusedAttribute,
+VectorRaster, GradleDependency, DiscouragedApi, SetJavaScriptEnabled,
+StaticFieldLeak, Overdraw, UnusedResources e IconLauncherShape. No se ocultaron
+ni se actualizaron dependencias/SDK para eliminarlas en esta entrega.
+
+La corrección está lista para validación física. DPAD, foco, vuelta del reproductor,
+actualización real de Inicio, sonido y reproducción física aún no se dan por aprobados.
+
+## Archivos modificados
+
+- `.github/workflows/tv012-validation.yml`
+- `CHANGELOG_TV.md`
+- `README.md`
+- `app/build.gradle.kts`
+- `app/src/main/java/ar/com/miflix/client/MainActivity.kt`
+- `app/src/main/java/ar/com/miflix/client/TvDetailScreen.kt`
+- `app/src/main/java/ar/com/miflix/client/TvProgressStorage.kt`
+- `app/src/main/java/ar/com/miflix/client/TvSeasonPresentation.kt`
+- `app/src/test/java/ar/com/miflix/client/TvProgressStorageTest.kt`
+- `app/src/test/java/ar/com/miflix/client/TvSeasonPresentationTest.kt`
+- `docs/TV_0.1.12_CI_VALIDACION.json`
+- `docs/TV_0.1.12_CONTINUAR_ESPECIALES.md`
+- `tools/build_tv_physical_debug.ps1`
+- `tools/check_tv0110_contract.py`
+- `tools/check_tv0111_contract.py`
+- `tools/check_tv0111_lint_contract.py`
+- `tools/check_tv012_contract.py`
+- `tools/locate_tv_apk.py`
+- `tools/run_tv012_policies.py`
+- `tools/test_locate_tv_apk.py`
+- `tools/test_tv_physical_apk.py`
+- `tools/tv012_contract_support.py`
+- `tools/verify_tv_physical_apk.py`

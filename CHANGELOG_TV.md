@@ -7,7 +7,8 @@
 - Inicio escucha cambios persistidos del progreso; no incorpora marcado Visto.
 - Especiales al final del selector, usando índices originales para foco/reproducción.
 - Reproductor, Hero, intro, ARM y Mobile conservados; 87 tests JVM y 46 contratos
-  aprobados. Compilación/Lint Android requieren CI o PC; prueba física pendiente.
+  locales aprobados. CI: 208 tests por variante, Lint TV 0 errores/17 advertencias,
+  Debug/Release compiladas y APK ARM/firma/intro verificadas. Prueba física pendiente.
 - Detalles: docs/TV_0.1.12_CONTINUAR_ESPECIALES.md.
 
 ## 0.1.11-diagnostico / 12
