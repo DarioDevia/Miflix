@@ -2,6 +2,7 @@ name: Validar TV 0.1.12
 on:
   push:
     branches: [fix/tv-0.1.12-continue-specials]
+    paths: ['app/**', 'tools/**', '.github/workflows/tv012-validation.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -38,8 +39,10 @@ jobs:
           python3 tools/check_tv0111_contract.py
           python3 tools/check_tv0111_lint_contract.py
           python3 tools/test_tv_physical_apk.py
+          python3 tools/test_locate_tv_apk.py
           apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
-          python3 tools/verify_tv_physical_apk.py app/build/outputs/apk/tv/debug/app-tv-debug.apk --apksigner "$apksigner" > tv-apk-verification.txt
+          apk=$(python3 tools/locate_tv_apk.py)
+          python3 tools/verify_tv_physical_apk.py "$apk" --apksigner "$apksigner" | tee tv-apk-verification.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -6,7 +6,7 @@
   evita que un checkpoint final vuelva a presentar un contenido completado.
 - Inicio escucha cambios persistidos del progreso; no incorpora marcado Visto.
 - Especiales al final del selector, usando índices originales para foco/reproducción.
-- Reproductor, Hero, intro, ARM y Mobile conservados; 87 tests JVM y 43 contratos
+- Reproductor, Hero, intro, ARM y Mobile conservados; 87 tests JVM y 46 contratos
   aprobados. Compilación/Lint Android requieren CI o PC; prueba física pendiente.
 - Detalles: docs/TV_0.1.12_CONTINUAR_ESPECIALES.md.
 

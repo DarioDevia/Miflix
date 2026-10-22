@@ -16,7 +16,7 @@ Base física confirmada: `68953b2c1d02bf8796a8d36364d885c28d9420b9`.
 Rama `fix/tv-0.1.12-continue-specials`. Conserva duración conocida ante checkpoints
 sin duración, actualiza la fila ante cambios persistidos y muestra temporada 0
 como Especiales al final, manteniendo índices originales. Sin biblioteca personal.
-87 pruebas JVM y 43 contratos aprobados; validación Android/CI y física se informa
+87 pruebas JVM y 46 contratos aprobados; validación Android/CI y física se informa
 por separado. [Diagnóstico, límites y pruebas](docs/TV_0.1.12_CONTINUAR_ESPECIALES.md).
 
 ## Corrección de Lint TV 0.1.11

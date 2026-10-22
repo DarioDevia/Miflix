@@ -19,8 +19,9 @@ try {
         '-Pandroid.injected.build.abi=armeabi-v7a,arm64-v8a,x86,x86_64' `
         '-Pandroid.injected.testOnly=false'
     if ($LASTEXITCODE -ne 0) { throw 'Gradle failed. Do not distribute the APK.' }
-    & py -3 tools/verify_tv_physical_apk.py app/build/outputs/apk/tv/debug/app-tv-debug.apk `
-        --apksigner $apksigner
+    $tvApkPath = & py -3 tools/locate_tv_apk.py
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot locate a unique TV Debug APK from AGP metadata.' }
+    & py -3 tools/verify_tv_physical_apk.py $tvApkPath --apksigner $apksigner
     if ($LASTEXITCODE -ne 0) { throw 'APK inspection failed. Do not distribute the APK.' }
     Write-Host 'Packaging and signature checked; installation/playback on a physical TV remain pending.'
 } finally { Pop-Location }

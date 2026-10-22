@@ -1,3 +1,4 @@
+from tv012_contract_support import without_tv012_apk_location
 """Source-only guards for the Lint fix. They never claim Android Lint succeeded."""
 import re
 import subprocess
@@ -54,7 +55,9 @@ class LintFixContracts(unittest.TestCase):
                 expected=expected.replace('versionCode = 12','versionCode = 13').replace('0.1.11-diagnostico','0.1.12-diagnostico')
             if path == 'tools/verify_tv_physical_apk.py':
                 expected=expected.replace('0.1.11','0.1.12').replace('"versionCode":12','"versionCode":13')
-            self.assertEqual(expected,(ROOT/path).read_text(),path)
+            actual=(ROOT/path).read_text()
+            if path == 'tools/build_tv_physical_debug.ps1': actual=without_tv012_apk_location(actual)
+            self.assertEqual(expected,actual,path)
     def test_no_lint_disable_baseline_or_resource_reflection_suppression_added(self):
         changed=subprocess.check_output(['git','diff',BASE,'--','app','gradle.properties'],cwd=ROOT,text=True)
         additions='\n'.join(line[1:] for line in changed.splitlines() if line.startswith('+') and not line.startswith('+++'))

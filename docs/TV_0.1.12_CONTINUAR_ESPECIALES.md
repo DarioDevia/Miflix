@@ -71,7 +71,7 @@ No se crean temporadas ni episodios y no se cambia el orden de reproducción.
   extrae sólo los modelos y las políticas de progreso, omitiendo anotaciones JSON
   y la implementación Android de preferencias. No simula ni valida Android I/O.
   Ejemplo: `python tools/run_tv012_policies.py <carpeta-con-jars-de-Kotlin-y-JUnit>`.
-- 43 comprobaciones Python de contratos, alcance e inspección APK: aprobadas.
+- 46 comprobaciones Python de contratos, alcance e inspección APK: aprobadas.
 - Análisis sintáctico de cuatro archivos Kotlin: aprobado; no es compilación Android.
 - git diff --check: aprobado.
 - Los contratos históricos se ajustan únicamente para admitir el cableado TV y la
@@ -103,7 +103,8 @@ git switch --track origin/fix/tv-0.1.12-continue-specials
 Si la rama ya existe, usar git switch con su nombre y `git pull --ff-only`.
 El script conserva JDK 17/SDK del proyecto, tests, Lint e inspección de firma,
 manifest, intro y cuatro ABI. El verificador espera ahora 0.1.12 / 13.
-APK: `app\build\outputs\apk\tv\debug\app-tv-debug.apk`.
+APK: el script resuelve el nombre real usando output-metadata.json de AGP;
+puede consultarse con `py -3 tools/locate_tv_apk.py`.
 
 La variante Release se comprueba con `:app:assembleTvRelease` si aparece en la lista
 de tareas; no hay configuración nueva de firma Release. Una salida sin firma no
@@ -111,7 +112,8 @@ es una APK distribuible. Para el TV familiar utilizar el script Debug con la
 misma clave local que firmó la instalación anterior; no generar otra clave.
 
 ```powershell
-adb install -r .\app\build\outputs\apk\tv\debug\app-tv-debug.apk
+$tvApkPath = py -3 tools/locate_tv_apk.py
+adb install -r "$tvApkPath"
 ```
 
 No desinstalar ni borrar datos para actualizar. Mantener espacio libre suficiente;
@@ -130,3 +132,14 @@ la actualización y recuperar la clave correcta. No usar `-t` para saltar la rev
 7. Regresión breve: intro/omisión, Hero, tráilers, audio/subtítulos y reproducción ARM.
 
 Esta versión no está declarada físicamente validada.
+
+## Primera ejecución Android y ajuste del localizador
+
+CI ejecutó correctamente tests unitarios TV/Mobile, compilación Kotlin Mobile,
+Lint TV, assembleTvDebug y assembleTvRelease en el commit inicial d2ace82.
+La inspección posterior falló porque el nombre fijo esperado de APK no existía.
+Se reemplaza esa suposición por lectura de output-metadata.json de AGP, tanto en
+CI como en PowerShell. Se exige una única salida tvDebug real y se conserva toda
+la inspección de contenido/firma. Tres pruebas adicionales cubren nombres variables,
+variantes, ambigüedad y rutas fuera del directorio de salida. No es un cambio de
+empaquetado ni del código de aplicación. La segunda ejecución se informa en la entrega.

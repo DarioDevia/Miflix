@@ -1,4 +1,4 @@
-from tv012_contract_support import without_tv012_progress_wiring
+from tv012_contract_support import without_tv012_progress_wiring, without_tv012_apk_location
 """Focused source invariants. Does not replace Android compilation or DPAD/UI execution."""
 import subprocess
 import unittest
@@ -48,5 +48,7 @@ class HeroContracts(unittest.TestCase):
                 before=before.replace(':app:assembleTvDebug', ':app:lintTvDebug :app:lintMobileDebug :app:assembleTvDebug')
             if path == 'app/src/tv/AndroidManifest.xml':
                 before=before.replace('android:name=".MainActivity"', 'android:name=".MainActivity" android:exported="true" android:theme="@style/Theme.MiFlix.TV"')
-            self.assertEqual(before,(ROOT/path).read_text())
+            actual=(ROOT/path).read_text()
+            if path == 'tools/build_tv_physical_debug.ps1': actual=without_tv012_apk_location(actual)
+            self.assertEqual(before,actual)
 if __name__=='__main__':unittest.main()
