@@ -35,7 +35,8 @@ data class Title(
     @SerializedName("poster_url") val posterUrl: String? = null,
     @SerializedName("backdrop_url") val backdropUrl: String? = null,
     @SerializedName("telegram_url") val telegramUrl: String? = null,
-    val temporadas: List<Season> = emptyList()
+    val temporadas: List<Season> = emptyList(),
+    @SerializedName("fecha_agregado") val addedAt: String? = null
 )
 
 data class Season(
@@ -191,6 +192,10 @@ class CatalogRepository(private val context: Context) {
                 val rating = parseRating(item)
                 if (rating == null) item.remove("puntuacion")
                 else item.addProperty("puntuacion", rating)
+                // Optional discovery metadata must never prevent loading the library.
+                val addedAt = optionalText(item, "fecha_agregado")
+                if (addedAt == null) item.remove("fecha_agregado")
+                else item.addProperty("fecha_agregado", addedAt)
                 if (version != "2") normalizeAdminFields(item)
             }
             if (version != "2") return Gson().fromJson(root, Catalog::class.java)
@@ -233,6 +238,7 @@ class CatalogRepository(private val context: Context) {
                     posterUrl = item.get("poster_url")?.takeUnless { it.isJsonNull }?.asString,
                     backdropUrl = item.get("backdrop_url")?.takeUnless { it.isJsonNull }?.asString,
                     telegramUrl = directLink ?: publications.firstOrNull()?.telegramUrl,
+                    addedAt = optionalText(item, "fecha_agregado"),
                     temporadas = if (publications.size > 1) listOf(
                         Season(numero = 0, titulo = "Publicaciones", episodios = publications)
                     ) else emptyList()

@@ -1,8 +1,18 @@
-# MiFlix Cliente Android 0.9.12-diagnostico
+# MiFlix Cliente Android 0.9.13-diagnostico
 
-**Versión actual:** MiFlix Mobile `0.9.12-diagnostico` · `versionName = "0.9.12-diagnostico"` · `versionCode = 36` · `applicationId = "ar.com.miflix.client"`.
+**Versión actual:** MiFlix Mobile `0.9.13-diagnostico` · `versionName = "0.9.13-diagnostico"` · `versionCode = 37` · `applicationId = "ar.com.miflix.client"`.
 
-## 0.9.12 diagnóstico: Continuar viendo coherente con Vistos
+## 0.9.13 diagnóstico: Inicio, Buscar y sugerencias
+
+Buscar reutiliza las carátulas sin títulos inferiores, sin reservar espacio para textos; mantiene filtros, indicadores, accesibilidad y navegación. Inicio conserva Hero, Continuar viendo y Mi Lista; añade Últimos estrenos con la misma ventana de dos años del catálogo utilizada por Buscar, ordenada por año descendente. No hay fecha completa de estreno por título en el modelo actual: no se inventan meses ni días.
+
+Últimos agregados utiliza exclusivamente `fecha_agregado`, campo opcional ya declarado en el esquema. Solo muestra contenidos reproducibles con una fecha ISO válida y zona explícita; si no hay datos elegibles, oculta la fila. No usa año de estreno, orden del JSON, actualización global ni IDs de Telegram como fechas. La presencia y conservación de ese dato en el catálogo real todavía requieren comprobación: el endpoint respondió 403 desde este entorno. No se modificaron Admin ni el esquema compartido.
+
+Configuración incluye Sugerencias y pedidos por un enlace HTTPS público de Telegram, independiente de TDLib. Está deshabilitado hasta que el propietario configure su destinatario real mediante `MIFLIX_SUGGESTIONS_USERNAME`; no se incorpora un usuario ficticio por defecto.
+
+[Decisiones, configuración y pruebas Samsung](docs/mobile-0.9.13-home-discovery.md). Sin cambios del reproductor, persistencia, Cloudflare ni dependencias.
+
+## 0.9.12 diagnóstico: Continuar viendo coherente con Vistos (histórico)
 
 La fila consulta el progreso pendiente y el estado local de Vistos. Oculta películas o episodios vistos, manuales o automáticos, sin eliminar sus registros. Se recalcula al cambiar Vistos, volver a Inicio y regresar de segundo plano. Desmarcar solo permite reaparecer si todavía existe progreso pendiente válido. Se conservan las reglas, claves y almacenamiento existentes; no cambia el reproductor ni se agrega reproducción automática.
 

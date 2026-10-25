@@ -30,6 +30,12 @@ require(identityUrl.isEmpty() || runCatching { val u = URI(identityUrl)
         u.rawFragment == null && (u.path.isNullOrEmpty() || u.path == "/")
 }.getOrDefault(false)) { "MIFLIX_IDENTITY_URL debe ser un origen HTTPS sin credenciales ni rutas." }
 
+// Public Telegram username for suggestions; never a phone number or session credential.
+val suggestionsUsername = providers.gradleProperty("MIFLIX_SUGGESTIONS_USERNAME")
+    .orElse("").get().trim().removePrefix("@")
+require(suggestionsUsername.isEmpty() || suggestionsUsername.matches(Regex("[A-Za-z][A-Za-z0-9_]{4,31}"))) {
+    "MIFLIX_SUGGESTIONS_USERNAME debe ser un usuario público de Telegram (sin URL ni teléfono)."
+}
 
 android {
     namespace = "ar.com.miflix.client"
@@ -38,8 +44,9 @@ android {
         applicationId = "ar.com.miflix.client"
         minSdk = 26
         targetSdk = 34
-        versionCode = 36
-        versionName = "0.9.12-diagnostico"
+        versionCode = 37
+        versionName = "0.9.13-diagnostico"
+        buildConfigField("String", "SUGGESTIONS_USERNAME", "\"$suggestionsUsername\"")
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$identityWebId\"")
         buildConfigField("String", "MIFLIX_IDENTITY_URL", "\"$identityUrl\"")
         buildConfigField("int", "TELEGRAM_API_ID", telegramId.toString())

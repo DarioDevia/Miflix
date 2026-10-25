@@ -280,6 +280,7 @@ private fun ClientApp(
     val normalEdgeToEdge = normalEdgeToEdgeActive(screen, fullscreenActive, introActive)
     NormalEdgeToEdge(activity, normalEdgeToEdge)
     val searchIndex = remember(titles) { CatalogSearchIndex(titles) }
+    val discoveryRows = remember(titles) { buildHomeDiscoveryRows(titles) }
     LaunchedEffect(searchIndex, query, searchType, searchGenre, searchYear, searchRating,
         searchLatest, searchOrder) { searchScroll.scrollToItem(0) }
     val selected = titles.firstOrNull { it.id == selectedId }
@@ -581,6 +582,7 @@ private fun ClientApp(
                         }
                     },
                     rows = homeRows,
+                    discovery = discoveryRows,
                     favorites = homeFavorites,
                     onMore = { target ->
                         when (target) {
@@ -733,6 +735,7 @@ private fun HomeScreen(
     continuing: List<ContinueWatchingItem>,
     onContinue: (ContinueWatchingItem) -> Unit,
     rows: HomeCatalogRows,
+    discovery: HomeDiscoveryRows,
     favorites: HomeRow?,
     onMore: (HomeMoreTarget) -> Unit
 ) {
@@ -802,6 +805,14 @@ private fun HomeScreen(
             if (favorites != null) item(key = favorites.key) {
                 ContentRow(favorites.label, favorites.titles, showTitles = false,
                     onSelect = { favorites.select(it.id, onSelect) }, onMore = { onMore(favorites.more) })
+            }
+            if (discovery.latestReleases.isNotEmpty()) item(key = "home:latest-releases") {
+                ContentRow("Últimos estrenos", discovery.latestReleases, showTitles = false,
+                    onSelect = onSelect)
+            }
+            if (discovery.latestAdded.isNotEmpty()) item(key = "home:latest-added") {
+                ContentRow("Últimos agregados", discovery.latestAdded, showTitles = false,
+                    onSelect = onSelect)
             }
             if (rows.general.isNotEmpty() || rows.genres.isNotEmpty()) item(key = "home:explore") {
                 Text("Explorá tu videoteca", Modifier.padding(horizontal = 16.dp),
@@ -965,7 +976,7 @@ private fun SearchScreen(
             Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             color = MiFlixStyle.secondaryText, fontSize = 13.sp)
         if (results.isEmpty()) EmptyState("Sin resultados", "Probá con otro texto o cambiá los filtros.")
-        else MovieGrid(results, onSelect, Modifier.weight(1f), scrollState)
+        else MovieGrid(results, onSelect, Modifier.weight(1f), scrollState, showTitles = false)
     }
 }
 
@@ -1011,16 +1022,16 @@ private fun SectionsScreen(
 @Composable
 private fun MovieGrid(
     titles: List<Title>, onSelect: (Title) -> Unit, modifier: Modifier = Modifier,
-    scrollState: LazyGridState
+    scrollState: LazyGridState, showTitles: Boolean = true
 ) {
     LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 120.dp),
         modifier = modifier.fillMaxWidth(),
         state = scrollState,
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        verticalArrangement = Arrangement.spacedBy(if (showTitles) 20.dp else 12.dp)) {
         items(titles, key = { it.id }) { title ->
-            MovieCard(title, onClick = { onSelect(title) })
+            MovieCard(title, showTitle = showTitles, onClick = { onSelect(title) })
         }
     }
 }
@@ -1050,6 +1061,8 @@ private fun SettingsScreen(
     onRefresh: () -> Unit, onJoin: () -> Unit,
     onDisconnectTelegram: () -> Unit, onSave: () -> Unit, onAbout: () -> Unit
 ) {
+    val context = LocalContext.current
+    val suggestionsUrl = remember { telegramSuggestionsUrl(BuildConfig.SUGGESTIONS_USERNAME) }
     var showAdvanced by rememberSaveable { mutableStateOf(false) }
     val urlOk = url.isBlank() || runCatching {
         val uri = Uri.parse(url.trim())
@@ -1060,6 +1073,17 @@ private fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item { TextButton(onClick = onAbout) { Text("Acerca de") } }
         item { MiFlixAccountSection(account) }
+        item { SectionHeading("Sugerencias y pedidos") }
+        item { Text("¿Querés recomendar una película, serie o anime? Enviá tu sugerencia por Telegram.",
+            color = MiFlixStyle.secondaryText) }
+        item {
+            OutlinedButton(enabled = suggestionsUrl != null,
+                onClick = { suggestionsUrl?.let { openTelegram(context, it) } }) {
+                Text("Sugerencias y pedidos")
+            }
+            if (suggestionsUrl == null) Text("Destino de sugerencias aún no configurado.",
+                color = MiFlixStyle.secondaryText, fontSize = 13.sp)
+        }
         item { SectionHeading("Catálogo") }
         item { Text("La última copia válida queda disponible sin conexión. MiFlix busca cambios al abrir y al volver a Inicio.", color = MiFlixStyle.secondaryText) }
         item {

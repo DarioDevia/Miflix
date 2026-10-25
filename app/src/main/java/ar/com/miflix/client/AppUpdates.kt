@@ -13,6 +13,11 @@ internal object AppUpdates {
     fun installedVersion() = InstalledVersion(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
 
     val history = listOf(
+        AppUpdate("0.9.13-diagnostico", 37, listOf(
+            "Buscar muestra carátulas sin títulos inferiores y conserva filtros e indicadores.",
+            "Inicio incorpora Últimos estrenos por año y Últimos agregados cuando hay fechas válidas.",
+            "Sugerencias y pedidos por enlace Telegram, pendiente de configurar el destinatario público."
+        )),
         AppUpdate("0.9.12-diagnostico", 36, listOf(
             "Continuar viendo excluye películas y episodios vistos sin borrar su progreso ni historial.",
             "Actualización local al cambiar Visto, regresar a Inicio o volver de segundo plano."
