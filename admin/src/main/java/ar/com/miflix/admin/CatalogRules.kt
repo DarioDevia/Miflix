@@ -67,6 +67,11 @@ object CatalogRules {
                 "${result.text("tipo")}:${result.text("titulo").lowercase()}".toByteArray())
             result.addProperty("id", "${result.text("tipo")}-manual-${digest.take(6).joinToString("") { "%02x".format(it) }}")
         }
+        // Catalog identity, not a missing date or a creation-screen flag, determines an insertion.
+        val existing = items(copy).firstOrNull { it.text("id") == result.text("id") }
+        if (existing == null) result.addProperty("fecha_agregado", now())
+        else if (existing.has("fecha_agregado")) result.add("fecha_agregado", existing.get("fecha_agregado").deepCopy())
+        else result.remove("fecha_agregado") // Historical records stay undated, even with a partial/imported candidate.
         result.addProperty("actualizado", now())
         val list = items(copy).filter { it.text("id") != result.text("id") } + result
         copy.add("items", JsonArray().apply { list.sortedBy { it.text("titulo").lowercase() }.forEach { add(it) } })

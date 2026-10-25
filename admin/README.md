@@ -1,6 +1,16 @@
-# MiFlix Admin Android · 0.1.4-diagnostico
+# MiFlix Admin Android · 0.1.5-diagnostico
 
-Aplicación independiente para administrar el catálogo schema 1 desde un teléfono. Paquete `ar.com.miflix.admin`, versionCode 5, Android 8.0/API 26 o posterior. No reproduce video ni trailers y no incorpora Media3, ExoPlayer ni TDLib. No cambia el módulo `app`, Mobile ni TV.
+Aplicación independiente para administrar el catálogo schema 1 desde un teléfono. Paquete `ar.com.miflix.admin`, versionCode 6, Android 8.0/API 26 o posterior. No reproduce video ni trailers y no incorpora Media3, ExoPlayer ni TDLib. No cambia el módulo `app`, Mobile ni TV.
+
+## 0.1.5: fecha de incorporación al catálogo
+
+`CatalogRules.save()` asigna `fecha_agregado = Instant.now().toString()` únicamente cuando el ID definitivo todavía no existe en el catálogo. La fecha usa ISO 8601 UTC con `Z`. Crear/recuperar un borrador o seleccionar metadatos no asigna fecha. La política se comparte entre películas, series y anime, sin cambios para temporadas o episodios.
+
+Si el ID ya existe, se conserva exactamente el campo almacenado, aunque el candidato lo omita o lo cambie. Si el registro histórico no tiene fecha, continúa sin ella. No hay migración ni relleno del catálogo antiguo. Se mantienen schema 1, JSON completo, firma e identificador. El Worker no requiere cambios.
+
+Base recuperada: ZIP de fuentes auditado 0.1.4/code 5, íntegro. No se encontró una versión posterior en las ramas y entregas accesibles. La rama original ya no está publicada; la recuperación conserva los archivos de aquella entrega, incluidos los módulos históricos sin cambios. Este snapshot no debe copiarse encima de un proyecto Mobile/TV actual ni mezclarse automáticamente en sus ramas. Ver [guía de recuperación, firma y prueba física](0.1.5-fecha-agregado.md).
+
+Esta versión debe firmarse localmente con el keystore de la aplicación instalada. No utilizar una firma debug recién generada para actualizar el Samsung. La corrección queda pendiente de validación física con la APK nueva; los resultados de 0.1.4 documentados más abajo son antecedentes, no resultados de 0.1.5.
 
 ## Recursos visuales de 0.1.4
 

@@ -113,6 +113,23 @@ class AdminSeriesFlowTest {
     @Test fun invalidEpisodeLinkCannotSaveCatalogOrCheckpoint(){searchAndReview();episode(1,"https://invalid.test/2");vm.save();assertEquals("review",vm.screen);assertEquals(0,CatalogRules.items(vm.catalog!!).size);assertNull(vm.checkpoint("serie"));assertFalse(vm.pending)}
     @Test fun movieFlowStillUsesOriginalRootPublication(){vm.openCategory("pelicula");vm.newItem();vm.changeTelegramLink(last);vm.query="Película nueva";vm.search();await();vm.use(vm.results.single());await();vm.save();assertEquals("home",vm.screen);assertEquals(last,vm.checkpointLink("pelicula"));assertNull(vm.checkpoint("serie"));assertNull(vm.checkpoint("anime"))}
     @Test fun sharedAnimeEpisodeEditorUsesSameSaveIntegration(){vm.openCategory("anime");vm.newItem();vm.field("titulo","Anime de prueba");vm.addSeason(1);episode(1,last);assertNull(vm.checkpoint("anime"));vm.save();assertEquals("home",vm.screen);assertEquals(last,vm.checkpointLink("anime"));assertEquals(moviePoint,vm.checkpoint("pelicula"));assertNull(vm.checkpoint("serie"))}
+    @Test fun dateIsAssignedOnlyAfterRealReviewIsConfirmedAndSurvivesEditSyncRestart(){
+        searchAndReview("pelicula",last)
+        assertFalse(vm.draft!!.has("fecha_agregado"));assertTrue(CatalogRules.items(vm.catalog!!).isEmpty())
+        vm=newModel();vm.resumeDraft();assertFalse(vm.draft!!.has("fecha_agregado"))
+        val before=java.time.Instant.now();vm.save();assertEquals("home",vm.screen)
+        val saved=CatalogRules.items(vm.catalog!!).single();val date=saved.text("fecha_agregado")
+        assertTrue(date.endsWith("Z"));assertFalse(java.time.Instant.parse(date).isBefore(before))
+        vm.edit(saved);vm.field("titulo","Título corregido");vm.save();vm.sync();await()
+        assertEquals(date,CatalogRules.items(published!!).single().text("fecha_agregado"))
+        assertEquals(date,CatalogRules.items(newModel().catalog!!).single().text("fecha_agregado"))
+    }
+    @Test fun existingUndatedSeriesMatchedByMetadataDoesNotBecomeNew(){
+        remoteCatalog.add("items",JsonArray().apply {add(JsonParser.parseString("""{"id":"serie-imdb-tt42","tipo":"serie","titulo":"The Wonderfools","temporadas":[{"numero":1,"episodios":[]}]}"""))})
+        vm.refresh();await();searchAndReview();assertFalse(vm.isNew)
+        episode(1,last);vm.save();vm.sync();await()
+        assertFalse(CatalogRules.items(published!!).single().has("fecha_agregado"))
+    }
     private fun assertArtwork(item:JsonObject){assertEquals(HttpMetadata.image("/poster.jpg"),item.text("poster_url"));assertEquals(HttpMetadata.image("/back.jpg"),item.text("backdrop_url"));assertEquals(HttpMetadata.image("/logo.png"),item.text("logo_url"))}
     @Test fun movieVisualsSurviveRealReviewDraftSaveEditSyncAndRestart(){
         searchAndReview("pelicula",last);assertArtwork(vm.draft!!);assertEquals(0,CatalogRules.items(vm.catalog!!).size)
