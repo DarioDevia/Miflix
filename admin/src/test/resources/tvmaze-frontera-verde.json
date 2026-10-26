@@ -1,0 +1,372 @@
+{
+  "attribution": "TVmaze — extracted API dataset and this normalized fixture under CC BY-SA 4.0; no warranties; retain source links and license when redistributing.",
+  "license": "https://creativecommons.org/licenses/by-sa/4.0/",
+  "sources": [
+    "https://api.tvmaze.com/shows/43202",
+    "https://api.tvmaze.com/shows/43202/episodes?specials=1",
+    "https://api.tvmaze.com/shows/43202/seasons",
+    "https://api.tvmaze.com/shows/43202/images"
+  ],
+  "retrieved_on": "2026-10-26",
+  "show": {
+    "id": 43202,
+    "url": "https://www.tvmaze.com/shows/43202/frontera-verde",
+    "name": "Frontera verde",
+    "type": "Scripted",
+    "language": "Spanish",
+    "genres": [
+      "Drama",
+      "Crime",
+      "Thriller"
+    ],
+    "status": "Ended",
+    "runtime": null,
+    "averageRuntime": 41,
+    "premiered": "2019-08-16",
+    "ended": "2019-08-16",
+    "officialSite": "https://www.netflix.com/title/80205594",
+    "schedule": {
+      "time": "",
+      "days": []
+    },
+    "rating": {
+      "average": null
+    },
+    "weight": 60,
+    "network": null,
+    "webChannel": {
+      "id": 1,
+      "name": "Netflix",
+      "country": null,
+      "officialSite": "https://www.netflix.com/"
+    },
+    "dvdCountry": null,
+    "externals": {
+      "tvrage": null,
+      "thetvdb": 367507,
+      "imdb": null
+    },
+    "image": {
+      "medium": "https://static.tvmaze.com/uploads/images/medium_portrait/242/605253.jpg",
+      "original": "https://static.tvmaze.com/uploads/images/original_untouched/242/605253.jpg"
+    },
+    "summary": "<p>Deep in the Amazon, on the border of Brazil and Colombia, a series of bizarre deaths are investigated by a young female detective, Helena, and her partner, an indigenous policeman named Reynaldo. It becomes clear that the murders are not the biggest mystery within this jungle when the corpse of a particular young woman has no signs of aging. Simultaneously, we follow the story of Yua, and Ushe, two natives who everyone calls \"the eternals\", and their battle against Joseph, a foreigner who believes the indigenous population is harboring an incredible secret. The stories and characters will collide to unravel a mystery that can change their lives, and the whole of mankind.</p>",
+    "updated": 1600866022,
+    "_links": {
+      "self": {
+        "href": "https://api.tvmaze.com/shows/43202"
+      },
+      "previousepisode": {
+        "href": "https://api.tvmaze.com/episodes/1697731",
+        "name": "La Oscuridad"
+      }
+    }
+  },
+  "episodes": [
+    {
+      "id": 1689544,
+      "url": "https://www.tvmaze.com/episodes/1689544/frontera-verde-1x01-la-manigua",
+      "name": "La Manigua",
+      "season": 1,
+      "number": 1,
+      "type": "regular",
+      "airdate": "2019-08-16",
+      "airtime": "",
+      "airstamp": "2019-08-16T12:00:00+00:00",
+      "runtime": 47,
+      "rating": {
+        "average": 5.5
+      },
+      "image": {
+        "medium": "https://static.tvmaze.com/uploads/images/medium_landscape/208/520586.jpg",
+        "original": "https://static.tvmaze.com/uploads/images/original_untouched/208/520586.jpg"
+      },
+      "summary": "<p>The murders of four missionary women bring Helena, a detective, to the deep jungle. Years before, Yua and Ushe are tasked with protecting the jungle.</p>",
+      "_links": {
+        "self": {
+          "href": "https://api.tvmaze.com/episodes/1689544"
+        },
+        "show": {
+          "href": "https://api.tvmaze.com/shows/43202",
+          "name": "Frontera verde"
+        }
+      }
+    },
+    {
+      "id": 1697725,
+      "url": "https://www.tvmaze.com/episodes/1697725/frontera-verde-1x02-los-caminantes",
+      "name": "Los Caminantes",
+      "season": 1,
+      "number": 2,
+      "type": "regular",
+      "airdate": "2019-08-16",
+      "airtime": "",
+      "airstamp": "2019-08-16T12:00:00+00:00",
+      "runtime": 42,
+      "rating": {
+        "average": 7
+      },
+      "image": {
+        "medium": "https://static.tvmaze.com/uploads/images/medium_landscape/208/520587.jpg",
+        "original": "https://static.tvmaze.com/uploads/images/original_untouched/208/520587.jpg"
+      },
+      "summary": "<p>Meeting resistance from locals, Helena sets out on her own to investigate. She's haunted by Ushe, one of Yua's protégés, who's also been murdered.</p>",
+      "_links": {
+        "self": {
+          "href": "https://api.tvmaze.com/episodes/1697725"
+        },
+        "show": {
+          "href": "https://api.tvmaze.com/shows/43202",
+          "name": "Frontera verde"
+        }
+      }
+    },
+    {
+      "id": 1697726,
+      "url": "https://www.tvmaze.com/episodes/1697726/frontera-verde-1x03-el-arbol",
+      "name": "El Árbol",
+      "season": 1,
+      "number": 3,
+      "type": "regular",
+      "airdate": "2019-08-16",
+      "airtime": "",
+      "airstamp": "2019-08-16T12:00:00+00:00",
+      "runtime": 40,
+      "rating": {
+        "average": 7.5
+      },
+      "image": {
+        "medium": "https://static.tvmaze.com/uploads/images/medium_landscape/208/520588.jpg",
+        "original": "https://static.tvmaze.com/uploads/images/original_untouched/208/520588.jpg"
+      },
+      "summary": "<p>Helena connects the dots from the murders to her tortured personal story. Almost 50 years earlier, Yua's tribe battled Joseph's men.</p>",
+      "_links": {
+        "self": {
+          "href": "https://api.tvmaze.com/episodes/1697726"
+        },
+        "show": {
+          "href": "https://api.tvmaze.com/shows/43202",
+          "name": "Frontera verde"
+        }
+      }
+    },
+    {
+      "id": 1697727,
+      "url": "https://www.tvmaze.com/episodes/1697727/frontera-verde-1x04-el-veneno",
+      "name": "El Veneno",
+      "season": 1,
+      "number": 4,
+      "type": "regular",
+      "airdate": "2019-08-16",
+      "airtime": "",
+      "airstamp": "2019-08-16T12:00:00+00:00",
+      "runtime": 40,
+      "rating": {
+        "average": 7.5
+      },
+      "image": {
+        "medium": "https://static.tvmaze.com/uploads/images/medium_landscape/208/520589.jpg",
+        "original": "https://static.tvmaze.com/uploads/images/original_untouched/208/520589.jpg"
+      },
+      "summary": "<p>While visiting a powerful smuggler in the heart of the jungle, Helena discovers he has unexpected connections to her family and a surprise prisoner.</p>",
+      "_links": {
+        "self": {
+          "href": "https://api.tvmaze.com/episodes/1697727"
+        },
+        "show": {
+          "href": "https://api.tvmaze.com/shows/43202",
+          "name": "Frontera verde"
+        }
+      }
+    },
+    {
+      "id": 1697728,
+      "url": "https://www.tvmaze.com/episodes/1697728/frontera-verde-1x05-la-muerte",
+      "name": "La Muerte",
+      "season": 1,
+      "number": 5,
+      "type": "regular",
+      "airdate": "2019-08-16",
+      "airtime": "",
+      "airstamp": "2019-08-16T12:00:00+00:00",
+      "runtime": 42,
+      "rating": {
+        "average": 7.5
+      },
+      "image": {
+        "medium": "https://static.tvmaze.com/uploads/images/medium_landscape/208/520590.jpg",
+        "original": "https://static.tvmaze.com/uploads/images/original_untouched/208/520590.jpg"
+      },
+      "summary": "<p>Helena and a local cop willing to help her bring the prisoner back to town. A flashback examines Helena's birth and mission.</p>",
+      "_links": {
+        "self": {
+          "href": "https://api.tvmaze.com/episodes/1697728"
+        },
+        "show": {
+          "href": "https://api.tvmaze.com/shows/43202",
+          "name": "Frontera verde"
+        }
+      }
+    },
+    {
+      "id": 1697729,
+      "url": "https://www.tvmaze.com/episodes/1697729/frontera-verde-1x06-la-semilla",
+      "name": "La Semilla",
+      "season": 1,
+      "number": 6,
+      "type": "regular",
+      "airdate": "2019-08-16",
+      "airtime": "",
+      "airstamp": "2019-08-16T12:00:00+00:00",
+      "runtime": 41,
+      "rating": {
+        "average": 7.5
+      },
+      "image": {
+        "medium": "https://static.tvmaze.com/uploads/images/medium_landscape/208/520591.jpg",
+        "original": "https://static.tvmaze.com/uploads/images/original_untouched/208/520591.jpg"
+      },
+      "summary": "<p>The prisoner escapes, sparking a frantic search. Joseph and his men plot to learn the jungle's secrets.</p>",
+      "_links": {
+        "self": {
+          "href": "https://api.tvmaze.com/episodes/1697729"
+        },
+        "show": {
+          "href": "https://api.tvmaze.com/shows/43202",
+          "name": "Frontera verde"
+        }
+      }
+    },
+    {
+      "id": 1697730,
+      "url": "https://www.tvmaze.com/episodes/1697730/frontera-verde-1x07-la-luz",
+      "name": "La Luz",
+      "season": 1,
+      "number": 7,
+      "type": "regular",
+      "airdate": "2019-08-16",
+      "airtime": "",
+      "airstamp": "2019-08-16T12:00:00+00:00",
+      "runtime": 48,
+      "rating": {
+        "average": 6.5
+      },
+      "image": {
+        "medium": "https://static.tvmaze.com/uploads/images/medium_landscape/208/520592.jpg",
+        "original": "https://static.tvmaze.com/uploads/images/original_untouched/208/520592.jpg"
+      },
+      "summary": "<p>Ushe is returned to the jungle by her tribe. Unfortunately, Joseph and his men figure out where they are and are now in hot pursuit.</p>",
+      "_links": {
+        "self": {
+          "href": "https://api.tvmaze.com/episodes/1697730"
+        },
+        "show": {
+          "href": "https://api.tvmaze.com/shows/43202",
+          "name": "Frontera verde"
+        }
+      }
+    },
+    {
+      "id": 1697731,
+      "url": "https://www.tvmaze.com/episodes/1697731/frontera-verde-1x08-la-oscuridad",
+      "name": "La Oscuridad",
+      "season": 1,
+      "number": 8,
+      "type": "regular",
+      "airdate": "2019-08-16",
+      "airtime": "",
+      "airstamp": "2019-08-16T12:00:00+00:00",
+      "runtime": 31,
+      "rating": {
+        "average": 7
+      },
+      "image": {
+        "medium": "https://static.tvmaze.com/uploads/images/medium_landscape/208/520593.jpg",
+        "original": "https://static.tvmaze.com/uploads/images/original_untouched/208/520593.jpg"
+      },
+      "summary": "<p>As the tribes wage war against one another on Earth, Helena -- with Ushe's help -- faces off against the enemy in the cosmic heart of the jungle.</p>",
+      "_links": {
+        "self": {
+          "href": "https://api.tvmaze.com/episodes/1697731"
+        },
+        "show": {
+          "href": "https://api.tvmaze.com/shows/43202",
+          "name": "Frontera verde"
+        }
+      }
+    }
+  ],
+  "seasons": [
+    {
+      "id": 98750,
+      "url": "https://www.tvmaze.com/seasons/98750/frontera-verde-season-1",
+      "number": 1,
+      "name": "",
+      "episodeOrder": 8,
+      "premiereDate": "2019-08-16",
+      "endDate": "2019-08-16",
+      "network": null,
+      "webChannel": {
+        "id": 1,
+        "name": "Netflix",
+        "country": null,
+        "officialSite": "https://www.netflix.com/"
+      },
+      "image": null,
+      "summary": "<p>When a young Bogotá-based detective gets drawn into the jungle to investigate four femicides, she uncovers magic, an evil plot and her own true origins.</p>",
+      "_links": {
+        "self": {
+          "href": "https://api.tvmaze.com/seasons/98750"
+        }
+      }
+    }
+  ],
+  "images": [
+    {
+      "id": 513346,
+      "type": "poster",
+      "main": false,
+      "resolutions": {
+        "original": {
+          "url": "https://static.tvmaze.com/uploads/images/original_untouched/206/516743.jpg",
+          "width": 600,
+          "height": 889
+        },
+        "medium": {
+          "url": "https://static.tvmaze.com/uploads/images/medium_portrait/206/516743.jpg",
+          "width": 210,
+          "height": 295
+        }
+      }
+    },
+    {
+      "id": 554731,
+      "type": "background",
+      "main": false,
+      "resolutions": {
+        "original": {
+          "url": "https://static.tvmaze.com/uploads/images/original_untouched/223/558288.jpg",
+          "width": 1280,
+          "height": 720
+        }
+      }
+    },
+    {
+      "id": 601562,
+      "type": "poster",
+      "main": true,
+      "resolutions": {
+        "original": {
+          "url": "https://static.tvmaze.com/uploads/images/original_untouched/242/605253.jpg",
+          "width": 1013,
+          "height": 1500
+        },
+        "medium": {
+          "url": "https://static.tvmaze.com/uploads/images/medium_portrait/242/605253.jpg",
+          "width": 210,
+          "height": 295
+        }
+      }
+    }
+  ]
+}

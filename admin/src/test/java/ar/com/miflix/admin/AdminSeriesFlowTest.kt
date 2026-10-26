@@ -130,6 +130,48 @@ class AdminSeriesFlowTest {
         episode(1,last);vm.save();vm.sync();await()
         assertFalse(CatalogRules.items(published!!).single().has("fecha_agregado"))
     }
+    private fun recoveryFixture(slow: Boolean=false) {
+        vm.recoveryProviderFactory={object:RecoveryProvider {
+            override fun cancel() {}
+            override fun search(item:JsonObject,query:String):List<RecoveryCandidate> {
+                if(slow) Thread.sleep(150)
+                return listOf(RecoveryCandidate("TMDB",42,"The Wonderfools","2026","https://www.themoviedb.org/tv/42","en-US",JsonObject()))
+            }
+            override fun retrieve(candidate:RecoveryCandidate,item:JsonObject,seasons:Set<Long>,language:String)=RecoveryData(candidate,JsonObject(),listOf(JsonParser.parseString("""{"numero":1,"episodios":[{"numero":1,"titulo":"A real name","sinopsis":"An actual synopsis"}]}""").asJsonObject))
+        }}
+    }
+    @Test fun selectiveRecoveryQueriesDoNotPersistAndOnlyConfirmedFieldsReachPublication(){
+        searchAndReview();episode(1,first);vm.save();val before=vm.catalog!!.deepCopy();val cp=vm.checkpoint("serie")!!.deepCopy()
+        vm.edit(CatalogRules.items(vm.catalog!!).single());val initialDraft=vm.draft!!.deepCopy();recoveryFixture()
+        vm.startRecovery("TMDB",1);vm.searchRecovery();await();vm.retrieveRecovery(vm.recoveryCandidates.single());await()
+        assertEquals(before,vm.catalog);assertEquals(initialDraft,vm.draft);assertNull(published)
+        vm.confirmRecoveryMapping("1/1",true);vm.recoverySelection=setOf("1/1/sinopsis");vm.applyRecovery()
+        assertEquals(before,vm.catalog);assertEquals("Episodio 1",vm.draft!!.array("temporadas")[0].asJsonObject.array("episodios")[0].asJsonObject.text("titulo"));assertTrue(vm.canUndoRecovery)
+        vm.save();vm.sync();await();val saved=CatalogRules.items(published!!).single()
+        assertEquals(before.array("items")[0].asJsonObject.get("fecha_agregado"),saved.get("fecha_agregado"))
+        val e=saved.array("temporadas")[0].asJsonObject.array("episodios")[0].asJsonObject
+        assertEquals(first,e.text("telegram_url"));assertEquals("An actual synopsis",e.text("sinopsis"));assertEquals(cp,vm.checkpoint("serie"))
+        vm=newModel();vm.edit(CatalogRules.items(vm.catalog!!).single());assertTrue(vm.canUndoRecovery);vm.undoRecovery();assertEquals("",vm.draft!!.array("temporadas")[0].asJsonObject.array("episodios")[0].asJsonObject.text("sinopsis"))
+    }
+    @Test fun cancellingPreviewKeepsSavedAndDraftRecordsExactly(){
+        searchAndReview();episode(1,first);val before=vm.catalog!!.deepCopy();val draft=vm.draft!!.deepCopy();recoveryFixture()
+        vm.startRecovery("TMDB");vm.searchRecovery();await();vm.retrieveRecovery(vm.recoveryCandidates.single());await();vm.cancelRecovery()
+        assertEquals(before,vm.catalog);assertEquals(draft,vm.draft);assertFalse(vm.canUndoRecovery)
+    }
+    @Test fun cancelledLateQueryCannotReplaceCurrentScreenOrDraft(){
+        searchAndReview();val before=vm.draft!!.deepCopy();recoveryFixture(true);vm.startRecovery("TMDB");vm.searchRecovery();vm.cancelRecovery()
+        Thread.sleep(250);assertEquals("review",vm.screen);assertTrue(vm.recoveryCandidates.isEmpty());assertEquals(before,vm.draft);assertFalse(vm.busy)
+    }
+    @Test fun newManualRecordBackupRemainsUsableAfterFirstSaveAssignsItsId(){
+        vm.openCategory("serie");vm.newItem();vm.field("titulo","Manual");vm.addSeason(1);episode(1,first);recoveryFixture()
+        vm.startRecovery("TMDB");vm.searchRecovery();await();vm.retrieveRecovery(vm.recoveryCandidates.single());await();vm.confirmRecoveryMapping("1/1",true);vm.recoverySelection=setOf("1/1/titulo");vm.applyRecovery()
+        assertTrue(vm.canUndoRecovery);vm.save();val stored=CatalogRules.items(vm.catalog!!).single();assertTrue(stored.text("id").isNotBlank());assertFalse(stored.toString().contains("_admin_metadata_recovery"))
+        vm.edit(stored);assertTrue(vm.canUndoRecovery);vm.undoRecovery();assertEquals("Episodio 1",vm.draft!!.array("temporadas")[0].asJsonObject.array("episodios")[0].asJsonObject.text("titulo"));assertEquals(stored.get("fecha_agregado"),vm.draft!!.get("fecha_agregado"))
+    }
+    @Test fun traditionalTmdbButtonProtectsAnAlreadyPopulatedSeasonByOpeningComparison(){
+        searchAndReview();episode(1,first);val before=vm.draft!!.deepCopy();recoveryFixture();vm.seasonNumber=1;vm.fetchSeason();await()
+        assertEquals("recoverySearch",vm.screen);assertEquals("es-MX",vm.recoveryLanguage);assertEquals(before,vm.draft);assertEquals(1,vm.recoveryCandidates.size)
+    }
     private fun assertArtwork(item:JsonObject){assertEquals(HttpMetadata.image("/poster.jpg"),item.text("poster_url"));assertEquals(HttpMetadata.image("/back.jpg"),item.text("backdrop_url"));assertEquals(HttpMetadata.image("/logo.png"),item.text("logo_url"))}
     @Test fun movieVisualsSurviveRealReviewDraftSaveEditSyncAndRestart(){
         searchAndReview("pelicula",last);assertArtwork(vm.draft!!);assertEquals(0,CatalogRules.items(vm.catalog!!).size)

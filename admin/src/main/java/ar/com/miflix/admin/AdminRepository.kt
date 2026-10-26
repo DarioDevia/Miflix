@@ -97,7 +97,17 @@ class AdminRepository(private val store: StateStore) {
         check(writable) { "Actualizá el catálogo antes de editar." }
         require(cp == null || cp.text("tipo") == item.text("tipo")) { "El checkpoint no corresponde al tipo de contenido." }
         val next=if(cp == null) state.deepCopy() else AdminCheckpoints.put(state,cp)
-        next.add("catalog",CatalogRules.save(catalog ?: error("Sin catálogo."),item));next.addProperty("pending",true)
+        val current=catalog ?: error("Sin catálogo.")
+        val saved=CatalogRules.save(current,item)
+        next.add("catalog",saved);next.addProperty("pending",true)
+        val undo=next.get("metadata_undo")?.takeIf {it.isJsonObject}?.asJsonObject
+        if(item.text("id").isBlank() && undo!=null && undo.getAsJsonObject("before").text("id").isBlank() &&
+            undo.getAsJsonObject("after").text("_admin_metadata_recovery").isNotBlank() &&
+            undo.getAsJsonObject("after").text("_admin_metadata_recovery")==draft()?.text("_admin_metadata_recovery")) {
+            val previousIds=CatalogRules.items(current).map {it.text("id")}.toSet()
+            val inserted=CatalogRules.items(saved).single {it.text("id") !in previousIds}.text("id")
+            undo.getAsJsonObject("before").addProperty("id",inserted);undo.getAsJsonObject("after").addProperty("id",inserted)
+        }
         commit(next)
     }
     fun setCheckpoint(cp: JsonObject) {
@@ -132,6 +142,25 @@ class AdminRepository(private val store: StateStore) {
     }
     fun draft(): JsonObject?=state.get("draft")?.takeIf { it.isJsonObject }?.asJsonObject?.deepCopy()
     fun persistDraft(draft: JsonObject?) { val next=state.deepCopy();if(draft==null) next.remove("draft") else next.add("draft",draft.deepCopy());commit(next) }
+    fun stageRecovery(draft: JsonObject, backup: JsonObject) {
+        check(writable) {"El catálogo está en solo lectura."}
+        val next=state.deepCopy();next.add("draft",draft.deepCopy());next.add("metadata_undo",backup.deepCopy());commit(next)
+    }
+    fun canUndoRecovery(item: JsonObject): Boolean {
+        val backup=state.get("metadata_undo")?.takeIf {it.isJsonObject}?.asJsonObject ?: return false
+        val before=backup.getAsJsonObject("before")
+        val same=if(item.text("id").isNotBlank()) before.text("id")==item.text("id") else
+            item.text("_admin_metadata_recovery").isNotBlank() && item.text("_admin_metadata_recovery")==before.text("_admin_metadata_recovery")
+        return same && runCatching {MetadataRecovery.undo(item,backup);true}.getOrDefault(false)
+    }
+    fun undoRecovery(draft: JsonObject): JsonObject {
+        check(writable) {"El catálogo está en solo lectura."}
+        val backup=state.get("metadata_undo")?.takeIf {it.isJsonObject}?.asJsonObject ?: error("No hay una recuperación para revertir.")
+        val restored=MetadataRecovery.undo(draft,backup)
+        // Keep the backup if the user later discards this reverted draft before saving.
+        val next=state.deepCopy();next.add("draft",restored.deepCopy());commit(next)
+        return restored
+    }
     fun publish(remote: AdminRemote): String {
         check(writable) { "Actualizá y validá el catálogo remoto antes de sincronizar." }
         if(pending) {

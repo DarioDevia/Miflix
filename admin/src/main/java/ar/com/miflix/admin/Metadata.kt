@@ -31,6 +31,13 @@ class HttpMetadata(private val config: AdminConfig,private val client: OkHttpCli
         params.forEach { (key,value) -> url.addQueryParameter(key,value) }
         return json(Request.Builder().url(url.build()).header("Authorization","Bearer ${if(direct) config.tmdbToken else config.token}").build())
     }
+    // Same fixed upstream/relay and encrypted credentials as the established metadata flow.
+    fun recoveryRequest(path: String, language: String): JsonObject {
+        require(language.matches(Regex("[a-z]{2}(?:-[A-Z]{2})?"))) {"Idioma inválido."}
+        require(path.matches(Regex("/(movie|tv)/[1-9]\\d*(?:/season/(?:0|[1-9]\\d*))?"))) {"Consulta no permitida."}
+        return tmdb(path,mapOf("language" to language))
+    }
+    fun cancelRecovery() { client.dispatcher.cancelAll() }
     override fun search(query: String,type: String,source: String): List<SearchResult> {
         require(query.trim().isNotBlank()) { "Escribí un título." }
         require(query.length <= 200) { "La búsqueda es demasiado larga." }

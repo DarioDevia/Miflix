@@ -46,6 +46,7 @@ class MainActivity: ComponentActivity() {
     val rev=vm.revision // reads pending/readonly flags after repository commits
     fun open(url: String) { TelegramLinks.valid(url)?.let {try {context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(it)))} catch(_:Exception) { android.widget.Toast.makeText(context,"No hay una aplicación para abrir Telegram.",android.widget.Toast.LENGTH_LONG).show() }} }
     BackHandler(enabled=vm.screen !in setOf("home","startup")) {
+        if(vm.screen in setOf("recoverySearch","recoveryPreview")) {vm.cancelRecovery();return@BackHandler}
         if(vm.busy) return@BackHandler
         vm.screen=when(vm.screen) {"review","search","enrichment" ->"home";"detail" ->"list";else ->"home"}
     }
@@ -53,7 +54,7 @@ class MainActivity: ComponentActivity() {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
             Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically) {
                 Text("MiFlix Admin",style=MaterialTheme.typography.titleLarge,modifier=Modifier.weight(1f))
-                if(vm.screen!="startup") TextButton(onClick={vm.screen="home"},enabled=!vm.busy) {Text("Inicio")}
+                if(vm.screen!="startup") TextButton(onClick={if(vm.screen in setOf("recoverySearch","recoveryPreview")) vm.cancelRecovery();vm.screen="home"},enabled=!vm.busy) {Text("Inicio")}
             }
             if(vm.message.isNotBlank()) Text(vm.message,Modifier.fillMaxWidth().background(Color(0xFF263449)).padding(12.dp),style=MaterialTheme.typography.bodyMedium)
             if(vm.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -69,6 +70,8 @@ class MainActivity: ComponentActivity() {
                     "search" -> SearchScreen(vm)
                     "review" -> ReviewScreen(vm,onSave={saveConfirmation=true},onDiscard={discardDraft=true})
                     "enrichment" -> EnrichmentScreen(vm)
+                    "recoverySearch" -> RecoverySearchScreen(vm)
+                    "recoveryPreview" -> RecoveryPreviewScreen(vm)
                     else -> HomeScreen(vm,onRefresh={if(vm.pending) discardRefresh=true else vm.refresh()},onOpen={open(it)})
                 }
             }
@@ -233,6 +236,10 @@ class MainActivity: ComponentActivity() {
     var newSeason by rememberSaveable {mutableStateOf("1")}
     ScrollContent {
         Text("Revisar antes de guardar",style=MaterialTheme.typography.titleLarge)
+        RecoverySourceMenu(vm,modifier=Modifier.fillMaxWidth())
+        Text("Recuperación selectiva: comparar campos sin alterar enlaces ni episodios.",style=MaterialTheme.typography.bodySmall)
+        MetadataCredits(item)
+        if(vm.canUndoRecovery) OutlinedButton(onClick={vm.undoRecovery()},enabled=vm.writable,modifier=Modifier.fillMaxWidth()) {Text("Revertir última recuperación en esta ficha")}
         Poster(item.text("poster_url"),true)
         EditorField(vm,"titulo","Título");EditorField(vm,"titulo_original","Título original");EditorField(vm,"anio","Año");EditorField(vm,"generos","Géneros, separados por coma")
         EditorField(vm,"puntuacion","Puntuación");EditorField(vm,"fuente_puntuacion","Fuente de puntuación")
@@ -251,10 +258,12 @@ class MainActivity: ComponentActivity() {
             HorizontalDivider();Text("Temporadas y episodios",style=MaterialTheme.typography.titleLarge)
             Text("La temporada 0 corresponde a especiales. Los enlaces se conservan al consultar metadatos.",style=MaterialTheme.typography.bodySmall)
             OutlinedTextField(newSeason,{newSeason=it},label={Text("Número de temporada")},singleLine=true,modifier=Modifier.fillMaxWidth())
+            OutlinedButton(onClick={newSeason.toIntOrNull()?.let {vm.addSeason(it)}},enabled=vm.writable) {Text("Agregar manual")}
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick={newSeason.toIntOrNull()?.let {vm.addSeason(it)}},enabled=vm.writable) {Text("Agregar manual")}
-                Button(onClick={newSeason.toIntOrNull()?.let {vm.seasonNumber=it;vm.fetchSeason()}},enabled=vm.writable && item.number("tmdb_id")!=null) {Text("Obtener TMDB")}
+                Button(onClick={newSeason.toIntOrNull()?.let {vm.seasonNumber=it;vm.fetchSeason()}},enabled=vm.writable && item.number("tmdb_id")!=null,modifier=Modifier.weight(1f)) {Text("Obtener TMDB")}
+                RecoverySourceMenu(vm,Modifier.weight(1f),newSeason.toLongOrNull())
             }
+            Text("Obtener TMDB carga temporadas vacías. Si ya hay episodios, abre comparación para protegerlos. Fuentes recupera solo datos de episodios existentes.",style=MaterialTheme.typography.bodySmall)
             item.array("temporadas").forEach {entry -> key(entry.asJsonObject.number("numero")) {SeasonEditor(vm,entry.asJsonObject)} }
         }
         Button(onClick=onSave,enabled=vm.writable && item.text("titulo").isNotBlank(),modifier=Modifier.fillMaxWidth()) {Text("Confirmar datos y guardar")}

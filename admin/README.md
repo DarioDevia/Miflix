@@ -1,6 +1,16 @@
-# MiFlix Admin Android · 0.1.5-diagnostico
+# MiFlix Admin Android · 0.1.6-diagnostico
 
-Aplicación independiente para administrar el catálogo schema 1 desde un teléfono. Paquete `ar.com.miflix.admin`, versionCode 6, Android 8.0/API 26 o posterior. No reproduce video ni trailers y no incorpora Media3, ExoPlayer ni TDLib. No cambia el módulo `app`, Mobile ni TV.
+Aplicación independiente para administrar el catálogo schema 1 desde un teléfono. Paquete `ar.com.miflix.admin`, versionCode 7, Android 8.0/API 26 o posterior. No reproduce video ni trailers y no incorpora Media3, ExoPlayer ni TDLib. No cambia el módulo `app`, Mobile ni TV.
+
+## 0.1.6: recuperación selectiva desde TMDB multidioma y TVmaze
+
+En revisión, **Fuentes** ofrece TMDB español, TMDB en otro idioma y TVmaze para series/anime compatibles. También se encuentra a la derecha de **Obtener TMDB**. Consultar no guarda ni sincroniza. Se elige un candidato identificado, se comparan los campos actuales/nuevos y se seleccionan individualmente los datos a aplicar. Los campos vacíos con información válida se seleccionan inicialmente; títulos y nombres genéricos se consideran faltantes. Una correspondencia episódica no verificada permanece bloqueada hasta confirmarla manualmente.
+
+**Aplicar datos seleccionados** presenta un resumen y conserva un respaldo local antes de modificar únicamente el borrador. Después siguen siendo necesarios **Confirmar y guardar** y **Sincronizar**. **Revertir última recuperación en esta ficha** permite volver a los valores anteriores, incluso después de guardar/reiniciar, mientras no se hayan modificado esos mismos campos posteriormente. No hay creación/eliminación de episodios durante la recuperación ni cambios de enlaces, identidades o `fecha_agregado`.
+
+El botón azul se conserva. En temporadas vacías mantiene la carga TMDB tradicional; cuando ya existen episodios, abre la comparación para proteger datos existentes. TVmaze exige mantener atribución y CC BY-SA 4.0: los avisos y URLs se muestran y se conservan por campo dentro de `fuentes_metadata`, incluido el JSON público. No se traducen textos. La prueba física de esta versión sigue pendiente.
+
+Ver [auditoría, arquitectura, licencia, cobertura de Frontera Verde y prueba Samsung](0.1.6-metadata-sources.md). Las notas de versiones anteriores que siguen son antecedentes.
 
 ## 0.1.5: fecha de incorporación al catálogo
 

@@ -29,6 +29,20 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
     var isNew by mutableStateOf(true);private set
     var updateMultimedia by mutableStateOf(false);private set
     var seasonNumber by mutableStateOf(1)
+    var recoverySource by mutableStateOf("TMDB"); private set
+    var recoveryLanguage by mutableStateOf("en-US")
+    var recoveryQuery by mutableStateOf("")
+    var recoverySeasons by mutableStateOf<Set<Long>>(emptySet())
+    var recoveryCandidates by mutableStateOf<List<RecoveryCandidate>>(emptyList()); private set
+    var recoveryPlan by mutableStateOf<RecoveryPlan?>(null); private set
+    var recoverySelection by mutableStateOf<Set<String>>(emptySet())
+    var recoveryMappings by mutableStateOf<Set<String>>(emptySet())
+    var recoveryLicense by mutableStateOf(false)
+    internal var recoveryProviderFactory: ((String)->RecoveryProvider)?=null
+    private var recoveryProvider: RecoveryProvider?=null
+    private var recoveryJob: Job?=null
+    private var recoveryGeneration=0
+    val canUndoRecovery get()=draft?.let {repo.canUndoRecovery(it)}==true
     val catalog get()=repo.catalog
     fun checkpoint(type: String)=repo.checkpoint(type)
     fun checkpointLink(type: String)=repo.checkpointLink(type)
@@ -87,8 +101,75 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
         category=draft!!.text("tipo");query=draft!!.text("titulo");source=if(category=="anime") "AniList" else "TMDB";screen="review"
     }
     private fun persist() {
-        val copy=draft?.deepCopy()?.apply {addProperty("_admin_original",original);addProperty("_admin_is_new",isNew);addProperty("_admin_update_version",updateMultimedia)}
+        val copy=draft?.let(::draftEnvelope)
         repo.persistDraft(copy);revision++
+    }
+    private fun draftEnvelope(item: JsonObject)=item.deepCopy().apply {addProperty("_admin_original",original);addProperty("_admin_is_new",isNew);addProperty("_admin_update_version",updateMultimedia)}
+    fun startRecovery(source: String,season: Long?=null,language: String="en-US") {
+        if(!writable || draft==null) return
+        recoverySource=source;recoveryLanguage=language;recoveryQuery=draft!!.text("titulo")
+        recoverySeasons=draft!!.array("temporadas").mapNotNull {it.asJsonObject.number("numero")}.filter {it>=0 && (season==null || it==season)}.take(20).toSet()
+        recoveryCandidates=emptyList();recoveryPlan=null;recoverySelection=emptySet();recoveryMappings=emptySet();recoveryLicense=false
+        recoveryProvider=null;message="";screen="recoverySearch"
+    }
+    private fun recoveryWork(task: ()->Unit, success: ()->Unit) {
+        if(busy) return
+        val generation=++recoveryGeneration;busy=true;message=""
+        recoveryJob=viewModelScope.launch {
+            try {withContext(Dispatchers.IO) {task()};if(generation==recoveryGeneration) {success();revision++}}
+            catch(e:CancellationException) {throw e}
+            catch(e:Exception) {if(generation==recoveryGeneration) message=e.message ?: "No se pudo recuperar información."}
+            finally {if(generation==recoveryGeneration) busy=false}
+        }
+    }
+    fun searchRecovery() {
+        val item=draft?.deepCopy() ?: return;val query=recoveryQuery
+        val provider=recoveryProviderFactory?.invoke(recoverySource) ?: if(recoverySource=="TVmaze") TvmazeRecoveryProvider() else TmdbRecoveryProvider(HttpMetadata(config ?: return))
+        if(busy) return
+        recoveryCandidates=emptyList();recoveryPlan=null
+        recoveryProvider=provider;var found:List<RecoveryCandidate> = emptyList()
+        recoveryWork({found=provider.search(item,query)},{recoveryCandidates=found;message=if(found.isEmpty()) "La fuente no encontró resultados. El catálogo no cambió." else "Elegí la ficha correcta por título, año y fuente."})
+    }
+    fun retrieveRecovery(candidate: RecoveryCandidate) {
+        val provider=recoveryProvider ?: return;val before=draft?.deepCopy() ?: return
+        val seasons=recoverySeasons.toSet();val language=recoveryLanguage;var plan:RecoveryPlan?=null
+        recoveryWork({plan=MetadataRecovery.compare(before,provider.retrieve(candidate,before,seasons,language))},{
+            recoveryPlan=plan;recoverySelection=plan!!.changes.filter {it.initiallySelected}.map {it.path.key}.toSet()
+            recoveryMappings=emptySet();recoveryLicense=false;screen="recoveryPreview"
+        })
+    }
+    fun cancelRecovery() {
+        recoveryGeneration++;recoveryProvider?.cancel();recoveryJob?.cancel();recoveryProvider=null;busy=false
+        recoveryPlan=null;recoveryCandidates=emptyList();screen="review";message="Consulta cancelada. La revisión y el catálogo no cambiaron."
+    }
+    fun confirmRecoveryMapping(key: String, checked: Boolean) {
+        recoveryMappings=if(checked) recoveryMappings+key else recoveryMappings-key
+        recoveryPlan?.changes?.filter {"${it.path.season}/${it.path.episode}"==key && !it.safe}?.forEach {c ->
+            recoverySelection=if(checked && MetadataRecovery.missing(c.path.field,c.before)) recoverySelection+c.path.key else recoverySelection-c.path.key
+        }
+    }
+    fun applyRecovery() {
+        if(!writable) return
+        try {
+            val plan=recoveryPlan ?: return
+            require(draft==plan.before) {"La revisión cambió durante la consulta. Volvé a comparar."}
+            val result=MetadataRecovery.apply(plan,recoverySelection,recoveryMappings,recoveryLicense)
+            val backup=MetadataRecovery.backup(plan,recoverySelection,result)
+            if(result.text("id").isBlank()) {
+                val token=java.util.UUID.randomUUID().toString()
+                result.addProperty("_admin_metadata_recovery",token)
+                backup.getAsJsonObject("before").addProperty("_admin_metadata_recovery",token)
+                backup.add("after",result.deepCopy())
+            }
+            repo.stageRecovery(draftEnvelope(result),backup)
+            draft=result;recoveryPlan=null;recoveryProvider=null;screen="review";revision++
+            message="Datos seleccionados aplicados a la revisión. Falta confirmar y guardar; no se sincronizó. Respaldo local disponible."
+        } catch(e:Exception) {message=e.message ?: "No se pudo aplicar. Conservamos la revisión anterior."}
+    }
+    fun undoRecovery() {
+        if(!writable) return
+        try {draft=repo.undoRecovery(draftEnvelope(draft ?: return));revision++;message="Recuperación revertida en la revisión. Confirmá y guardá para actualizar el catálogo; no se sincronizó."}
+        catch(e:Exception) {message=e.message ?: "No se pudo revertir; los datos se conservaron."}
     }
     fun changeOriginal(value: String) {original=value;persist()}
     fun changeTelegramLink(value: String) {
@@ -168,6 +249,9 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
     fun fetchSeason() {
         val id=draft?.number("tmdb_id") ?: run {message="Vinculá un resultado TMDB para consultar episodios; también podés agregarlos manualmente.";return}
         val number=seasonNumber;var result:JsonObject?=null
+        if(draft!!.array("temporadas").any {it.asJsonObject.number("numero")==number.toLong() && it.asJsonObject.array("episodios").size()>0}) {
+            startRecovery("TMDB",number.toLong(),"es-MX");searchRecovery();return
+        }
         work({result=metadata().season(id,number)},{draft=CatalogRules.mergeSeason(draft!!,result!!);draft!!.addProperty("fuente_episodios","TMDB");persist();message="Temporada $number obtenida; enlaces anteriores conservados."})
     }
     fun search() {
