@@ -47,6 +47,7 @@ class MainActivity: ComponentActivity() {
     fun open(url: String) { TelegramLinks.valid(url)?.let {try {context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(it)))} catch(_:Exception) { android.widget.Toast.makeText(context,"No hay una aplicación para abrir Telegram.",android.widget.Toast.LENGTH_LONG).show() }} }
     BackHandler(enabled=vm.screen !in setOf("home","startup")) {
         if(vm.screen in setOf("recoverySearch","recoveryPreview")) {vm.cancelRecovery();return@BackHandler}
+        if(vm.screen=="providers") {vm.leaveProviders();return@BackHandler}
         if(vm.busy) return@BackHandler
         vm.screen=when(vm.screen) {"review","search","enrichment" ->"home";"detail" ->"list";else ->"home"}
     }
@@ -54,7 +55,7 @@ class MainActivity: ComponentActivity() {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
             Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically) {
                 Text("MiFlix Admin",style=MaterialTheme.typography.titleLarge,modifier=Modifier.weight(1f))
-                if(vm.screen!="startup") TextButton(onClick={if(vm.screen in setOf("recoverySearch","recoveryPreview")) vm.cancelRecovery();vm.screen="home"},enabled=!vm.busy) {Text("Inicio")}
+                if(vm.screen!="startup") TextButton(onClick={if(vm.screen in setOf("recoverySearch","recoveryPreview")) vm.cancelRecovery();if(vm.screen=="providers") vm.leaveProviders();vm.screen="home"},enabled=!vm.busy) {Text("Inicio")}
             }
             if(vm.message.isNotBlank()) Text(vm.message,Modifier.fillMaxWidth().background(Color(0xFF263449)).padding(12.dp),style=MaterialTheme.typography.bodyMedium)
             if(vm.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -65,6 +66,7 @@ class MainActivity: ComponentActivity() {
                 when(vm.screen) {
                     "startup" -> Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally) {CircularProgressIndicator();Spacer(Modifier.height(20.dp));Text("Actualizando catálogo…")}
                     "config" -> ConfigScreen(vm)
+                    "providers" -> ProviderSettingsScreen(vm)
                     "list" -> CatalogScreen(vm)
                     "detail" -> DetailScreen(vm) {open(it)}
                     "search" -> SearchScreen(vm)
@@ -158,7 +160,9 @@ class MainActivity: ComponentActivity() {
     var token by remember {mutableStateOf(vm.config?.token.orEmpty())}
     var tmdb by remember {mutableStateOf(vm.config?.tmdbToken.orEmpty())}
     ScrollContent {
-        Text("Conectar con el catálogo compartido",style=MaterialTheme.typography.titleLarge)
+        Text("Configuración",style=MaterialTheme.typography.titleLarge)
+        OutlinedButton(onClick={vm.screen="providers"},enabled=!vm.busy,modifier=Modifier.fillMaxWidth()) {Text("APIs y proveedores")}
+        Text("Conectar con el catálogo compartido",style=MaterialTheme.typography.titleMedium)
         OutlinedTextField(base,{base=it},label={Text("URL base del Worker")},modifier=Modifier.fillMaxWidth(),enabled=!vm.busy,singleLine=true)
         OutlinedTextField(token,{token=it},label={Text("Credencial administrativa")},visualTransformation=PasswordVisualTransformation(),modifier=Modifier.fillMaxWidth(),enabled=!vm.busy,singleLine=true)
         Text("La credencial se guarda cifrada en este teléfono. No se incorpora a la APK.",style=MaterialTheme.typography.bodySmall)

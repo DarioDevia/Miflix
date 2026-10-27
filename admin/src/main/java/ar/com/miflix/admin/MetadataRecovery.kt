@@ -7,7 +7,7 @@ import java.time.LocalDate
 data class RecoveryCandidate(val provider: String, val id: Long, val title: String, val year: String,
     val url: String, val language: String, val raw: JsonObject)
 data class RecoveryData(val candidate: RecoveryCandidate, val fields: JsonObject,
-    val seasons: List<JsonObject> = emptyList(), val warnings: List<String> = emptyList())
+    val seasons: List<JsonObject> = emptyList(), val warnings: List<String> = emptyList(), val manualSelection: Boolean = false)
 data class RecoveryPath(val season: Long? = null, val episode: Long? = null, val field: String) {
     val key get() = "${season ?: "title"}/${episode ?: "season"}/$field"
     val label get() = (season?.let { "${if(it==0L) "Especiales" else "T$it"}${episode?.let { e -> " E$e" }.orEmpty()} · " }.orEmpty()) +
@@ -15,8 +15,8 @@ data class RecoveryPath(val season: Long? = null, val episode: Long? = null, val
             "backdrop_url" to "Fondo", "imagen_url" to "Imagen", "duracion" to "Duración (min)", "fecha_emision" to "Fecha de emisión").getValue(field)
 }
 data class RecoveryChange(val path: RecoveryPath, val before: JsonElement?, val after: JsonElement,
-    val sourceUrl: String, val mapping: String? = null, val safe: Boolean = true) {
-    val initiallySelected get() = safe && MetadataRecovery.missing(path.field, before)
+    val sourceUrl: String, val mapping: String? = null, val safe: Boolean = true, val manualSelection: Boolean = false) {
+    val initiallySelected get() = !manualSelection && safe && MetadataRecovery.missing(path.field, before)
 }
 data class RecoveryPlan(val before: JsonObject, val data: RecoveryData, val changes: List<RecoveryChange>, val warnings: List<String>) {
     fun selected(keys: Set<String>) = changes.filter { it.path.key in keys }
@@ -57,7 +57,7 @@ object MetadataRecovery {
         fun add(old: JsonObject, incoming: JsonObject, fields: Set<String>, s: Long?=null,e: Long?=null,safe: Boolean=true,url: String=data.candidate.url) {
             fields.forEach { field -> valid(field,incoming.get(field))?.let { value ->
                 if(old.get(field)!=value) changes.add(RecoveryChange(RecoveryPath(s,e,field),old.get(field)?.deepCopy(),value,url,
-                    e?.let { "T$s E$e → T$s E$e" },safe))
+                    e?.let { "T$s E$e → T$s E$e" },safe,data.manualSelection))
             } }
         }
         add(current,data.fields,rootFields)
@@ -83,6 +83,7 @@ object MetadataRecovery {
     }
     fun apply(plan: RecoveryPlan, selected: Set<String>, confirmed: Set<String>, licenseAccepted: Boolean): JsonObject {
         val choices=plan.selected(selected)
+        require(plan.data.candidate.provider!="TheTVDB" || licenseAccepted) {"Confirmá el uso autorizado y la restricción de publicación de TheTVDB."}
         require(choices.isNotEmpty()) {"Seleccioná al menos un campo."}
         require(choices.all {it.safe || "${it.path.season}/${it.path.episode}" in confirmed}) {"Confirmá la correspondencia de cada episodio seleccionado."}
         require(plan.data.candidate.provider!="TVmaze" || licenseAccepted) {"Aceptá conservar la atribución y ShareAlike de TVmaze."}
@@ -96,6 +97,10 @@ object MetadataRecovery {
             recovery.add(change.path.key,JsonObject().apply {
                 addProperty("fuente",plan.data.candidate.provider);addProperty("url",change.sourceUrl)
                 addProperty("idioma",plan.data.candidate.language);addProperty("modificaciones","Selección y normalización de HTML/espacios; sin traducción")
+                if(plan.data.candidate.provider=="TheTVDB") {
+                    addProperty("atribucion","Metadatos proporcionados por TheTVDB — https://thetvdb.com")
+                    addProperty("condiciones","https://thetvdb.com/tos");addProperty("publicacion_bloqueada",true)
+                }
                 if(plan.data.candidate.provider=="TVmaze") {addProperty("licencia",LICENSE);addProperty("atribucion","TVmaze — datos importados y sus adaptaciones bajo CC BY-SA 4.0; sin garantías; conservar avisos al redistribuir.")}
             })
         }

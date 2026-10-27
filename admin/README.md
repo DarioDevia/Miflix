@@ -1,6 +1,16 @@
-# MiFlix Admin Android · 0.1.6-diagnostico
+# MiFlix Admin Android · 0.1.7-diagnostico
 
-Aplicación independiente para administrar el catálogo schema 1 desde un teléfono. Paquete `ar.com.miflix.admin`, versionCode 7, Android 8.0/API 26 o posterior. No reproduce video ni trailers y no incorpora Media3, ExoPlayer ni TDLib. No cambia el módulo `app`, Mobile ni TV.
+Aplicación independiente para administrar el catálogo schema 1 desde un teléfono. Paquete `ar.com.miflix.admin`, versionCode 8, Android 8.0/API 26 o posterior. No reproduce video ni trailers y no incorpora Media3, ExoPlayer ni TDLib. No cambia el módulo `app`, Mobile ni TV.
+
+## 0.1.7: TheTVDB en español y APIs y proveedores
+
+Configuración → **APIs y proveedores** permite guardar, cambiar o eliminar la API Key de TheTVDB, mostrar/ocultar la entrada y probar las conexiones de TMDB, TVmaze y TheTVDB. La modalidad de proyecto gratuita con atribución usa únicamente API Key; la opción de PIN se habilita solo para proyectos sostenidos por suscriptores. No se pide un token: Admin lo obtiene por `/login`, lo reutiliza en memoria y vuelve a autenticar una sola vez ante 401. El cifrado AES-GCM y Android Keystore siguen el mecanismo nativo existente, con archivo independiente en `noBackupFilesDir`, sin nuevas dependencias ni credenciales incluidas en APK, Git o catálogo.
+
+**Fuentes → TheTVDB — Metadatos en español** reutiliza candidatos, comparación, casillas por campo/episodio, resumen, guardado normal y reversión de 0.1.6. Consulta traducciones `spa` verificadas sin sustituir ausencias por inglés. El texto base se puede consultar explícitamente y queda desmarcado, con idioma sin verificar. Solo se consulta el orden predeterminado; todos sus episodios requieren confirmar la correspondencia y las numeraciones dudosas se excluyen. No se crean ni eliminan episodios.
+
+**Límite contractual explícito:** los datos seleccionados de TheTVDB se pueden guardar localmente, con procedencia por campo; sincronización y copia JSON para publicación quedan bloqueadas mientras existan esos datos. Hace falta verificar los permisos de distribución de la cuenta y añadir atribución con enlace donde Mobile y TV muestran esos metadatos. Esta versión no modifica esos clientes ni permite levantar el bloqueo con una casilla. Las imágenes TheTVDB requieren derechos adicionales y no se importan. El respaldo local permite revertir y guardar para retirar esos cambios. TMDB y TVmaze mantienen su funcionamiento habitual en catálogos sin TheTVDB.
+
+Ver [auditoría, seguridad, condiciones y validación Samsung de 0.1.7](0.1.7-thetvdb.md). La documentación 0.1.6 que sigue es un antecedente; sus pruebas físicas no se presumen realizadas.
 
 ## 0.1.6: recuperación selectiva desde TMDB multidioma y TVmaze
 

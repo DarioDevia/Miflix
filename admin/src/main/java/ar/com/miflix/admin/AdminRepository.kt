@@ -165,6 +165,7 @@ class AdminRepository(private val store: StateStore) {
         check(writable) { "Actualizá y validá el catálogo remoto antes de sincronizar." }
         if(pending) {
             val current=catalog ?: error("Sin catálogo.")
+            MetadataPublicationPolicy.requirePublishable(current)
             remote.publish(current)
             // Only a confirmed catalog publication clears catalog pending work.
             val next=state.deepCopy();next.add("base",current.deepCopy());next.addProperty("pending",false);next.addProperty("last_sync",now());commit(next)

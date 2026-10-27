@@ -9,8 +9,8 @@ android {
         applicationId = "ar.com.miflix.admin"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
-        versionName = "0.1.6-diagnostico"
+        versionCode = 8
+        versionName = "0.1.7-diagnostico"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

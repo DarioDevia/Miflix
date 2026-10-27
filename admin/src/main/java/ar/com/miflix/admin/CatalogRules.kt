@@ -79,6 +79,7 @@ object CatalogRules {
         return parse(copy.toString())
     }
     fun publicCopy(root: JsonObject): JsonObject = root.deepCopy().apply {
+        MetadataPublicationPolicy.requirePublishable(this)
         items(this).forEach { item ->
             item.remove("poster_local")
             item.array("temporadas").forEach { s -> s.asJsonObject.array("episodios").forEach { e -> e.asJsonObject.remove("local_path") } }
