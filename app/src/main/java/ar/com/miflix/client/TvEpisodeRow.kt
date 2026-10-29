@@ -20,7 +20,8 @@ import coil.compose.AsyncImage
 /** Identical presentation for series and anime; the caller retains playback callbacks. */
 @Composable
 internal fun TvEpisodeRow(episode: Episode, modifier: Modifier = Modifier,
-    enabled: Boolean, onClick: () -> Unit) {
+    enabled: Boolean, watched: Boolean = false, markEnabled: Boolean = true,
+    onWatchedChange: (() -> Unit)? = null, onClick: () -> Unit) {
     val info = remember(episode) { tvEpisodeInfo(episode) }
     var focused by remember { mutableStateOf(false) }
     var imageFailed by remember(info.image) { mutableStateOf(false) }
@@ -39,7 +40,10 @@ internal fun TvEpisodeRow(episode: Episode, modifier: Modifier = Modifier,
                 maxLines = 2, overflow = TextOverflow.Ellipsis)
             info.duration?.let { Text(it, color = Color.LightGray) }
             info.synopsis?.let { Text(it, color = Color.LightGray, maxLines = 3, overflow = TextOverflow.Ellipsis) }
+            if (watched) Text("✓ Visto", color = Color.White)
             if (!enabled) Text("No disponible", color = Color.LightGray)
         }
+        if (onWatchedChange != null) TvAction(if (watched) "Marcar como no visto" else "Marcar como visto",
+            Modifier.widthIn(max = 220.dp), enabled = markEnabled, onClick = onWatchedChange)
     }
 }

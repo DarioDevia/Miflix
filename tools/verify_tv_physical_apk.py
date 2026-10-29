@@ -1,6 +1,6 @@
 """Inspect only manifest/native packaging, never DEX, sessions or BuildConfig.
 
-Default mode requires a signed universal TV 0.1.12 debug APK and Android apksigner.
+Default mode requires a signed universal TV 0.1.13 debug APK and Android apksigner.
 --inspect diagnoses older APKs without claiming verification or installability.
 Uses Python 3 standard library; does not execute or modify the APK.
 """
@@ -51,6 +51,10 @@ INTRO_PATH = "assets/miflix_tv_intro.mp4"
 INTRO_SHA256 = "ecede13d1d994ba31de549b7d3ca557e64d69c4f3518bbae07caae5841423b17"
 INTRO_SIZE = 2134895
 
+REQUESTS_QR_PATH = "assets/miflix_tv_requests_qr.png"
+REQUESTS_QR_SHA256 = "260478e570101b569de5511987e4c8ceed5ccc5132566c72706688b1918d7c49"
+REQUESTS_QR_SIZE = 780
+
 PROVENANCE = Path(__file__).with_name("tdlib-0.1.1-provenance.json")
 
 def inspect_apk(path):
@@ -74,7 +78,9 @@ def inspect_apk(path):
                     "sha256": hashlib.sha256(data).hexdigest(), "size": len(data),
                     "elf_class": data[4], "elf_machine": struct.unpack_from('<H',data,18)[0]}
         intro = apk.read(INTRO_PATH) if INTRO_PATH in apk.namelist() else None
+        qr = apk.read(REQUESTS_QR_PATH) if REQUESTS_QR_PATH in apk.namelist() else None
         return {
+            "requestsQr": {"sha256": hashlib.sha256(qr).hexdigest(), "size": len(qr)} if qr is not None else None,
             "intro": {"sha256": hashlib.sha256(intro).hexdigest(), "size": len(intro)} if intro is not None else None,
             "package": manifest.get("package"), "versionName": manifest.get("versionName"),
             "versionCode": manifest.get("versionCode"), "minSdk": sdk.get("minSdkVersion"),
@@ -89,14 +95,16 @@ def inspect_apk(path):
 
 def packaging_errors(report, provenance):
     errors=[]
-    expected = {"package":"ar.com.miflix.client.tv", "versionName":"0.1.12-diagnostico",
-        "versionCode":13,"minSdk":26,"targetSdk":34,"testOnly":False,"debuggable":True,
+    expected = {"package":"ar.com.miflix.client.tv", "versionName":"0.1.13-diagnostico",
+        "versionCode":14,"minSdk":26,"targetSdk":34,"testOnly":False,"debuggable":True,
         "leanbackRequired":True,"touchscreenRequired":False,"leanbackLauncher":True,
         "cleartextTraffic":False}
     for key,value in expected.items():
         if report.get(key) != value: errors.append(f"{key}: expected {value}, found {report.get(key)}")
     if report.get("intro") != {"sha256": INTRO_SHA256, "size": INTRO_SIZE}:
         errors.append("Original TV intro MP4 missing or altered (path/hash/size)")
+    if report.get("requestsQr") != {"sha256": REQUESTS_QR_SHA256, "size": REQUESTS_QR_SIZE}:
+        errors.append("Exact public-contact QR missing or altered")
     allowed = {"android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE",
         "ar.com.miflix.client.tv.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"}
     if not set(report.get("permissions",[])) <= allowed:
@@ -139,7 +147,7 @@ def main():
             print("REJECTED: " + "; ".join(errors),file=sys.stderr)
             return 1
         verify_signature(args.apksigner,args.apk)
-        print("PASS: inspected TV 0.1.12 debug packaging and signature. Physical installation/playback still untested.")
+        print("PASS: inspected TV 0.1.13 debug packaging and signature. Physical installation/playback still untested.")
         return 0
     except (OSError,ValueError,KeyError,IndexError,struct.error,BadZipFile) as error:
         print("REJECTED: " + str(error),file=sys.stderr)

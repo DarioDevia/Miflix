@@ -37,7 +37,8 @@ data class Title(
     @SerializedName("telegram_url") val telegramUrl: String? = null,
     val temporadas: List<Season> = emptyList(),
     @SerializedName("fondo_url") val fondoUrl: String? = null,
-    @SerializedName("logo_url") val logoUrl: String? = null
+    @SerializedName("logo_url") val logoUrl: String? = null,
+    @SerializedName("fecha_agregado") val addedAt: String? = null
 )
 
 data class Season(
@@ -198,6 +199,9 @@ class CatalogRepository(private val context: Context) {
                     val text = optionalText(item, field)
                     if (text == null) item.remove(field) else item.addProperty(field, text)
                 }
+                // TV discovery is optional; invalid metadata never blocks the catalog.
+                val addedAt = if (BuildConfig.IS_TV) optionalText(item, "fecha_agregado") else null
+                if (addedAt == null) item.remove("fecha_agregado") else item.addProperty("fecha_agregado", addedAt)
                 if (version != "2") normalizeAdminFields(item)
             }
             if (version != "2") return Gson().fromJson(root, Catalog::class.java)
@@ -242,6 +246,7 @@ class CatalogRepository(private val context: Context) {
                     fondoUrl = optionalText(item, "fondo_url"),
                     logoUrl = optionalText(item, "logo_url"),
                     telegramUrl = directLink ?: publications.firstOrNull()?.telegramUrl,
+                    addedAt = optionalText(item, "fecha_agregado"),
                     temporadas = if (publications.size > 1) listOf(
                         Season(numero = 0, titulo = "Publicaciones", episodios = publications)
                     ) else emptyList()

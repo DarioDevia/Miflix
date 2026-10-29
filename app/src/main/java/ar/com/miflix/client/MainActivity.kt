@@ -82,6 +82,7 @@ class MainActivity : ComponentActivity() {
         val repository = CatalogRepository(this)
         val showTvIntro = BuildConfig.IS_TV && TvIntroProcess.session.claim(savedInstanceState != null)
         setContent {
+            TvPersonalLibraryHost {
             TvStartupGate(showTvIntro) {
                 ClientApp(
                     repository = repository,
@@ -91,6 +92,7 @@ class MainActivity : ComponentActivity() {
                         preferences.edit().putString("catalog_url", url).putString("channel_invite", invite).apply()
                     }
                 )
+            }
             }
         }
     }
@@ -105,7 +107,7 @@ private object MiFlixStyle {
     val secondaryText = Color(0xFFB8BEC9)
 }
 
-internal enum class Screen { HOME, SEARCH, SECTIONS, DETAIL, PLAYER, SETTINGS, CONNECT }
+internal enum class Screen { HOME, SEARCH, SECTIONS, DETAIL, PLAYER, SETTINGS, CONNECT, LIBRARY }
 internal fun playbackFullscreenActive(screen: Screen, fullscreen: Boolean, episodeTransition: Boolean): Boolean =
     fullscreen && (screen == Screen.PLAYER || (screen == Screen.DETAIL && episodeTransition))
 
@@ -157,6 +159,11 @@ private fun ClientApp(
     saveSettings: (String, String) -> Unit
 ) {
     val context = LocalContext.current
+    val tvLibrary = LocalTvLibrary.current
+    val tvLibraryRevision = LocalTvLibraryRevision.current
+    var libraryWatchedTab by rememberSaveable { mutableStateOf(false) }
+    var libraryFocusKey by rememberSaveable { mutableStateOf<String?>(null) }
+    val libraryScroll = rememberLazyGridState()
     val inputMode = LocalInputModeManager.current
     LaunchedEffect(Unit) { if (BuildConfig.IS_TV) inputMode.requestInputMode(InputMode.Keyboard) }
     val telegramSession = remember { TelegramSession.get(context) }
@@ -266,14 +273,16 @@ private fun ClientApp(
     LaunchedEffect(screen, cacheLoaded, url) {
         if (cacheLoaded && screen == Screen.HOME) refreshIfDue()
     }
-    LaunchedEffect(screen, catalog) {
-        if (screen == Screen.HOME) continuing = continueWatching(titles, progressStore)
+    fun currentContinuing(items: List<Title>): List<ContinueWatchingItem> =
+        if (BuildConfig.IS_TV) tvContinueWatching(items, progressStore, tvLibrary) else continueWatching(items, progressStore)
+    LaunchedEffect(screen, catalog, tvLibraryRevision) {
+        if (screen == Screen.HOME) continuing = currentContinuing(titles)
     }
     DisposableEffect(owner, url, screen, cacheLoaded, catalog) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME && cacheLoaded && screen == Screen.HOME) {
                 refreshIfDue()
-                continuing = continueWatching(catalog.items.orEmpty(), progressStore)
+                continuing = currentContinuing(catalog.items.orEmpty())
             }
         }
         owner.lifecycle.addObserver(observer)
@@ -285,7 +294,7 @@ private fun ClientApp(
         val prefs = context.getSharedPreferences("miflix_playback_progress", Context.MODE_PRIVATE)
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
             if (BuildConfig.IS_TV && screen == Screen.HOME)
-                continuing = continueWatching(catalog.items.orEmpty(), progressStore)
+                continuing = currentContinuing(catalog.items.orEmpty())
         }
         val observing = BuildConfig.IS_TV && screen == Screen.HOME
         if (observing) prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -434,6 +443,7 @@ private fun ClientApp(
                                 Screen.HOME -> "MiFlix"
                                 Screen.SEARCH -> "Buscar"
                                 Screen.SECTIONS -> "Secciones"
+                                Screen.LIBRARY -> "Mi Lista"
                                 Screen.SETTINGS -> "Configuración"
                                 Screen.DETAIL -> selected?.titulo.orEmpty()
                                 Screen.PLAYER -> playbackTitle
@@ -494,7 +504,7 @@ private fun ClientApp(
                 }
             }
         ) { padding ->
-            TvNavigationShell(BuildConfig.IS_TV && screen in listOf(Screen.HOME, Screen.SEARCH, Screen.SECTIONS),
+            TvNavigationShell(BuildConfig.IS_TV && screen in listOf(Screen.HOME, Screen.SEARCH, Screen.SECTIONS, Screen.LIBRARY),
                 screen.name, { screen = Screen.valueOf(it) }, { screen = Screen.CONNECT }, ::openSettings,
                 ::refresh, busy) {
             when (screen) {
@@ -571,6 +581,9 @@ private fun ClientApp(
                     onCategoryChange = { category = it },
                     onSelect = ::openDetail
                 )
+                Screen.LIBRARY -> if (BuildConfig.IS_TV) TvLibraryScreen(titles, libraryWatchedTab,
+                    { libraryWatchedTab = it; libraryFocusKey = null }, libraryScroll, libraryFocusKey,
+                    { libraryFocusKey = it }, ::openDetail)
                 Screen.DETAIL -> if (selected != null && BuildConfig.IS_TV)
                     TvDetail(selected, ::validTelegramLink, ::requestPlayback, tvDetailSeason, { tvDetailSeason = it })
                 else if (selected != null) Detail(
@@ -981,6 +994,8 @@ private fun SettingsScreen(
 ) {
     var showAdvanced by rememberSaveable { mutableStateOf(false) }
     var showAbout by rememberSaveable { mutableStateOf(false) }
+    var showSuggestions by rememberSaveable { mutableStateOf(false) }
+    if (BuildConfig.IS_TV && showSuggestions) TvSuggestionsDialog { showSuggestions = false }
     val urlOk = url.isBlank() || runCatching {
         val uri = Uri.parse(url.trim())
         uri.scheme.equals("https", true) && !uri.host.isNullOrBlank()
@@ -1053,6 +1068,9 @@ private fun SettingsScreen(
             if (BuildConfig.IS_TV) TvEditableField(url, onUrlChange, "URL HTTPS del catálogo", Modifier.fillMaxWidth())
             else OutlinedTextField(url, onUrlChange, label = { Text("URL HTTPS del catálogo") },
                 isError = !urlOk, singleLine = true, modifier = Modifier.fillMaxWidth())
+        }
+        if (BuildConfig.IS_TV) item {
+            TvAction("Sugerencias y pedidos", Modifier.fillMaxWidth()) { showSuggestions = true }
         }
         if (BuildConfig.IS_TV) item {
             TvAction("Acerca de MiFlix", Modifier.fillMaxWidth()) { showAbout = !showAbout }

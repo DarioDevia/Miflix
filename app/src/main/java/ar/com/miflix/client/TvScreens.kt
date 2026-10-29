@@ -84,12 +84,17 @@ internal fun TvHome(titles: List<Title>, continuing: List<ContinueWatchingItem>,
     scroll: LazyListState, restoreKey: String?, onFocused: (String) -> Unit,
     busy: Boolean, problem: String?, onRefresh: () -> Unit, onSelect: (Title) -> Unit,
     onContinue: (ContinueWatchingItem) -> Unit, onPlayFeatured: (Title) -> Unit) {
+    val library = LocalTvLibrary.current
+    val revision = LocalTvLibraryRevision.current
+    val favorites = remember(titles, library, revision) { library?.favorites(titles).orEmpty() }
+    val latestAdded = remember(titles) { tvLatestAdded(titles) }
     val suggestionYear = remember { java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) }
     val suggestions = remember(titles) {
         tvHomeSuggestions(titles, suggestionYear, { it.tipo }, { it.year })
     }
     val returnKey = remember {
         restoreKey?.takeIf { key -> continuing.any { "continue:${it.key}" == key } ||
+            favorites.any { "favorite:${it.id}" == key } || latestAdded.any { "added:${it.id}" == key } ||
             titles.any { "${it.tipo}:${it.id}" == key } }
     }
     // Consume restoration once at screen level; lazy items may leave/re-enter
@@ -169,12 +174,29 @@ internal fun TvHome(titles: List<Title>, continuing: List<ContinueWatchingItem>,
                     }
                 }
             }
+            listOf(Triple("favorite", "Mi Lista", favorites), Triple("added", "Últimos agregados", latestAdded))
+                .forEach { (id, label, row) ->
+                    if (row.isNotEmpty()) item(key = id) {
+                        Text(label, color = Color.White, style = MaterialTheme.typography.titleLarge)
+                        val initial = row.indexOfFirst { "$id:${it.id}" == returnKey }.coerceAtLeast(0)
+                        val firstPersonalRow = continuing.isEmpty() && (id == "favorite" || favorites.isEmpty())
+                        LazyRow(state = rememberLazyListState(initial),
+                            modifier = (if (firstPersonalRow) returnToHero else Modifier).focusGroup(),
+                            contentPadding = PaddingValues(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(TV_POSTER_GAP_DP.dp)) {
+                            items(row, key = { it.id }) { title ->
+                                TvCard(title, "$id:${title.id}", pendingReturnKey, onFocused = recordFocus,
+                                    width = posterWidth) { onSelect(title) }
+                            }
+                        }
+                    }
+                }
             listOf("pelicula" to "Películas", "serie" to "Series", "anime" to "Anime").forEach { (type, label) ->
                 val row = (if (type == "anime") titles else suggestions).filter { it.tipo == type }
                 if (row.isNotEmpty()) item(key = type) {
                     Text(label, color = Color.White, style = MaterialTheme.typography.titleLarge)
                     val initial = row.indexOfFirst { "$type:${it.id}" == returnKey }.coerceAtLeast(0)
-                    LazyRow(state = rememberLazyListState(initial), modifier = (if (continuing.isEmpty() && type == firstCategory) returnToHero else Modifier).focusGroup(),
+                    LazyRow(state = rememberLazyListState(initial), modifier = (if (continuing.isEmpty() && favorites.isEmpty() && latestAdded.isEmpty() && type == firstCategory) returnToHero else Modifier).focusGroup(),
                         contentPadding = PaddingValues(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(TV_POSTER_GAP_DP.dp)) {
                         items(row, key = { it.id }) { title ->
                             TvCard(title, "$type:${title.id}", pendingReturnKey, onFocused = recordFocus,

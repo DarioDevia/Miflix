@@ -3,12 +3,20 @@
 | Variante | versionName | versionCode | applicationId | APK debug |
 | --- | --- | --- | --- | --- |
 | Mobile | 0.9.2-diagnostico | 26 | ar.com.miflix.client | app-mobile-debug.apk |
-| TV | 0.1.12-diagnostico | 13 | ar.com.miflix.client.tv | app-tv-debug.apk |
+| TV | 0.1.13-diagnostico | 14 | ar.com.miflix.client.tv | app-tv-debug.apk |
 
 TV se desarrolla en `miflix-tv`, basada en `miflix-cliente` HEAD
 `b3b3156cb6aff846822d591317f9f377c5d2df4c` (README corregido), que contiene
 el commit funcional móvil validado `5d896013478f8126c2dac3ed2f692fc305904509`.
 La rama móvil no se modifica. Cada variante conserva su propio versionado.
+
+## MiFlix TV 0.1.13: biblioteca personal
+
+Base física 57fca311dc06b5ad9fdcf5a02ac9daa9c08bd0f9. Rama
+feature/tv-0.1.13-personal-library. Mi Lista, favoritos y vistos de películas/
+episodios, Últimos agregados por fecha_agregado y QR de sugerencias local.
+Sin identidad Google ni sincronización. [Alcance, pruebas y firma](docs/TV_0.1.13_BIBLIOTECA.md).
+Pruebas Android y entrega APK se documentan según resultados reales; TV físico pendiente.
 
 ## MiFlix TV 0.1.12: Continuar viendo y Especiales
 

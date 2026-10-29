@@ -103,6 +103,8 @@ internal fun TvDetailAction(label: String, modifier: Modifier = Modifier, enable
 internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
     onPlay: (String, String, String, EpisodeNavigationTarget?, EpisodeNavigationTarget?) -> Unit,
     initialSeasonIndex: Int = 0, onSeasonSelected: (Int) -> Unit = {}) {
+    val library = LocalTvLibrary.current
+    LocalTvLibraryRevision.current
     val artwork = remember(title) { tvDetailArtwork(title) }
     val seasonOrder = remember(title.temporadas) { tvSeasonIndices(title.temporadas.orEmpty()) }
     var seasonIndex by rememberSaveable(title.id) {
@@ -189,6 +191,7 @@ internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
                             }
                         }
                         TvTrailerAction(title)
+                        TvLibraryTitleActions(title)
                     }
                 }
             }
@@ -232,7 +235,13 @@ internal fun TvDetail(title: Title, validLink: (String) -> Boolean,
                                             else if (code == 19) focusAt(1, seasonFocus[seasonIndex])
                                         }; true
                                     } else false
-                                }, enabled = link != null) {
+                                }, enabled = link != null,
+                            watched = library?.isWatched(ProgressKeys.episode(title, season!!, episode)) == true,
+                            markEnabled = library?.canWrite == true,
+                            onWatchedChange = library?.let { store -> {
+                                val key = ProgressKeys.episode(title, season!!, episode)
+                                store.setWatched(key, !store.isWatched(key))
+                            } }) {
                             if (link != null) onPlay(ProgressKeys.episode(title, season!!, episode), link,
                                 episode.titulo ?: "Episodio ${episode.numero}",
                                 findPreviousPlayableEpisode(title, seasonIndex, index, validLink),

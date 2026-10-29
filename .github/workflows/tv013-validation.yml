@@ -1,0 +1,67 @@
+name: Validar TV 0.1.13
+on:
+  push:
+    branches: [feature/tv-0.1.13-personal-library]
+    paths: ['app/**', 'tools/**', '.github/workflows/tv013-validation.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Herramientas QR de desarrollo (no APK dependencies)
+        run: python3 -m pip install -r tools/tv013-qr-requirements.txt
+      - name: Enumerar tareas existentes
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:tasks --all --console=plain > tv-tasks.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          tasks={line.split()[0] for line in Path('tv-tasks.txt').read_text().splitlines() if line.strip()}
+          required={'testTvDebugUnitTest','testMobileDebugUnitTest','lintTvDebug','assembleTvDebug','compileMobileDebugKotlin'}
+          assert required <= tasks, required-tasks
+          Path('tv-release-task.txt').write_text(':app:assembleTvRelease' if 'assembleTvRelease' in tasks else '')
+          PY
+      - name: Tests, Lint TV y compilaciones (sin credenciales privadas)
+        run: |
+          ./gradlew :app:testTvDebugUnitTest :app:testMobileDebugUnitTest :app:lintTvDebug :app:lintMobileDebug :app:compileMobileDebugKotlin :app:assembleTvDebug $(cat tv-release-task.txt) --console=plain '-Pandroid.injected.testOnly=false' '-Pandroid.injected.build.abi=armeabi-v7a,arm64-v8a,x86,x86_64'
+      - name: Contratos y APK (firma CI, no distribución familiar)
+        run: |
+          set -euo pipefail
+          python3 tools/check_tv013_contract.py
+          python3 tools/test_tv013_qr.py
+          python3 tools/test_tv_physical_apk.py
+          python3 tools/test_locate_tv_apk.py
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          apk=$(python3 tools/locate_tv_apk.py)
+          echo "Inspecting APK: $apk"
+          python3 tools/verify_tv_physical_apk.py "$apk" --apksigner "$apksigner" | tee tv-apk-verification.txt
+          mkdir -p tv013-delivery
+          cp "$apk" tv013-delivery/MiFlix-TV-0.1.13-diagnostico-CI-debug.apk
+          "$apksigner" verify --print-certs "$apk" > tv013-delivery/ci-debug-certificate.txt
+          if [ -s tv-release-task.txt ]; then
+            release=$(python3 tools/locate_tv_apk.py --variant tvRelease)
+            cp "$release" tv013-delivery/MiFlix-TV-0.1.13-diagnostico-unsigned.apk
+          fi
+          sha256sum tv013-delivery/*.apk > tv013-delivery/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TV-0.1.13-validacion
+          path: |
+            tv-tasks.txt
+            tv-release-task.txt
+            tv-apk-verification.txt
+            app/build/reports/
+            tv013-delivery/
+          if-no-files-found: warn

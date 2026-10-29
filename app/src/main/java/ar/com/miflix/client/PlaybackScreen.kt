@@ -158,7 +158,7 @@ internal fun PlaybackScreen(
             onBackground = { position, duration -> saveProgress(position, duration, true) },
             onExit = { position, duration -> progressStore.finish(progressKey, position, duration,
                 System.currentTimeMillis()) },
-            onCompleted = { progressStore.clear(progressKey) }, tvArtwork = tvArtwork)
+            onCompleted = { progressStore.clear(progressKey) }, tvArtwork = tvArtwork, libraryProgressKey = if (BuildConfig.IS_TV) progressKey else null)
         state is TelegramSession.State.Ready -> {
             Column(Modifier.fillMaxSize().padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -323,7 +323,8 @@ private fun VideoPlayer(
     onBackground: (Long, Long) -> Unit,
     onExit: (Long, Long) -> Unit,
     onCompleted: () -> Unit,
-    tvArtwork: Title?
+    tvArtwork: Title?,
+    libraryProgressKey: String? = null
 ) {
     val tag = "MiFlixPlayback"
     val context = LocalContext.current
@@ -355,6 +356,7 @@ private fun VideoPlayer(
             Log.d(tag, "PLAYER_PREPARE state=$playbackState duration=$duration")
         }
     }
+    if (libraryProgressKey != null) TvObserveLibraryCoverage(player, libraryProgressKey)
     var released by remember(player) { mutableStateOf(false) }
     var availableTracks by remember(player) { mutableStateOf(player.currentTracks) }
     var showTracksPanel by remember(player) { mutableStateOf(false) }

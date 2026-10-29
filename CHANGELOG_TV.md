@@ -1,5 +1,15 @@
 # Historial de MiFlix TV
 
+## 0.1.13-diagnostico / 14
+
+- Mi Lista/Favoritos y Vistos con persistencia exclusiva TV y protección de datos.
+- Marcado manual de películas/episodios, integración no destructiva con Continuar viendo.
+- Cobertura de reproducción de Mobile mediante observador independiente, sin control del Player.
+- fecha_agregado opcional y Últimos agregados por instante real, sin límite artificial.
+- Sugerencias y pedidos con QR local exacto a https://t.me/Dario_Devia.
+- Sin nuevas dependencias Android ni cambios de Worker, Admin o interfaz Mobile.
+- Compilación, firma y pruebas físicas se distinguen en docs/TV_0.1.13_BIBLIOTECA.md.
+
 ## 0.1.12-diagnostico / 13
 
 - TV conserva duración conocida cuando un guardado informa duración desconocida;
