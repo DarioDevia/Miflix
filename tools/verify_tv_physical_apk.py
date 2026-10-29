@@ -79,7 +79,16 @@ def inspect_apk(path):
                     "elf_class": data[4], "elf_machine": struct.unpack_from('<H',data,18)[0]}
         intro = apk.read(INTRO_PATH) if INTRO_PATH in apk.namelist() else None
         qr = apk.read(REQUESTS_QR_PATH) if REQUESTS_QR_PATH in apk.namelist() else None
+        backup_local = True
+        for resource, count in (("res/xml/backup_rules.xml",1),("res/xml/data_extraction_rules.xml",2)):
+            if resource not in apk.namelist():
+                backup_local = False
+                continue
+            exclusions = [a for n,a in manifest_elements(apk.read(resource)) if n == "exclude"]
+            backup_local = backup_local and sum(a.get("domain")=="sharedpref" and
+                a.get("path")=="miflix_tv_library.xml" for a in exclusions) >= count
         return {
+            "tvLibraryBackupExcluded": backup_local,
             "requestsQr": {"sha256": hashlib.sha256(qr).hexdigest(), "size": len(qr)} if qr is not None else None,
             "intro": {"sha256": hashlib.sha256(intro).hexdigest(), "size": len(intro)} if intro is not None else None,
             "package": manifest.get("package"), "versionName": manifest.get("versionName"),
@@ -98,7 +107,7 @@ def packaging_errors(report, provenance):
     expected = {"package":"ar.com.miflix.client.tv", "versionName":"0.1.13-diagnostico",
         "versionCode":14,"minSdk":26,"targetSdk":34,"testOnly":False,"debuggable":True,
         "leanbackRequired":True,"touchscreenRequired":False,"leanbackLauncher":True,
-        "cleartextTraffic":False}
+        "cleartextTraffic":False,"tvLibraryBackupExcluded":True}
     for key,value in expected.items():
         if report.get(key) != value: errors.append(f"{key}: expected {value}, found {report.get(key)}")
     if report.get("intro") != {"sha256": INTRO_SHA256, "size": INTRO_SIZE}:

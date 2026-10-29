@@ -32,6 +32,8 @@ funciones de identidad, recomendaciones, sincronización o filas de estrenos/gé
 ## Persistencia y reproducción
 
 Preferencias privadas de TV: miflix_tv_library / library_v1, schemaVersion 1.
+Los recursos XML exclusivos de TV excluyen esta biblioteca del backup Android y
+la transferencia entre dispositivos, igual que el progreso. Las reglas Mobile no cambian.
 Sólo IDs estables, claves de progreso y cobertura; favoritos por Title.id. No hay
 URLs Telegram como IDs de favoritos. Los IDs temporalmente ausentes del catálogo
 se conservan y reaparecen cuando el catálogo vuelve a incluirlos.
@@ -148,3 +150,46 @@ adb shell am instrument -w -e cases library-favorites-watched-dpad-back,library-
 
 No ejecutar el runner sobre la instalación familiar ni borrar sus datos para
 correr fixtures. La prueba física normal se realiza con la lista anterior.
+
+## Conservar y comprobar la identidad de firma en Windows
+
+Antes de compilar, si venías usando la clave debug predeterminada de Android Studio:
+
+```powershell
+$claveOriginal = Join-Path $env:USERPROFILE '.android\debug.keystore'
+if (-not (Test-Path $claveOriginal)) { throw 'Falta la clave original: recuperarla antes de compilar; no generar otra.' }
+```
+
+Si utilizabas otra ubicación o clave, conservar esa configuración original; no
+reemplazarla por la clave CI. No ejecutar keytool -genkey ni borrar .android.
+Para comparar certificados sin leer DEX ni credenciales de Telegram:
+
+```powershell
+$tvTools = Get-ChildItem "$env:LOCALAPPDATA\Android\Sdk\build-tools" -Directory |
+    Where-Object { $_.Name -match '^\d+\.\d+\.\d+$' } |
+    Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+$tvSigner = Join-Path $tvTools.FullName 'apksigner.bat'
+adb shell pm path ar.com.miflix.client.tv
+# Copiar la ruta /data/app/.../base.apk devuelta por el TV, sin el prefijo package:
+adb pull /data/app/RUTA_DEVUELTA/base.apk .\MiFlix-TV-instalada.apk
+& $tvSigner verify --print-certs .\MiFlix-TV-instalada.apk
+& $tvSigner verify --print-certs "$tvApkPath"
+```
+
+Las huellas SHA-256 del certificado deben coincidir; no comparar la huella del
+archivo APK, que cambia en cada compilación. Conservar la APK extraída sólo en la
+PC y no subirla al repositorio. Si no coinciden, detener la actualización y recuperar
+la configuración/clave original en vez de desinstalar o crear otra identidad.
+
+Para firmar una salida unsigned en un entorno de pruebas, usar únicamente el archivo
+y alias originales (sin generar claves):
+
+```powershell
+& $tvSigner sign --ks RUTA_CLAVE_ORIGINAL --ks-key-alias ALIAS_ORIGINAL --out .\MiFlix-TV-firmada.apk .\MiFlix-TV-0.1.13-diagnostico-unsigned.apk
+& $tvSigner verify --print-certs .\MiFlix-TV-firmada.apk
+```
+
+El comando solicita las contraseñas localmente; no guardarlas en GitHub ni informes.
+**Firmar el artefacto CI no agrega la configuración Telegram privada que le falta.**
+Para actualizar el TV con reproducción funcional, recompilar localmente con la
+configuración privada ya existente y la clave original, usando el script indicado.

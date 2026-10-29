@@ -2,6 +2,7 @@
 import hashlib
 import subprocess
 import unittest
+from xml.etree import ElementTree as ET
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 BASE='57fca311dc06b5ad9fdcf5a02ac9daa9c08bd0f9'
@@ -57,6 +58,16 @@ class Tv013Contracts(unittest.TestCase):
         library=(ROOT/PREFIX/'TvLibraryScreen.kt').read_text()
         for marker in ('"✓ Favoritos"','"✓ Vistos"','tabFocus.requestFocus()','scroll.scrollToItem(index)','onSelect(title)'):
             self.assertIn(marker,library)
+    def test_tv_library_and_progress_are_excluded_from_android_backups(self):
+        for name in ('backup_rules.xml','data_extraction_rules.xml'):
+            shared='app/src/main/res/xml/'+name
+            self.assertEqual(old(shared),(ROOT/shared).read_bytes())
+            root=ET.parse(ROOT/'app/src/tv/res/xml'/name).getroot()
+            groups=[root] if name=='backup_rules.xml' else [root.find('cloud-backup'),root.find('device-transfer')]
+            for group in groups:
+                exclusions={(e.get('domain'),e.get('path')) for e in group.findall('exclude')}
+                self.assertIn(('sharedpref','miflix_tv_library.xml'),exclusions)
+                self.assertIn(('sharedpref','miflix_playback_progress.xml'),exclusions)
     def test_all_existing_policy_tests_are_preserved(self):
         files=subprocess.check_output(['git','ls-tree','-r','--name-only',BASE,'--','app/src/test'],cwd=ROOT,text=True).splitlines()
         for path in files: self.assertEqual(old(path),(ROOT/path).read_bytes(),path)

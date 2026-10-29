@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="miflix_playback_progress.xml" />
+        <exclude domain="sharedpref" path="miflix_tv_library.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="miflix_playback_progress.xml" />
+        <exclude domain="sharedpref" path="miflix_tv_library.xml" />
+    </device-transfer>
+</data-extraction-rules>

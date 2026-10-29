@@ -15,6 +15,7 @@ class PackagingPolicyTest(unittest.TestCase):
         self.report={"package":"ar.com.miflix.client.tv","versionName":"0.1.13-diagnostico",
             "versionCode":14,"minSdk":26,"targetSdk":34,"testOnly":False,"debuggable":True,
             "leanbackRequired":True,"touchscreenRequired":False,"leanbackLauncher":True,
+            "tvLibraryBackupExcluded":True,
             "requestsQr":{"sha256":REQUESTS_QR_SHA256,"size":REQUESTS_QR_SIZE},
             "intro":{"sha256":INTRO_SHA256,"size":INTRO_SIZE},
             "cleartextTraffic":False,"permissions":["android.permission.INTERNET"],
