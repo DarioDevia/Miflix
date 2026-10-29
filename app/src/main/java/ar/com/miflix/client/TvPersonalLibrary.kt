@@ -1,7 +1,6 @@
 package ar.com.miflix.client
 
 import com.google.gson.Gson
-import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -49,6 +48,8 @@ internal class TvPersonalLibraryStore(private val storage: TvLibraryStorage) {
             }
             val loadedFavorites = ids("favorites")
             val loadedWatched = ids("watched")
+            // Keep recognized IDs visible even if a separate coverage entry is corrupt.
+            favorites.addAll(loadedFavorites); watched.addAll(loadedWatched)
             val loadedCoverage = linkedMapOf<String, Coverage>()
             root.get("coverage")?.let { field ->
                 require(field.isJsonObject)
@@ -65,7 +66,7 @@ internal class TvPersonalLibraryStore(private val storage: TvLibraryStorage) {
                     loadedCoverage[key] = Coverage(duration, mergeWatchedIntervals(ranges, duration))
                 }
             }
-            favorites.addAll(loadedFavorites); watched.addAll(loadedWatched); coverage.putAll(loadedCoverage)
+            coverage.putAll(loadedCoverage)
         } catch (_: Exception) {
             readOnlyReason = "No se pudo leer la biblioteca local. Los datos se conservan; no se sobrescriben."
         }

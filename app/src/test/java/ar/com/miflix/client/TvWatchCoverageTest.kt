@@ -4,7 +4,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class TvWatchCoverageTest {
-    private class Disk(var value:String?=null):LibraryStorage {
+    private class Disk(var value:String?=null):TvLibraryStorage {
         override fun read()=value
         override fun write(json:String){value=json}
     }
@@ -22,14 +22,14 @@ class TvWatchCoverageTest {
         assertFalse(sufficientlyWatched(repeated+range(95_000,100_000),100_000))
     }
     @Test fun rangesMergeAcrossSessionsWithoutBridgingGaps() {
-        val disk=Disk(); val first=PersonalLibraryStore(disk)
+        val disk=Disk(); val first=TvPersonalLibraryStore(disk)
         first.record("title:a",range(0,40_000),100_000);first.flush()
-        val second=PersonalLibraryStore(disk)
+        val second=TvPersonalLibraryStore(disk)
         second.record("title:a",range(40_000,95_000),100_000)
-        assertTrue(PersonalLibraryStore(disk).isWatched("title:a"))
+        assertTrue(TvPersonalLibraryStore(disk).isWatched("title:a"))
     }
     @Test fun seekToEndDoesNotCountMissingMiddle() {
-        val store=PersonalLibraryStore(Disk())
+        val store=TvPersonalLibraryStore(Disk())
         store.record("title:a",range(0,1_000),100_000)
         store.record("title:a",range(95_000,100_000),100_000)
         assertFalse(store.isWatched("title:a"))
@@ -68,7 +68,7 @@ class TvWatchCoverageTest {
         val season=Season(numero=1,episodios=listOf(episode,sibling))
         val title=Title(id="series",tipo="serie",temporadas=listOf(season))
         val key=ProgressKeys.episode(title,season,episode)
-        val store=PersonalLibraryStore(Disk())
+        val store=TvPersonalLibraryStore(Disk())
         store.record(key,range(0,100_000),100_000)
         assertTrue(store.isWatched(key));assertFalse(store.isTitleWatched(title))
         assertTrue(store.hasWatchedEpisode(title))
@@ -78,28 +78,29 @@ class TvWatchCoverageTest {
         assertFalse(store.isWatched(ProgressKeys.episode(title,season,sibling)))
     }
     @Test fun manualUnmarkClearsOldCoverageAndPersists() {
-        val disk=Disk();val store=PersonalLibraryStore(disk)
+        val disk=Disk();val store=TvPersonalLibraryStore(disk)
         store.record("title:a",range(0,80_000),100_000)
         store.setWatched("title:a",true)
-        assertTrue(PersonalLibraryStore(disk).isWatched("title:a"))
+        assertTrue(TvPersonalLibraryStore(disk).isWatched("title:a"))
         store.setWatched("title:a",false)
         store.record("title:a",range(95_000,100_000),100_000);store.flush()
-        assertFalse(PersonalLibraryStore(disk).isWatched("title:a"))
+        assertFalse(TvPersonalLibraryStore(disk).isWatched("title:a"))
     }
     @Test fun legacyFavoriteEnvelopeAndMissingNewFieldsRemainReadable() {
         val disk=Disk("""{"schemaVersion":1,"favorites":["a"]}""")
-        val store=PersonalLibraryStore(disk)
+        val store=TvPersonalLibraryStore(disk)
         assertTrue(store.isFavorite("a")); assertFalse(store.isWatched("title:a"))
         store.setWatched("title:a",true)
-        assertTrue(PersonalLibraryStore(disk).isFavorite("a"))
+        assertTrue(TvPersonalLibraryStore(disk).isFavorite("a"))
     }
     @Test fun invalidCoverageDoesNotLoseFavoritesOrWatchedIds() {
-        val store=PersonalLibraryStore(Disk("""{"schemaVersion":1,"favorites":["a"],"watched":["episode:b"],"coverage":{"bad":null}}"""))
+        val store=TvPersonalLibraryStore(Disk("""{"schemaVersion":1,"favorites":["a"],"watched":["episode:b"],"coverage":{"bad":null}}"""))
         assertTrue(store.isFavorite("a"));assertTrue(store.isWatched("episode:b"))
+        assertFalse(store.canWrite) // Preserve original corrupt coverage instead of rewriting it.
     }
     @Test fun futureStorageIsNotDestructivelyDowngraded() {
         val raw="""{"schemaVersion":2,"favorites":["a"],"future":true}"""
-        val disk=Disk(raw);val store=PersonalLibraryStore(disk)
+        val disk=Disk(raw);val store=TvPersonalLibraryStore(disk)
         store.setFavorite("b",true);store.setWatched("title:a",true)
         assertEquals(raw,disk.value)
     }
@@ -107,7 +108,7 @@ class TvWatchCoverageTest {
         val episode=Episode(id="anime-publicacion-123",telegramUrl="https://t.me/c/1/2")
         val season=Season(numero=1,episodios=listOf(episode))
         val title=Title(id="anime",tipo="anime",temporadas=listOf(season))
-        val store=PersonalLibraryStore(Disk());val key=ProgressKeys.episode(title,season,episode)
+        val store=TvPersonalLibraryStore(Disk());val key=ProgressKeys.episode(title,season,episode)
         assertTrue(key.startsWith("publication:anime:"))
         store.setWatched(key,true); assertTrue(store.hasWatchedEpisode(title)); assertFalse(store.isTitleWatched(title))
     }
@@ -115,7 +116,7 @@ class TvWatchCoverageTest {
         val e=Episode(id="publication",telegramUrl="https://t.me/c/1/2")
         val season=Season(numero=1,episodios=listOf(e))
         val movie=Title(id="movie",tipo="pelicula",temporadas=listOf(season))
-        val store=PersonalLibraryStore(Disk())
+        val store=TvPersonalLibraryStore(Disk())
         store.record(ProgressKeys.episode(movie,season,e),range(0,100_000),100_000)
         assertTrue(store.isTitleWatched(movie))
         store.setTitleWatched(movie,false)
@@ -129,7 +130,7 @@ class TvWatchCoverageTest {
             override fun remove(key:String){values.remove(key)}
         })
         progress.save("title:a",50_000,200_000,123)
-        val library=PersonalLibraryStore(Disk())
+        val library=TvPersonalLibraryStore(Disk())
         library.setWatched("title:a",true)
         assertEquals(50_000L,progress.resumablePosition("title:a"))
         library.setWatched("title:a",false)
