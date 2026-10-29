@@ -10,6 +10,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
@@ -23,9 +26,16 @@ internal fun TvEpisodeRow(episode: Episode, modifier: Modifier = Modifier,
     enabled: Boolean, watched: Boolean = false, markEnabled: Boolean = true,
     onWatchedChange: (() -> Unit)? = null, onClick: () -> Unit) {
     val info = remember(episode) { tvEpisodeInfo(episode) }
+    val playFocus = remember { FocusRequester() }
+    val markFocus = remember { FocusRequester() }
     var focused by remember { mutableStateOf(false) }
     var imageFailed by remember(info.image) { mutableStateOf(false) }
-    Row(modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }
+    Row(modifier.fillMaxWidth().focusRequester(playFocus).onPreviewKeyEvent { event ->
+        if (focused && markEnabled && onWatchedChange != null && event.nativeKeyEvent.keyCode == 22) {
+            if (event.type == KeyEventType.KeyDown) markFocus.requestFocus()
+            true
+        } else false
+    }.onFocusChanged { focused = it.isFocused }
         .border(3.dp, if (focused) Color.White else Color.Transparent)
         .background(if (focused) Color(0xFF252B37) else Color(0xCC0B0D12))
         .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(12.dp),
@@ -44,6 +54,11 @@ internal fun TvEpisodeRow(episode: Episode, modifier: Modifier = Modifier,
             if (!enabled) Text("No disponible", color = Color.LightGray)
         }
         if (onWatchedChange != null) TvAction(if (watched) "Marcar como no visto" else "Marcar como visto",
-            Modifier.widthIn(max = 220.dp), enabled = markEnabled, onClick = onWatchedChange)
+            Modifier.widthIn(max = 220.dp).focusRequester(markFocus).onPreviewKeyEvent { event ->
+                if (event.nativeKeyEvent.keyCode == 21 && enabled) {
+                    if (event.type == KeyEventType.KeyDown) playFocus.requestFocus()
+                    true
+                } else false
+            }, enabled = markEnabled, onClick = onWatchedChange)
     }
 }

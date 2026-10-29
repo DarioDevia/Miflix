@@ -82,8 +82,8 @@ class MainActivity : ComponentActivity() {
         val repository = CatalogRepository(this)
         val showTvIntro = BuildConfig.IS_TV && TvIntroProcess.session.claim(savedInstanceState != null)
         setContent {
-            TvPersonalLibraryHost {
             TvStartupGate(showTvIntro) {
+            TvPersonalLibraryHost {
                 ClientApp(
                     repository = repository,
                     initialUrl = startupCatalogUrl(preferences.getString("catalog_url", null)),

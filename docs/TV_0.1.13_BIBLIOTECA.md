@@ -126,3 +126,25 @@ con la APK instalada sigue siendo un paso separado cuando se dispone de ambas.
 9. Regresión: intro, Hero, seek, audio/subtítulos, episodios, Especiales y streaming ARM.
 
 La validación física corresponde al usuario; no se declara realizada desde este entorno.
+
+## Instrumentación preparada (no ejecutada físicamente)
+
+Se amplía el runner Android nativo existente, sin nuevas librerías de pruebas:
+
+- library-favorites-watched-dpad-back: pestañas, OK a ficha, Atrás y restauración.
+- library-episode-manual-dpad: Derecha al marcado, OK alterna Visto sin reproducir,
+  Izquierda vuelve al episodio.
+- requests-qr-back y requests-qr-ok: foco inicial y cierre del diálogo sin cerrar app.
+
+Estos casos usan una biblioteca de memoria y fixtures sintéticos. Sólo deben
+usarse en un emulador limpio con APK sin configuración privada, como exige el
+runner. CI compila la instrumentación si la tarea está disponible; no equivale a
+haberla ejecutado. Ejemplo después de instalar app y test APK en ese emulador:
+
+```powershell
+.\gradlew.bat :app:assembleTvDebugAndroidTest
+adb shell am instrument -w -e cases library-favorites-watched-dpad-back,library-episode-manual-dpad,requests-qr-back,requests-qr-ok ar.com.miflix.client.tv.test/ar.com.miflix.client.TvDetailInstrumentation
+```
+
+No ejecutar el runner sobre la instalación familiar ni borrar sus datos para
+correr fixtures. La prueba física normal se realiza con la lista anterior.

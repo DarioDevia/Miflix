@@ -275,6 +275,10 @@ class TvDetailInstrumentation : Instrumentation() {
                 compactControls(type)
             }.also { if (!it) failures++ }
             runCase("poster-focus-original-colors") { posterFocusColors() }.also { if (!it) failures++ }
+            runCase("library-favorites-watched-dpad-back") { personalLibraryNavigation() }.also { if (!it) failures++ }
+            runCase("library-episode-manual-dpad") { personalEpisodeMarking() }.also { if (!it) failures++ }
+            runCase("requests-qr-back") { requestsQr(KeyEvent.KEYCODE_BACK) }.also { if (!it) failures++ }
+            runCase("requests-qr-ok") { requestsQr(KeyEvent.KEYCODE_DPAD_CENTER) }.also { if (!it) failures++ }
             check(executedCases > 0) { "No matching test cases" }
             check(requests.none { it.contains("api.themoviedb") || it.contains("api.tmdb") })
             check(requests.all { Uri.parse(it).host in listOf("artwork.test", "image.tmdb.org") })
@@ -295,6 +299,101 @@ class TvDetailInstrumentation : Instrumentation() {
         finish(if (failures == 0) Activity.RESULT_OK else Activity.RESULT_CANCELED, output)
     }
     /** UI contract with synthetic renderer snapshots, not real decoding/Telegram streaming. */
+    private fun memoryLibrary() = TvPersonalLibraryStore(object : TvLibraryStorage {
+        var value: String? = null
+        override fun read() = value
+        override fun write(json: String) { value = json }
+    })
+
+    private fun personalLibraryNavigation() {
+        val title = movie("Biblioteca DPAD").copy(id = "tv013-library-dpad")
+        val library = memoryLibrary()
+        library.setFavorite(title.id, true); library.setTitleWatched(title, true)
+        openDetail(title)
+        runOnMainSync {
+            (activity as ComponentActivity).setContent {
+                val revision by library.revision.collectAsState()
+                var watched by remember { mutableStateOf(false) }
+                var detail by remember { mutableStateOf(false) }
+                var closed by remember { mutableStateOf(false) }
+                var focusedId by remember { mutableStateOf<String?>(null) }
+                val scroll = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+                MaterialTheme {
+                    CompositionLocalProvider(LocalTvLibrary provides library, LocalTvLibraryRevision provides revision) {
+                        BackHandler { if (detail) detail = false else closed = true }
+                        Box(Modifier.fillMaxSize().background(ComposeColor.Black)) {
+                            if (closed) androidx.compose.material3.Text("Biblioteca cerrada")
+                            else if (detail) TvDetail(title, { true }, { _, _, _, _, _ -> })
+                            else TvLibraryScreen(listOf(title), watched, { watched = it; focusedId = null },
+                                scroll, focusedId, { focusedId = it }, { detail = true })
+                        }
+                    }
+                }
+            }
+        }
+        eventually { focused().contains("Favoritos") }
+        key(KeyEvent.KEYCODE_DPAD_RIGHT); key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { focused().contains("Vistos") }
+        key(KeyEvent.KEYCODE_DPAD_DOWN)
+        eventually { focused().contains(title.titulo) }
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { focused().contains("Reproducir") }
+        key(KeyEvent.KEYCODE_BACK)
+        eventually { focused().contains(title.titulo) }
+        key(KeyEvent.KEYCODE_BACK)
+        eventually { hasText("Biblioteca cerrada") }
+    }
+
+    private fun personalEpisodeMarking() {
+        val episode = Episode(id="tv013-dpad-episode", numero=1, titulo="Episodio DPAD", telegramUrl="https://t.me/c/1/2")
+        val season = Season(numero=1, episodios=listOf(episode))
+        val title = movie("Serie biblioteca").copy(id="tv013-series", tipo="serie", telegramUrl=null, temporadas=listOf(season))
+        val library = memoryLibrary()
+        var playbackRequests = 0
+        openDetail(title)
+        runOnMainSync {
+            (activity as ComponentActivity).setContent {
+                val revision by library.revision.collectAsState()
+                MaterialTheme {
+                    CompositionLocalProvider(LocalTvLibrary provides library, LocalTvLibraryRevision provides revision) {
+                        TvDetail(title, { true }, { _, _, _, _, _ -> playbackRequests++ })
+                    }
+                }
+            }
+        }
+        eventually { focused().contains("Elegir episodio") }
+        key(KeyEvent.KEYCODE_DPAD_CENTER); key(KeyEvent.KEYCODE_DPAD_DOWN)
+        eventually { focused().contains("Episodio DPAD") }
+        key(KeyEvent.KEYCODE_DPAD_RIGHT)
+        eventually { focused().contains("Marcar como visto") }
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { focused().contains("Marcar como no visto") }
+        check(library.isWatched(ProgressKeys.episode(title, season, episode)))
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { focused().contains("Marcar como visto") }
+        check(!library.isWatched(ProgressKeys.episode(title, season, episode)))
+        check(!library.isTitleWatched(title) && playbackRequests == 0)
+        key(KeyEvent.KEYCODE_DPAD_LEFT)
+        eventually { focused().contains("Episodio DPAD") }
+    }
+
+    private fun requestsQr(exitKey: Int) {
+        openDetail(movie("QR fixture"))
+        runOnMainSync {
+            (activity as ComponentActivity).setContent {
+                var visible by remember(exitKey) { mutableStateOf(true) }
+                MaterialTheme {
+                    androidx.compose.material3.Text("QR cerrado")
+                    if (visible) TvSuggestionsDialog { visible = false }
+                }
+            }
+        }
+        eventually { focused().contains("Cerrar") && hasText(TV_REQUESTS_CONTACT) }
+        key(exitKey)
+        eventually { hasText("QR cerrado") && !hasText("Sugerencias y pedidos") }
+        check(activity?.isFinishing == false)
+    }
+
     private fun trackPanel(type: String, initialPlaying: Boolean) {
         openHome(listOf(movie("Panel $type")))
         var escaped = false

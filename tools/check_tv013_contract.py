@@ -51,6 +51,12 @@ class Tv013Contracts(unittest.TestCase):
         self.assertIn('https://t.me/Dario_Devia',dialog)
         self.assertIn('onDismissRequest = onClose',dialog)
         self.assertIn('closeFocus.requestFocus()',dialog)
+        episode=(ROOT/PREFIX/'TvEpisodeRow.kt').read_text()
+        self.assertIn('keyCode == 22',episode); self.assertIn('markFocus.requestFocus()',episode)
+        self.assertIn('keyCode == 21',episode); self.assertIn('playFocus.requestFocus()',episode)
+        library=(ROOT/PREFIX/'TvLibraryScreen.kt').read_text()
+        for marker in ('"✓ Favoritos"','"✓ Vistos"','tabFocus.requestFocus()','scroll.scrollToItem(index)','onSelect(title)'):
+            self.assertIn(marker,library)
     def test_all_existing_policy_tests_are_preserved(self):
         files=subprocess.check_output(['git','ls-tree','-r','--name-only',BASE,'--','app/src/test'],cwd=ROOT,text=True).splitlines()
         for path in files: self.assertEqual(old(path),(ROOT/path).read_bytes(),path)

@@ -30,7 +30,7 @@ jobs:
           tasks={line.split()[0] for line in Path('tv-tasks.txt').read_text().splitlines() if line.strip()}
           required={'testTvDebugUnitTest','testMobileDebugUnitTest','lintTvDebug','assembleTvDebug','compileMobileDebugKotlin'}
           assert required <= tasks, required-tasks
-          Path('tv-release-task.txt').write_text(':app:assembleTvRelease' if 'assembleTvRelease' in tasks else '')
+          Path('tv-release-task.txt').write_text(' '.join(':app:'+t for t in ('assembleTvRelease','assembleTvDebugAndroidTest') if t in tasks))
           PY
       - name: Tests, Lint TV y compilaciones (sin credenciales privadas)
         run: |
