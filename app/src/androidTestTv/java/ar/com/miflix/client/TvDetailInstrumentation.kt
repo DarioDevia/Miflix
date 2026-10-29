@@ -299,6 +299,12 @@ class TvDetailInstrumentation : Instrumentation() {
         finish(if (failures == 0) Activity.RESULT_OK else Activity.RESULT_CANCELED, output)
     }
     /** UI contract with synthetic renderer snapshots, not real decoding/Telegram streaming. */
+    private fun startLibraryFixture() {
+        activity?.let { previous -> runOnMainSync { previous.finish() }; waitForIdleSync() }
+        activity = startActivitySync(Intent(targetContext,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        waitForIdleSync()
+    }
+
     private fun memoryLibrary() = TvPersonalLibraryStore(object : TvLibraryStorage {
         var value: String? = null
         override fun read() = value
@@ -309,7 +315,7 @@ class TvDetailInstrumentation : Instrumentation() {
         val title = movie("Biblioteca DPAD").copy(id = "tv013-library-dpad")
         val library = memoryLibrary()
         library.setFavorite(title.id, true); library.setTitleWatched(title, true)
-        openDetail(title)
+        startLibraryFixture()
         runOnMainSync {
             (activity as ComponentActivity).setContent {
                 val revision by library.revision.collectAsState()
@@ -350,7 +356,7 @@ class TvDetailInstrumentation : Instrumentation() {
         val title = movie("Serie biblioteca").copy(id="tv013-series", tipo="serie", telegramUrl=null, temporadas=listOf(season))
         val library = memoryLibrary()
         var playbackRequests = 0
-        openDetail(title)
+        startLibraryFixture()
         runOnMainSync {
             (activity as ComponentActivity).setContent {
                 val revision by library.revision.collectAsState()
@@ -378,7 +384,7 @@ class TvDetailInstrumentation : Instrumentation() {
     }
 
     private fun requestsQr(exitKey: Int) {
-        openDetail(movie("QR fixture"))
+        startLibraryFixture()
         runOnMainSync {
             (activity as ComponentActivity).setContent {
                 var visible by remember(exitKey) { mutableStateOf(true) }
