@@ -28,6 +28,7 @@ class AdminSeriesFlowTest {
     private var published:JsonObject?=null
     private var artwork=true
     private var imagesStatus=200
+    private var freshSynopsis=""
     private val first="https://t.me/c/123/7/501?single&thread=7#first"
     private val last="https://t.me/c/123/7/550?single&thread=7#last"
     private val moviePoint=JsonParser.parseString("""{"tipo":"pelicula","titulo":"El legado","anio":"2018","telegram_message_id":239,"telegram_url":"https://t.me/movies/239","unknown":"preserve"}""").asJsonObject
@@ -53,12 +54,13 @@ class AdminSeriesFlowTest {
                     path.endsWith("/search/movie") -> """{"results":[{"id":42,"title":"Película nueva","release_date":"2026-01-01"}]}"""
                     path.endsWith("/tv/42") -> """{"id":42,"name":"The Wonderfools","first_air_date":"2026-01-01","genres":[],"seasons":[{"season_number":1,"name":"Temporada 1","episode_count":2}]}"""
                     path.endsWith("/movie/42") -> """{"id":42,"title":"Película nueva","release_date":"2026-01-01","genres":[]}"""
+                    path.endsWith("/tv/42/season/1") -> JsonObject().apply {addProperty("season_number",1);addProperty("name","Temporada 1");add("episodes",JsonArray().apply {add(JsonObject().apply {addProperty("id",801);addProperty("episode_number",1);addProperty("name","Nombre recuperado de TMDB");addProperty("overview",freshSynopsis);addProperty("runtime",42)})})}.toString()
                     path.endsWith("/external_ids") -> "{\"imdb_id\":\"tt42\"}"
                     path.endsWith("/credits") -> "{\"cast\":[],\"crew\":[]}"
                     path.endsWith("/videos") -> "{\"results\":[]}"
                     else -> return MockResponse().setResponseCode(404)
                 }
-                val response=if(artwork && (path.endsWith("/tv/42") || path.endsWith("/movie/42"))) JsonParser.parseString(body).asJsonObject.apply {addProperty("poster_path","/poster.jpg");addProperty("backdrop_path","/back.jpg")}.toString() else body
+                val response=if(artwork && (path.endsWith("/tv/42") || path.endsWith("/movie/42"))) JsonParser.parseString(body).asJsonObject.apply {addProperty("poster_path","/poster.jpg");addProperty("backdrop_path","/back.jpg");addProperty("overview",freshSynopsis)}.toString() else body
                 return MockResponse().setBody(response)
             }
         }
@@ -188,6 +190,35 @@ class AdminSeriesFlowTest {
     @Test fun existingVisualsSurviveMetadataRefreshWithoutImages(){searchAndReview(root=last);vm.save();vm.edit(CatalogRules.items(vm.catalog!!).single());artwork=false;vm.query="The Wonderfools";vm.search();await();vm.use(vm.results.single());await();assertArtwork(vm.draft!!);vm.field("sinopsis","Corregida");vm.save();assertArtwork(CatalogRules.items(vm.catalog!!).single())}
     @Test fun existingBackgroundEditorKeepsCanonicalReferenceConsistent(){searchAndReview(root=last);vm.field("fondo_url","https://fixture.test/custom.jpg");assertEquals(vm.draft!!.text("fondo_url"),vm.draft!!.text("backdrop_url"));assertEquals(HttpMetadata.image("/logo.png"),vm.draft!!.text("logo_url"));vm.field("fondo_url","");assertFalse(vm.draft!!.has("backdrop_url"));vm.save();assertSeriesPoint()}
 
+    private fun seedRetiredHistory() {
+        freshSynopsis="Texto sintético que TMDB también devuelve de forma independiente y verificable"
+        val store=AndroidStateStore(app);val state=store.read()!!.deepCopy()
+        state.add("catalog",remoteCatalog.deepCopy().apply {array("items").add(LegacyFixtures.marked(LegacyFixtures.item("retired-local"),value=JsonPrimitive(freshSynopsis)))})
+        state.addProperty("pending",true);store.write(state);vm=newModel()
+    }
+    @Test fun freshTraditionalTmdbMetadataIsNotFalselyRemovedWhenTextMatchesRetiredHistory() {
+        seedRetiredHistory();searchAndReview("pelicula",last)
+        assertEquals(freshSynopsis,vm.draft!!.text("sinopsis"));vm.save();vm.sync();await()
+        val movie=CatalogRules.items(published!!).single {it.text("tipo")=="pelicula"};assertEquals(freshSynopsis,movie.text("sinopsis"));assertEquals("TMDB",movie.text("fuente_principal"))
+    }
+    @Test fun freshInitialTmdbSeasonAlsoKeepsIndependentlyRecoveredMatchingText() {
+        seedRetiredHistory();searchAndReview("serie");vm.seasonNumber=1;vm.fetchSeason();await()
+        assertEquals(freshSynopsis,vm.draft!!.array("temporadas")[0].asJsonObject.array("episodios")[0].asJsonObject.text("sinopsis"))
+        episode(1,last);vm.save();vm.sync();await();val series=CatalogRules.items(published!!).single {it.text("id")!="retired-local"}
+        assertEquals(freshSynopsis,series.array("temporadas")[0].asJsonObject.array("episodios")[0].asJsonObject.text("sinopsis"))
+    }
+    @Test fun ordinaryTmdbLookupPreservesTvmazeCreditsOfUntouchedEpisodes() {
+        searchAndReview();episode(1,first)
+        val path="1/1/sinopsis";val draft=vm.draft!!.deepCopy()
+        LegacyFixtures.target(draft,path).addProperty("sinopsis","Texto propio de TVmaze que esta consulta TMDB no reemplaza")
+        draft.add("fuentes_metadata",LegacyFixtures.obj("""{"recuperacion_selectiva":{"1/1/sinopsis":{"fuente":"TVmaze","url":"https://www.tvmaze.com/episodes/1","licencia":"https://creativecommons.org/licenses/by-sa/4.0/","atribucion":"TVmaze"}}}"""))
+        val record=draft.getAsJsonObject("fuentes_metadata").getAsJsonObject("recuperacion_selectiva").get(path).deepCopy()
+        val state=AndroidStateStore(app);val raw=state.read()!!.deepCopy().apply {add("draft",draft)};state.write(raw);vm=newModel();vm.resumeDraft()
+        vm.query="The Wonderfools";vm.search();await();vm.use(vm.results.single());await()
+        assertEquals(record,vm.draft!!.getAsJsonObject("fuentes_metadata").getAsJsonObject("recuperacion_selectiva").get(path))
+        assertEquals("Texto propio de TVmaze que esta consulta TMDB no reemplaza",LegacyFixtures.target(vm.draft!!,path).text("sinopsis"))
+        vm.save();vm.sync();await();assertEquals(record,CatalogRules.items(published!!).single().getAsJsonObject("fuentes_metadata").getAsJsonObject("recuperacion_selectiva").get(path))
+    }
     @Test fun removedProviderCannotBeStartedOrQueried() {
         searchAndReview();episode(1,first);val before=vm.draft!!.deepCopy()
         var calls=0;vm.recoveryProviderFactory={calls++;error("removed provider must not be invoked")}

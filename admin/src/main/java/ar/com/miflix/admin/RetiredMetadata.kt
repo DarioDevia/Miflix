@@ -214,6 +214,14 @@ object RetiredMetadata {
     }
     /** Pure defense for direct serializers/imports; repository migration also preserves an immutable private backup. */
     fun projection(root:JsonObject):JsonObject=migrate(JsonObject().apply {add("catalog",root.deepCopy())}).state.getAsJsonObject("catalog")
+    /** Receipt paths must correspond to values actually returned by a fresh provider call AND written. */
+    fun freshPaths(provided:JsonObject,actual:JsonObject):Set<String> {
+        val written=nodes(actual).associateBy {it.key}
+        return nodes(provided).flatMap {node->
+            val fields=if(node.key=="title/season") rootFields else partFields
+            node.obj.entrySet().filter {(key,value)->key in fields && !value.isJsonNull && value.toString() !in setOf("\"\"","[]") && written[node.key]?.obj?.get(key)==value}.map {"${node.key}/${it.key}"}
+        }.toSet()
+    }
     fun verified(state:JsonObject,item:JsonObject,paths:Set<String>):JsonObject=state.deepCopy().apply {
         val receipts=get("retired_metadata_verified")?.takeIf {it.isJsonObject}?.asJsonObject ?: JsonObject().also {add("retired_metadata_verified",it)}
         val row=receipts.get(identity(item))?.takeIf {it.isJsonObject}?.asJsonObject ?: JsonObject().also {receipts.add(identity(item),it)}

@@ -294,7 +294,7 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
         if(draft!!.array("temporadas").any {it.asJsonObject.number("numero")==number.toLong() && it.asJsonObject.array("episodios").size()>0}) {
             startRecovery("TMDB",number.toLong(),"es-MX");searchRecovery();return
         }
-        work({result=metadata().season(id,number)},{draft=CatalogRules.mergeSeason(draft!!,result!!);draft!!.addProperty("fuente_episodios","TMDB");persist();message="Temporada $number obtenida; enlaces anteriores conservados."})
+        work({result=metadata().season(id,number)},{draft=CatalogRules.mergeSeason(draft!!,result!!);draft!!.addProperty("fuente_episodios","TMDB");val provided=JsonObject().apply {add("temporadas",JsonArray().apply {add(result!!)})};persist(RetiredMetadata.freshPaths(provided,draft!!));message="Temporada $number obtenida; enlaces anteriores conservados."})
     }
     fun search() {
         val q=query;val type=category;val src=source;var found:List<SearchResult> = emptyList()
@@ -319,7 +319,23 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
                 if(!value.isJsonNull && value.toString() !in setOf("\"\"","[]")) merged.add(key,value.deepCopy())
             }
             candidate.array("temporadas").forEach {s -> merged.add("temporadas",CatalogRules.mergeSeason(merged,s.asJsonObject).array("temporadas"))}
-            draft=merged;persist();screen="review"
+            val freshPaths=RetiredMetadata.freshPaths(candidate,merged)
+            // A general lookup must not erase field-level credits for untouched episodes or missing fields.
+            val previous=(existing ?: base)
+            val previousRecords=previous.get("fuentes_metadata")?.takeIf {it.isJsonObject}?.asJsonObject?.get("recuperacion_selectiva")?.takeIf {it.isJsonObject}?.asJsonObject?.deepCopy()
+            if(previousRecords!=null) {
+                freshPaths.forEach {path->
+                    val parts=path.split('/')
+                    val oldValue=runCatching {MetadataRecovery.target(previous,RecoveryPath(parts[0].toLongOrNull(),parts[1].toLongOrNull(),parts[2])).get(parts[2])}.getOrNull()
+                    val newValue=runCatching {MetadataRecovery.target(merged,RecoveryPath(parts[0].toLongOrNull(),parts[1].toLongOrNull(),parts[2])).get(parts[2])}.getOrNull()
+                    if(oldValue!=newValue) previousRecords.remove(path)
+                }
+                if(previousRecords.size()>0) {
+                    val sources=merged.get("fuentes_metadata")?.takeIf {it.isJsonObject}?.asJsonObject ?: JsonObject().also {merged.add("fuentes_metadata",it)}
+                    sources.add("recuperacion_selectiva",previousRecords)
+                }
+            }
+            draft=merged;persist(freshPaths);screen="review"
             duplicate=if(category=="pelicula") CatalogRules.duplicate(catalog!!,merged,if(isNew) null else base.text("id")) else null
         })
     }
