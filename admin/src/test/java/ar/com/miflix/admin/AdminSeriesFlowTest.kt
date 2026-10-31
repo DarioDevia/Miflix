@@ -188,23 +188,12 @@ class AdminSeriesFlowTest {
     @Test fun existingVisualsSurviveMetadataRefreshWithoutImages(){searchAndReview(root=last);vm.save();vm.edit(CatalogRules.items(vm.catalog!!).single());artwork=false;vm.query="The Wonderfools";vm.search();await();vm.use(vm.results.single());await();assertArtwork(vm.draft!!);vm.field("sinopsis","Corregida");vm.save();assertArtwork(CatalogRules.items(vm.catalog!!).single())}
     @Test fun existingBackgroundEditorKeepsCanonicalReferenceConsistent(){searchAndReview(root=last);vm.field("fondo_url","https://fixture.test/custom.jpg");assertEquals(vm.draft!!.text("fondo_url"),vm.draft!!.text("backdrop_url"));assertEquals(HttpMetadata.image("/logo.png"),vm.draft!!.text("logo_url"));vm.field("fondo_url","");assertFalse(vm.draft!!.has("backdrop_url"));vm.save();assertSeriesPoint()}
 
-    @Test fun tvdbSelectiveEditPersistsLocallyBlocksSyncAndCanUndoAfterRestart() {
-        searchAndReview();episode(1,first);vm.save();val before=vm.catalog!!.deepCopy()
-        val candidate=RecoveryCandidate("TheTVDB",5,"The Wonderfools","2026","https://thetvdb.com/series/test","Español (spa)",JsonObject())
-        vm.recoveryProviderFactory={object:RecoveryProvider {
-            override fun cancel() {}
-            override fun search(item:JsonObject,query:String)=listOf(candidate)
-            override fun retrieve(candidate:RecoveryCandidate,item:JsonObject,seasons:Set<Long>,language:String)=RecoveryData(candidate,JsonObject(),listOf(JsonParser.parseString("""{"numero":1,"episodios":[{"numero":1,"sinopsis":"Sinopsis sintética en español"}]}""").asJsonObject))
-        }}
-        vm.edit(CatalogRules.items(vm.catalog!!).single());val draft=vm.draft!!.deepCopy()
-        vm.startRecovery("TheTVDB",1,"spa");vm.searchRecovery();await();vm.retrieveRecovery(vm.recoveryCandidates.single());await()
-        assertEquals(before,vm.catalog);assertEquals(draft,vm.draft);assertTrue(vm.recoverySelection.isEmpty())
-        vm.confirmRecoveryMapping("1/1",true);vm.recoverySelection=setOf("1/1/sinopsis");vm.recoveryLicense=true;vm.applyRecovery()
-        assertEquals("review",vm.screen);assertTrue(vm.canUndoRecovery);assertEquals(before,vm.catalog)
-        vm.save();val saved=CatalogRules.items(vm.catalog!!).single();assertEquals(before.array("items")[0].asJsonObject.get("fecha_agregado"),saved.get("fecha_agregado"))
-        vm.sync();await();assertNull(published);assertTrue(vm.pending);assertTrue(vm.message.contains("TheTVDB"))
-        vm=newModel();vm.edit(CatalogRules.items(vm.catalog!!).single());vm.undoRecovery();vm.save();vm.sync();await()
-        assertNotNull(published);assertFalse(MetadataPublicationPolicy.containsTvdb(published));assertEquals(first,CatalogRules.items(published!!).single().array("temporadas")[0].asJsonObject.array("episodios")[0].asJsonObject.text("telegram_url"))
+    @Test fun removedProviderCannotBeStartedOrQueried() {
+        searchAndReview();episode(1,first);val before=vm.draft!!.deepCopy()
+        var calls=0;vm.recoveryProviderFactory={calls++;error("removed provider must not be invoked")}
+        vm.startRecovery("TheTVDB",1,"spa")
+        assertEquals(before,vm.draft);assertEquals(0,calls);assertEquals("review",vm.screen)
+        assertTrue(vm.message.contains("no disponible"))
     }
 
 }

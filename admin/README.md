@@ -1,3 +1,11 @@
+# MiFlix Admin Android 0.1.10-diagnostico / 11
+
+Corrección: TheTVDB retirado; publicación normal recuperada mediante saneamiento por campo, respaldo privado previo y revisión de incidencias. Conserva TMDB, TVmaze, fechas, Telegram y las colecciones locales 0.1.8/0.1.9. Usa GET/PUT originales de Cloudflare; no modifica el Worker ni publica colecciones locales.
+
+Ver [auditoría, migración y prueba Samsung](0.1.10-remove-thetvdb.md). Mantener la firma original y actualizar sin desinstalar. No se afirma validación física o en producción.
+
+## Documentación histórica (no describe la política vigente)
+
 # MiFlix Admin Android 0.1.9-diagnostico / 10
 
 Detección de sagas TMDB con revisión y aprobación, caché/reanudación, actualizaciones aditivas sin duplicar ni reemplazar personalizaciones. Compatible con colecciones y respaldos 0.1.8. **Colecciones aún locales: sincronización no habilitada y Worker sin desplegar.**

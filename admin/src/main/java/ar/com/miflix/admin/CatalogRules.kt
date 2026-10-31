@@ -78,8 +78,7 @@ object CatalogRules {
         copy.addProperty("generated_at", now())
         return parse(copy.toString())
     }
-    fun publicCopy(root: JsonObject): JsonObject = root.deepCopy().apply {
-        MetadataPublicationPolicy.requirePublishable(this)
+    fun publicCopy(root: JsonObject): JsonObject = MetadataPublicationPolicy.projection(root).apply {
         items(this).forEach { item ->
             item.remove("poster_local")
             item.array("temporadas").forEach { s -> s.asJsonObject.array("episodios").forEach { e -> e.asJsonObject.remove("local_path") } }

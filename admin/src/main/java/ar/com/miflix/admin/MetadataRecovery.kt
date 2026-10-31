@@ -83,7 +83,7 @@ object MetadataRecovery {
     }
     fun apply(plan: RecoveryPlan, selected: Set<String>, confirmed: Set<String>, licenseAccepted: Boolean): JsonObject {
         val choices=plan.selected(selected)
-        require(plan.data.candidate.provider!="TheTVDB" || licenseAccepted) {"Confirmá el uso autorizado y la restricción de publicación de TheTVDB."}
+        require(plan.data.candidate.provider in setOf("TMDB","TVmaze")) {"Proveedor de recuperación no disponible."}
         require(choices.isNotEmpty()) {"Seleccioná al menos un campo."}
         require(choices.all {it.safe || "${it.path.season}/${it.path.episode}" in confirmed}) {"Confirmá la correspondencia de cada episodio seleccionado."}
         require(plan.data.candidate.provider!="TVmaze" || licenseAccepted) {"Aceptá conservar la atribución y ShareAlike de TVmaze."}
@@ -97,10 +97,6 @@ object MetadataRecovery {
             recovery.add(change.path.key,JsonObject().apply {
                 addProperty("fuente",plan.data.candidate.provider);addProperty("url",change.sourceUrl)
                 addProperty("idioma",plan.data.candidate.language);addProperty("modificaciones","Selección y normalización de HTML/espacios; sin traducción")
-                if(plan.data.candidate.provider=="TheTVDB") {
-                    addProperty("atribucion","Metadatos proporcionados por TheTVDB — https://thetvdb.com")
-                    addProperty("condiciones","https://thetvdb.com/tos");addProperty("publicacion_bloqueada",true)
-                }
                 if(plan.data.candidate.provider=="TVmaze") {addProperty("licencia",LICENSE);addProperty("atribucion","TVmaze — datos importados y sus adaptaciones bajo CC BY-SA 4.0; sin garantías; conservar avisos al redistribuir.")}
             })
         }

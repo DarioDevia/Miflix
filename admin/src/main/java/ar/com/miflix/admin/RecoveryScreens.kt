@@ -21,7 +21,6 @@ import com.google.gson.JsonObject
         DropdownMenu(expanded,onDismissRequest={expanded=false}) {
             DropdownMenuItem(text={Text("TMDB · español")},onClick={expanded=false;vm.startRecovery("TMDB",season,"es-MX")})
             DropdownMenuItem(text={Text("TMDB · consultar otros idiomas")},onClick={expanded=false;vm.startRecovery("TMDB",season,"en-US")})
-            DropdownMenuItem(text={Text("TheTVDB — Metadatos en español")},onClick={expanded=false;vm.startRecovery("TheTVDB",season,"spa")})
             DropdownMenuItem(text={Text("TVmaze · series y episodios")},enabled=vm.category!="pelicula",onClick={expanded=false;vm.startRecovery("TVmaze",season)})
         }
     }
@@ -30,18 +29,13 @@ import com.google.gson.JsonObject
     val context=LocalContext.current
     TextButton(onClick={
         val uri=Uri.parse(url)
-        if(uri.scheme=="https" && uri.host in setOf("www.tvmaze.com","tvmaze.com","www.themoviedb.org","creativecommons.org","thetvdb.com","www.thetvdb.com"))
+        if(uri.scheme=="https" && uri.host in setOf("www.tvmaze.com","tvmaze.com","www.themoviedb.org","creativecommons.org"))
             try {context.startActivity(Intent(Intent.ACTION_VIEW,uri))} catch(_:Exception) {android.widget.Toast.makeText(context,"No se pudo abrir el enlace.",android.widget.Toast.LENGTH_SHORT).show()}
     }) {Text(label)}
 }
 @Composable fun MetadataCredits(item: JsonObject) {
     val records=item.get("fuentes_metadata")?.takeIf {it.isJsonObject}?.asJsonObject
         ?.get("recuperacion_selectiva")?.takeIf {it.isJsonObject}?.asJsonObject ?: return
-    val tvdb=records.entrySet().any {it.value.isJsonObject && it.value.asJsonObject.text("fuente")=="TheTVDB"}
-    if(tvdb) {
-        SourceLink("https://thetvdb.com","Metadatos proporcionados por TheTVDB")
-        Text("Solo uso local: publicación bloqueada hasta verificar permisos y atribución en los clientes.",style=MaterialTheme.typography.bodySmall)
-    }
     val maze=records.entrySet().map {it.value}.filter {it.isJsonObject && it.asJsonObject.text("fuente")=="TVmaze"}.map {it.asJsonObject}
     if(maze.isNotEmpty()) {
         Text("Datos seleccionados de TVmaze · CC BY-SA 4.0. Se conservaron la procedencia y los avisos en el catálogo. Sin garantías.",style=MaterialTheme.typography.bodySmall)
@@ -58,16 +52,6 @@ import com.google.gson.JsonObject
             if(vm.recoverySource=="TMDB") {
                 OutlinedTextField(vm.recoveryLanguage,{vm.recoveryLanguage=it},label={Text("Idioma TMDB: es-MX, en-US, es-ES…")},enabled=!vm.busy,singleLine=true,modifier=Modifier.fillMaxWidth())
                 Text("Código ISO del idioma solicitado. No se traduce ni se inventan textos. Si existe tmdb_id se consulta esa identidad.",style=MaterialTheme.typography.bodySmall)
-            } else if(vm.recoverySource=="TheTVDB") {
-                Text("TheTVDB: Español usa traducciones verificadas con código spa. Si faltan, se informa cada ausencia. Podés volver a consultar el texto base como alternativa, con todas sus casillas desmarcadas.")
-                Row(verticalAlignment=Alignment.CenterVertically) {
-                    RadioButton(vm.recoveryLanguage=="spa",onClick={vm.recoveryLanguage="spa"},enabled=!vm.busy);Text("Español (spa)")
-                }
-                Row(verticalAlignment=Alignment.CenterVertically) {
-                    RadioButton(vm.recoveryLanguage=="base",onClick={vm.recoveryLanguage="base"},enabled=!vm.busy);Text("Texto base · idioma no verificado",Modifier.weight(1f))
-                }
-                Text("Usa TVDB ID o IMDb si están guardados; si no, muestra candidatos por título. Solo orden predeterminado; cada episodio exige revisión manual. Clave en Configuración → APIs y proveedores.",style=MaterialTheme.typography.bodySmall)
-                SourceLink("https://thetvdb.com","Metadatos proporcionados por TheTVDB")
             } else {
                 Text("Sinopsis habitualmente en inglés; títulos originales. TVmaze no ofrece selector de traducción. Primero se busca por IMDb cuando está disponible.",style=MaterialTheme.typography.bodySmall)
                 SourceLink("https://www.tvmaze.com/api","TVmaze · API pública y atribución")
@@ -89,7 +73,6 @@ import com.google.gson.JsonObject
             Card(Modifier.fillMaxWidth()) {Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                 Text(candidate.title,style=MaterialTheme.typography.titleMedium)
                 Text("${candidate.year.ifBlank {"Año no informado"}} · ${candidate.provider} · ID ${candidate.id}")
-                if(candidate.provider=="TheTVDB") Text(if(candidate.raw.text("_kind")=="movie") "Película" else "Serie / anime · orden predeterminado")
                 SourceLink(candidate.url,"Ver ficha de la fuente")
                 Button(onClick={vm.retrieveRecovery(candidate)},enabled=!vm.busy,modifier=Modifier.fillMaxWidth()) {Text("Es esta ficha · comparar datos")}
             }}
@@ -101,7 +84,7 @@ import com.google.gson.JsonObject
     var confirm by remember(plan) {mutableStateOf(false)}
     val selected=plan.selected(vm.recoverySelection)
     val allowed=selected.isNotEmpty() && selected.all {it.safe || "${it.path.season}/${it.path.episode}" in vm.recoveryMappings} &&
-        (plan.data.candidate.provider !in setOf("TVmaze","TheTVDB") || vm.recoveryLicense)
+        (plan.data.candidate.provider !in setOf("TVmaze") || vm.recoveryLicense)
     LazyColumn(Modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item {
             Text("Comparar y elegir datos",style=MaterialTheme.typography.titleLarge)
@@ -144,15 +127,6 @@ import com.google.gson.JsonObject
             Text("TVmaze · CC BY-SA 4.0. Al importar se conservan fuente, enlace, licencia e indicación de cambios junto a cada campo en fuentes_metadata. Esos avisos viajan en el JSON. Las adaptaciones de esos datos deben compartirse bajo la misma licencia y sin restricciones adicionales; no se atribuyen a TVmaze los videos ni datos de otras fuentes.")
             SourceLink(MetadataRecovery.LICENSE,"Leer licencia CC BY-SA 4.0")
             Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(vm.recoveryLicense,{vm.recoveryLicense=it});Text("Conservar atribución y cumplir ShareAlike al redistribuir esos datos.",Modifier.weight(1f))}
-        }
-        if(plan.data.candidate.provider=="TheTVDB") item {
-            SourceLink("https://thetvdb.com","Metadatos proporcionados por TheTVDB")
-            SourceLink("https://thetvdb.com/tos","Leer condiciones TheTVDB")
-            Text("Podés aplicar y guardar localmente los campos seleccionados. La sincronización de todo el catálogo quedará bloqueada mientras contenga datos TheTVDB: Mobile y TV todavía deben mostrar atribución y se deben verificar los permisos de distribución. Revertir y guardar permite retirar estos cambios.")
-            Row(verticalAlignment=Alignment.CenterVertically) {
-                Checkbox(vm.recoveryLicense,{vm.recoveryLicense=it},enabled=!vm.busy)
-                Text("Mi proyecto está autorizado para esta consulta y uso local. Conservo la procedencia y entiendo el bloqueo de publicación.",Modifier.weight(1f))
-            }
         }
         item {
             Button(onClick={confirm=true},enabled=allowed && vm.writable,modifier=Modifier.fillMaxWidth()) {Text("Aplicar datos seleccionados")}

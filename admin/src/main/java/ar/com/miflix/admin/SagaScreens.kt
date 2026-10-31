@@ -72,11 +72,11 @@ import androidx.compose.ui.unit.dp
     LazyColumn(Modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item {
             Text("Sincronización de colecciones",style=MaterialTheme.typography.titleLarge)
-            Text("No habilitada en 0.1.9: el Worker desplegado y su protección contra escritores antiguos/concurrentes no están verificados.")
+            Text("No habilitada: el Worker desplegado y su protección contra escritores antiguos/concurrentes no están verificados.")
             Text("Tus colecciones siguen locales y se pueden exportar/restaurar. Guardarlas o detectarlas no publica ni modifica películas. Mobile y TV actuales todavía no las muestran.")
             Text("Bloqueos comprobados en el Worker fuente: PUT reemplaza todo el catálogo; no hay revisión condicional, respaldo previo ni operación exclusiva de colecciones. Una publicación antigua puede borrar esos campos. KV no dispone de compare-and-swap atómico.")
             Text("La documentación técnica de esta versión incluye pruebas sintéticas que reproducen esos riesgos y un protocolo para resolverlos antes de desplegar. Esta pantalla no hace solicitudes al servidor ni representa una conexión verificada.")
-            Text("TheTVDB: su restricción de publicación habitual permanece. Las colecciones TMDB se guardan sin ese bloqueo; la sincronización separada requiere el nuevo protocolo de servidor, aún pendiente.")
+            Text("Las colecciones locales no bloquean la publicación habitual de películas. Su sincronización separada sigue pendiente del protocolo de servidor.")
             OutlinedButton(onClick={c.openList()},modifier=Modifier.fillMaxWidth()) {Text("Volver y exportar respaldo")}
         }
     }

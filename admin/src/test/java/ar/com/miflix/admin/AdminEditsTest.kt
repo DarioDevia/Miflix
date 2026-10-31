@@ -18,9 +18,9 @@ class AdminEditsTest {
         override fun read()=value?.deepCopy()
         override fun write(state:JsonObject){if(fail) error("disk full");value=state.deepCopy()}
     }
-    private class Remote:AdminRemote {
+    private class Remote(private val baseline:JsonObject):AdminRemote {
         var catalog:JsonObject?=null;var calls=0
-        override fun download()=error("not used")
+        override fun download()=baseline.deepCopy()
         override fun publish(catalog:JsonObject){calls++;this.catalog=catalog.deepCopy()}
     }
     private fun ready(store:Store=Store()):AdminRepository {
@@ -54,7 +54,7 @@ class AdminEditsTest {
     @Test fun readonlyDeletionDenied(){val repo=ready();repo.lock();val before=repo.state.deepCopy();assertThrows(IllegalStateException::class.java){repo.removeItem("s")};assertThrows(IllegalStateException::class.java){repo.removePart("s",2,7)};assertEquals(before,repo.state)}
     @Test fun missingTargetsDoNotChangeState(){val repo=ready();val before=repo.state.deepCopy();assertThrows(IllegalArgumentException::class.java){repo.removeItem("missing")};assertThrows(IllegalArgumentException::class.java){repo.removePart("s",99,7)};assertEquals(before,repo.state)}
     @Test fun failedAtomicWriteKeepsCatalogAndDraft(){val store=Store();val repo=ready(store);repo.persistDraft(item());val before=repo.state.deepCopy();store.fail=true;assertThrows(IllegalStateException::class.java){repo.removePart("s",2,7)};assertEquals(before,repo.state);assertEquals(before,store.value)}
-    @Test fun deletionPublishesValidSchemaOneOnlyOnExplicitSync(){val repo=ready();val remote=Remote();repo.removePart("s",2,7);repo.removeItem("a");assertEquals(0,remote.calls);repo.publish(remote);assertEquals(1,remote.calls);val out=CatalogRules.parse(remote.catalog.toString());assertEquals("1",out.text("schema_version"));assertTrue(out.get("unknown_root").asBoolean);assertFalse(repo.pending)}
+    @Test fun deletionPublishesValidSchemaOneOnlyOnExplicitSync(){val repo=ready();val remote=Remote(root());repo.removePart("s",2,7);repo.removeItem("a");assertEquals(0,remote.calls);repo.publish(remote);assertEquals(1,remote.calls);val out=CatalogRules.parse(remote.catalog.toString());assertEquals("1",out.text("schema_version"));assertTrue(out.get("unknown_root").asBoolean);assertFalse(repo.pending)}
     @Test fun pendingDeletionSurvivesRestart(){val store=Store();val repo=ready(store);repo.removeItem("p");val restarted=AdminRepository(store);assertTrue(restarted.pending);assertFalse(CatalogRules.items(restarted.catalog!!).any {it.text("id")=="p"});assertFalse(restarted.writable)}
     @Test fun resultCardOriginalTitlesDoNotChangeProviderData(){val tmdb=SearchResult("TMDB",1,"Título","2024","",JsonParser.parseString("{\"original_title\":\"Original\",\"future\":1}").asJsonObject);val ani=SearchResult("AniList",2,"English","2023","",JsonParser.parseString("{\"title\":{\"romaji\":\"Romaji\",\"native\":\"Native\"}}").asJsonObject);val before=ani.raw.deepCopy();assertEquals("Original",tmdb.originalTitle());assertEquals("Romaji",ani.originalTitle());assertEquals(before,ani.raw);assertEquals("AniList",ani.source)}
     @Test fun seasonConfirmationReportsEpisodeCount(){val request=DeletionRequest("s","Serie",2,episodeCount=10);assertTrue(request.explanation.contains("10 episodios"));assertEquals("Eliminar temporada",request.button)}

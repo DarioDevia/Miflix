@@ -50,7 +50,7 @@ class CollectionControllerTest {
         c.begin();c.field("nombre","Colección local");c.add(setOf("movie"));c.preview();c.save();assertFalse(admin.pending);assertEquals(before,admin.catalog)
         admin.saveItem(CatalogRules.items(admin.catalog!!).first().deepCopy().apply{addProperty("titulo","Corregido")});admin.publish(remote);assertEquals(1,calls);assertEquals(1,CollectionRules.list(c.data).size)
     }
-    @Test fun tvdbBlockIsNotBypassedByCollections() {val root=catalog();root.add("source",obj("""{"fuente":"TheTVDB","publicacion_bloqueada":true}"""));c.begin();c.field("nombre","Manual");c.preview();c.save();assertThrows(IllegalStateException::class.java){CatalogRules.publicCopy(root)}}
+    @Test fun retiredMarkerIsProjectedAwayWithoutBlockingCollections() {val root=catalog();root.add("source",obj("""{"fuente":"TheTVDB","publicacion_bloqueada":true}"""));c.begin();c.field("nombre","Manual");c.preview();c.save();assertFalse(CatalogRules.publicCopy(root).has("source"));assertEquals(1,CollectionRules.list(c.data).size)}
     @Test fun corruptedCollectionFileDoesNotBlockRegularCatalog() {
         File(app.filesDir,"collections-state.json").writeText("bad json");c=controller();assertFalse(c.writable)
         val root=catalog();assertEquals(root,CatalogRules.publicCopy(CatalogRules.parse(root.toString())));assertEquals("bad json",File(app.filesDir,"collections-state.json").readText())

@@ -31,7 +31,7 @@ object CollectionRules {
         val tmdb=value.get("tmdb_collection_id")
         require(tmdb==null || tmdb.isJsonNull || (tmdb.isJsonPrimitive && tmdb.asJsonPrimitive.isNumber && tmdb.asString.matches(Regex("[1-9][0-9]*")) && value.number("tmdb_collection_id")!=null)) {"ID de colección TMDB inválido."}
         require(value.text("origen")!="tmdb" || value.number("tmdb_collection_id")!=null) {"Falta ID TMDB de la colección."}
-        for(key in listOf("poster_url","backdrop_url")) require(validUrl(string(value,key,false,2000).orEmpty())) {"$key requiere una URL HTTPS válida, sin credenciales y ajena a TheTVDB."}
+        for(key in listOf("poster_url","backdrop_url")) require(validUrl(string(value,key,false,2000).orEmpty())) {"$key requiere una URL HTTPS válida, sin credenciales ni imágenes de proveedores retirados."}
         val order=value.get("orden")
         require(order!=null && order.isJsonPrimitive && order.asJsonPrimitive.isNumber && order.asString.matches(Regex("[0-9]+")) && (value.number("orden") ?: -1) in 0..1000000) {"Orden de presentación inválido (0 a 1000000)."}
         require(value.get("visible")?.let {it.isJsonPrimitive && it.asJsonPrimitive.isBoolean}==true) {"Visibilidad inválida."}

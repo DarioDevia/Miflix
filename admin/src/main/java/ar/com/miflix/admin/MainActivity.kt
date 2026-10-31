@@ -68,6 +68,7 @@ class MainActivity: ComponentActivity() {
                     "startup" -> Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally) {CircularProgressIndicator();Spacer(Modifier.height(20.dp));Text("Actualizando catálogo…")}
                     "config" -> ConfigScreen(vm)
                     "providers" -> ProviderSettingsScreen(vm)
+                    "retiredMetadata" -> RetiredMetadataScreen(vm)
                     "collections" -> CollectionsScreen(vm.collections)
                     "list" -> CatalogScreen(vm)
                     "detail" -> DetailScreen(vm) {open(it)}
@@ -126,6 +127,11 @@ class MainActivity: ComponentActivity() {
 @Composable private fun HomeScreen(vm: AdminViewModel,onRefresh:()->Unit,onOpen:(String)->Unit) {
     ScrollContent {
         val catalog=vm.catalog
+        if(vm.cleanupIssues.isNotEmpty() || vm.cleanupBackups.isNotEmpty()) {
+            Text("Se retiraron datos históricos del proveedor eliminado. Películas, enlaces y fechas se conservaron. Revisá los campos indicados; los demás contenidos pueden sincronizarse normalmente.")
+            OutlinedButton(onClick={vm.screen="retiredMetadata"},enabled=!vm.busy,modifier=Modifier.fillMaxWidth()) {Text("Revisión de metadatos históricos · ${vm.cleanupIssues.size}")}
+        }
+        if(vm.credentialCleanupNotice.isNotBlank()) Text(vm.credentialCleanupNotice)
         Text(if(vm.writable) {if(vm.pending) "CAMBIOS PENDIENTES" else "✓ Sincronizado"} else "SIN SINCRONIZAR",style=MaterialTheme.typography.titleMedium,color=if(vm.pending) Color(0xFFFBBF24) else MaterialTheme.colorScheme.primary)
         Text("${catalog?.let {CatalogRules.items(it).size} ?: 0} títulos",style=MaterialTheme.typography.headlineMedium)
         listOf("pelicula" to "Películas","serie" to "Series","anime" to "Anime").forEach {(type,label) ->

@@ -13,7 +13,11 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-interface StateStore { fun read(): JsonObject?; fun write(state: JsonObject) }
+interface StateStore {
+    fun read(): JsonObject?; fun write(state: JsonObject)
+    fun archive(state:JsonObject):String = error("No hay un respaldo privado disponible para retirar metadatos históricos. Conservamos el estado original.")
+    fun readArchive(id:String):String = error("Respaldo privado no disponible en este almacenamiento.")
+}
 class FileStateStore(private val file: File): StateStore {
     override fun read(): JsonObject? = if (!file.exists()) null else JsonParser.parseString(file.readText()).asJsonObject
     override fun write(state: JsonObject) {
@@ -26,6 +30,9 @@ class FileStateStore(private val file: File): StateStore {
 class AndroidStateStore(context: Context): StateStore {
     private val file=AtomicFile(File(context.filesDir,"admin-state.json"))
     private val recovery=File(context.filesDir,"admin-state-recuperacion.json")
+    private val archives=RetiredMetadataArchives(File(context.noBackupFilesDir,"retired-metadata"))
+    override fun archive(state:JsonObject)=archives.preserve(state)
+    override fun readArchive(id:String)=archives.read(id)
     @Synchronized override fun read(): JsonObject? = try {
         val raw=file.openRead().bufferedReader().use { it.readText() }
         try { JsonParser.parseString(raw).asJsonObject.also { saved -> saved.get("catalog")?.let { CatalogRules.parse(it.toString()) } } }

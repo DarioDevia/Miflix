@@ -119,11 +119,16 @@ class DateAddedTest {
         val server = MockWebServer(); server.start()
         try {
             val remote = HttpAdminRemote(AdminConfig(server.url("/").toString().trimEnd('/'), "fake-test-token"))
+            var storedRemote=catalog(historical)
             repeat(2) {
+                server.enqueue(MockResponse().setBody(storedRemote.toString()))
                 server.enqueue(MockResponse().setBody("""{"ok":true}""")); repo.publish(remote)
+                val check=server.takeRequest(5,TimeUnit.SECONDS)!!
+                assertEquals("GET",check.method);assertEquals("/catalogo.json",check.path)
                 val request = server.takeRequest(5, TimeUnit.SECONDS)!!
                 assertEquals("PUT", request.method); assertEquals("/admin/catalogo", request.path)
                 val json = CatalogRules.parse(request.body.readUtf8())
+                storedRemote=json.deepCopy()
                 val movie = CatalogRules.items(json).first { it.text("tipo") == "pelicula" }
                 assertEquals(date, movie.get("fecha_agregado"))
                 assertFalse(CatalogRules.items(json).first { it.text("id") == "old-anime" }.has("fecha_agregado"))

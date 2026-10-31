@@ -9,34 +9,22 @@ import com.google.gson.*
 
 class AdminViewModel(app: Application): AndroidViewModel(app) {
     private val secure=SecureConfig(app)
-    private val tvdbStore: TvdbCredentialStore=SecureTvdbConfig(app)
-    private val tvdbApi=TvdbApi(credentials={tvdbStore.load()})
-    var providerStatus by mutableStateOf("TheTVDB: conexión sin comprobar."); private set
+    var providerStatus by mutableStateOf("Conexión sin comprobar."); private set
     var testingProvider by mutableStateOf(false); private set
     private var providerTestJob: Job?=null
     private var providerTestGeneration=0
     private var providerTestCancel: (() -> Unit)?=null
-    fun tvdbForEditing(): TvdbCredentials? = try {tvdbStore.load()} catch(e:Exception) {providerStatus=e.message.orEmpty();null}
-    fun saveTvdb(key: String,pin: String) {
-        if(busy || testingProvider) return
-        try {val c=TvdbCredentials(key,pin).normalized();tvdbStore.save(c);tvdbApi.reset();providerStatus="TheTVDB: configuración guardada y cifrada. Conexión sin comprobar."}
-        catch(e:Exception) {providerStatus=e.message ?: "No se pudo guardar TheTVDB."}
-    }
-    fun deleteTvdb() {
-        if(busy || testingProvider) return
-        try {tvdbApi.reset();tvdbStore.clear();providerStatus="TheTVDB: clave, PIN y token eliminados de este teléfono."}
-        catch(e:Exception) {providerStatus=e.message ?: "No se pudo eliminar TheTVDB."}
-    }
+    var credentialCleanupNotice by mutableStateOf("");private set
     fun testProvider(name: String) {
         if(busy || testingProvider) return
+        if(name !in setOf("TMDB","TVmaze")) {providerStatus="Proveedor no disponible.";return}
         val epoch=++providerTestGeneration;testingProvider=true;providerStatus="$name: comprobando conexión…"
         val tmdb=if(name=="TMDB" && config!=null) HttpMetadata(config!!) else null
         val maze=if(name=="TVmaze") TvmazeRecoveryProvider() else null
-        providerTestCancel=when(name) {"TMDB" -> ({tmdb?.cancelRecovery();Unit});"TVmaze" -> ({maze?.cancel();Unit});else -> ({tvdbApi.cancel()})}
+        providerTestCancel=when(name) {"TMDB" -> ({tmdb?.cancelRecovery();Unit});"TVmaze" -> ({maze?.cancel();Unit});else -> ({Unit})}
         providerTestJob=viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {when(name) {
-                    "TheTVDB" -> tvdbApi.testConnection()
                     "TMDB" -> (tmdb ?: error("Configurá primero el servidor o TMDB.")).recoveryRequest("/movie/550","es-MX")
                     "TVmaze" -> maze!!.search(JsonObject().apply {addProperty("tipo","serie")},"Frontera Verde")
                     else -> error("Proveedor desconocido.")
@@ -47,7 +35,7 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
             finally {if(epoch==providerTestGeneration) testingProvider=false}
         }
     }
-    fun leaveProviders() {providerTestGeneration++;providerTestJob?.cancel();providerTestCancel?.invoke();providerTestCancel=null;tvdbApi.cancel();testingProvider=false;screen="config"}
+    fun leaveProviders() {providerTestGeneration++;providerTestJob?.cancel();providerTestCancel?.invoke();providerTestCancel=null;testingProvider=false;screen="config"}
     val collections=CollectionController(app,viewModelScope,{config},{catalog})
     private val repo=AdminRepository(AndroidStateStore(app))
     var config by mutableStateOf(secure.load()); private set
@@ -92,7 +80,17 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
     val lastSync get()=repo.lastSync
     private fun remote(): AdminRemote=HttpAdminRemote(config ?: error("Configurá el servidor."))
     private fun metadata(): Metadata=HttpMetadata(config ?: error("Configurá el servidor."))
-    init { if(config==null) screen="config" else refresh() }
+    val cleanupIssues get()=repo.cleanupIssues
+    val cleanupBackups get()=repo.cleanupBackups
+    fun privateCleanupBackup(id:String)=repo.privateCleanupBackup(id)
+    fun editCleanupItem(id:String) {
+        val item=catalog?.let {CatalogRules.items(it).find {row->row.text("id")==id}} ?: return
+        edit(item)
+    }
+    init {
+        try {RetiredCredentials.remove(app)} catch(_:Exception) {credentialCleanupNotice="No se pudo terminar de retirar la credencial del proveedor eliminado. La configuración Cloudflare/TMDB permanece intacta; reintentá al abrir Admin."}
+        if(config==null) screen="config" else refresh()
+    }
     private fun work(task: () -> Unit,success: () -> Unit = {}) {
         if(busy) return
         busy=true;message=""
@@ -140,13 +138,14 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
         original=draft?.text("_admin_original").orEmpty();isNew=draft?.text("_admin_is_new")!="false";updateMultimedia=draft?.text("_admin_update_version")=="true"
         category=draft!!.text("tipo");query=draft!!.text("titulo");source=if(category=="anime") "AniList" else "TMDB";screen="review"
     }
-    private fun persist() {
+    private fun persist(verifiedPaths:Set<String> = emptySet()) {
         val copy=draft?.let(::draftEnvelope)
-        repo.persistDraft(copy);revision++
+        repo.persistDraft(copy,verifiedPaths);draft=repo.draft();revision++
     }
     private fun draftEnvelope(item: JsonObject)=item.deepCopy().apply {addProperty("_admin_original",original);addProperty("_admin_is_new",isNew);addProperty("_admin_update_version",updateMultimedia)}
     fun startRecovery(source: String,season: Long?=null,language: String="en-US") {
         if(!writable || draft==null) return
+        if(source !in setOf("TMDB","TVmaze")) {message="Proveedor de recuperación no disponible.";return}
         recoverySource=source;recoveryLanguage=language;recoveryQuery=draft!!.text("titulo")
         recoverySeasons=draft!!.array("temporadas").mapNotNull {it.asJsonObject.number("numero")}.filter {it>=0 && (season==null || it==season)}.take(20).toSet()
         recoveryCandidates=emptyList();recoveryPlan=null;recoverySelection=emptySet();recoveryMappings=emptySet();recoveryLicense=false
@@ -165,7 +164,6 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
     fun searchRecovery() {
         val item=draft?.deepCopy() ?: return;val query=recoveryQuery
         val provider=recoveryProviderFactory?.invoke(recoverySource) ?: when(recoverySource) {
-            "TheTVDB" -> TvdbRecoveryProvider(tvdbApi)
             "TVmaze" -> TvmazeRecoveryProvider()
             else -> TmdbRecoveryProvider(HttpMetadata(config ?: return))
         }
@@ -205,9 +203,9 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
                 backup.getAsJsonObject("before").addProperty("_admin_metadata_recovery",token)
                 backup.add("after",result.deepCopy())
             }
-            repo.stageRecovery(draftEnvelope(result),backup)
+            repo.stageRecovery(draftEnvelope(result),backup,plan.selected(recoverySelection).map {it.path.key}.toSet())
             draft=result;recoveryPlan=null;recoveryProvider=null;screen="review";revision++
-            message=if(plan.data.candidate.provider=="TheTVDB") "TheTVDB aplicado a la revisión con respaldo local. Podés guardar, pero la publicación queda bloqueada hasta resolver atribución y permisos en los clientes." else "Datos seleccionados aplicados a la revisión. Falta confirmar y guardar; no se sincronizó. Respaldo local disponible."
+            message="Datos seleccionados aplicados a la revisión. Falta confirmar y guardar; no se sincronizó. Respaldo local disponible."
         } catch(e:Exception) {message=e.message ?: "No se pudo aplicar. Conservamos la revisión anterior."}
     }
     fun undoRecovery() {
@@ -331,7 +329,12 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
         work({
             val full=if("episodios" in groups) Enrichment.withEpisodes(metadata(),candidate) else candidate
             result=Enrichment.apply(base,full,groups)
-        },{draft=result;enrichment=null;persist();screen="review";message="Enriquecimiento aplicado a la revisión; todavía no está guardado."})
+        },{
+            draft=result;enrichment=null
+            val paths=Enrichment.groups.filterKeys {it in groups}.values.flatten().filter {base.get(it)!=result!!.get(it)}.map {"title/season/$it"}.toMutableSet()
+            if("episodios" in groups) result!!.array("temporadas").forEach {season->season.asJsonObject.array("episodios").forEach {ep->MetadataRecovery.episodeFields.forEach {f->if(ep.asJsonObject.has(f)) paths.add("${season.asJsonObject.text("numero")}/${ep.asJsonObject.text("numero")}/$f")}}}
+            persist(paths);screen="review";message="Enriquecimiento aplicado a la revisión; todavía no está guardado."
+        })
     }
     fun cancelEnrichment() {enrichment=null;screen="review"}
     fun cancelDuplicate() {duplicate=null;message="Operación cancelada; catálogo y checkpoint conservados.";screen="search"}
@@ -373,5 +376,5 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
         changeTelegramLink(link);sharedText="";screen="search"
     }
     fun dismissShare() {sharedText=""}
-    override fun onCleared() {collections.close();recoveryProvider?.cancel();providerTestCancel?.invoke();tvdbApi.reset();super.onCleared()}
+    override fun onCleared() {collections.close();recoveryProvider?.cancel();providerTestCancel?.invoke();super.onCleared()}
 }

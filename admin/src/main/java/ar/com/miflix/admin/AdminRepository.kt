@@ -59,13 +59,17 @@ class AdminRepository(private val store: StateStore) {
         private set
     val catalog: JsonObject? get()=state.get("catalog")?.takeIf { it.isJsonObject }?.asJsonObject
     private var checkpointsReady = true
+    val cleanupIssues get()=state.get(RetiredMetadata.STATE)?.takeIf {it.isJsonObject}?.asJsonObject?.array("issues")?.map {it.asJsonObject.deepCopy()}.orEmpty()
+    val cleanupBackups get()=state.get(RetiredMetadata.STATE)?.takeIf {it.isJsonObject}?.asJsonObject?.array("backups")?.map {it.asString}.orEmpty()
+    fun privateCleanupBackup(id:String):String {require(id in cleanupBackups);return store.readArchive(id)}
     init {
         try {
-            val migrated = AdminCheckpoints.migrate(state)
-            if (migrated != state) commit(migrated)
+            val retired=prepare(state,null)
+            val migrated=AdminCheckpoints.migrate(retired)
+            if (migrated != state) {store.write(migrated);state=migrated}
         } catch (_: Exception) {
             checkpointsReady = false
-            recoveryNotice = "No se pudieron recuperar o guardar los checkpoints locales. Conservamos el estado anterior; reintentá al reiniciar, sin borrar los datos de la app."
+            recoveryNotice = "No se pudo conservar el respaldo privado o recuperar el estado local. No se alteró el catálogo. Revisá el espacio disponible y reintentá sin borrar los datos de la app."
         }
     }
     fun checkpoint(type: String): JsonObject? = AdminCheckpoints.get(state, type)
@@ -73,7 +77,17 @@ class AdminRepository(private val store: StateStore) {
     val unclassifiedCheckpoint get() = AdminCheckpoints.unclassifiedLegacy(state)
     val pending: Boolean get()=state.get("pending")?.asBoolean == true
     val lastSync: String get()=state.text("last_sync")
-    private fun commit(next: JsonObject) { store.write(next);state=next }
+    private fun prepare(next:JsonObject,previous:JsonObject?=state):JsonObject {
+        val result=RetiredMetadata.migrate(next,previous)
+        if(!result.changed) return next
+        val id=store.archive(next) // durable, immutable snapshot BEFORE changing any active value
+        result.state.get("catalog")?.takeIf {it.isJsonObject}?.let {CatalogRules.parse(it.toString())}
+        val ledger=result.state.get(RetiredMetadata.STATE)?.takeIf {it.isJsonObject}?.asJsonObject ?: JsonObject().also {result.state.add(RetiredMetadata.STATE,it)}
+        val ids=ledger.array("backups").map {it.asString}.toMutableList();if(id !in ids) ids.add(id)
+        ledger.add("backups",JsonArray().apply {ids.forEach {add(it)}})
+        return result.state
+    }
+    private fun commit(next: JsonObject) {val safe=prepare(next);store.write(safe);state=safe}
     fun lock() { writable=false }
     fun refresh(remote: AdminRemote, discard: Boolean = false): String {
         writable=false
@@ -108,6 +122,12 @@ class AdminRepository(private val store: StateStore) {
             val inserted=CatalogRules.items(saved).single {it.text("id") !in previousIds}.text("id")
             undo.getAsJsonObject("before").addProperty("id",inserted);undo.getAsJsonObject("after").addProperty("id",inserted)
         }
+        val original=draft()
+        if(original!=null && item.text("id").isBlank()) {
+            val previousIds=CatalogRules.items(current).map {it.text("id")}.toSet()
+            val inserted=CatalogRules.items(saved).singleOrNull {it.text("id") !in previousIds}
+            if(inserted!=null) RetiredMetadata.reidentify(next,RetiredMetadata.identity(original),RetiredMetadata.identity(inserted))
+        }
         commit(next)
     }
     fun setCheckpoint(cp: JsonObject) {
@@ -141,10 +161,13 @@ class AdminRepository(private val store: StateStore) {
         return savedHas
     }
     fun draft(): JsonObject?=state.get("draft")?.takeIf { it.isJsonObject }?.asJsonObject?.deepCopy()
-    fun persistDraft(draft: JsonObject?) { val next=state.deepCopy();if(draft==null) next.remove("draft") else next.add("draft",draft.deepCopy());commit(next) }
-    fun stageRecovery(draft: JsonObject, backup: JsonObject) {
+    fun persistDraft(draft: JsonObject?,verifiedPaths:Set<String> = emptySet()) {
+        val next=if(draft!=null && verifiedPaths.isNotEmpty()) RetiredMetadata.verified(state,draft,verifiedPaths) else state.deepCopy()
+        if(draft==null) next.remove("draft") else next.add("draft",draft.deepCopy());commit(next)
+    }
+    fun stageRecovery(draft: JsonObject, backup: JsonObject,verifiedPaths:Set<String> = emptySet()) {
         check(writable) {"El catálogo está en solo lectura."}
-        val next=state.deepCopy();next.add("draft",draft.deepCopy());next.add("metadata_undo",backup.deepCopy());commit(next)
+        val next=if(verifiedPaths.isEmpty()) state.deepCopy() else RetiredMetadata.verified(state,draft,verifiedPaths);next.add("draft",draft.deepCopy());next.add("metadata_undo",backup.deepCopy());commit(next)
     }
     fun canUndoRecovery(item: JsonObject): Boolean {
         val backup=state.get("metadata_undo")?.takeIf {it.isJsonObject}?.asJsonObject ?: return false
@@ -159,16 +182,20 @@ class AdminRepository(private val store: StateStore) {
         val restored=MetadataRecovery.undo(draft,backup)
         // Keep the backup if the user later discards this reverted draft before saving.
         val next=state.deepCopy();next.add("draft",restored.deepCopy());commit(next)
-        return restored
+        return this.draft() ?: error("No se pudo conservar la revisión restaurada.")
     }
     fun publish(remote: AdminRemote): String {
         check(writable) { "Actualizá y validá el catálogo remoto antes de sincronizar." }
         if(pending) {
             val current=catalog ?: error("Sin catálogo.")
-            MetadataPublicationPolicy.requirePublishable(current)
-            remote.publish(current)
+            val base=state.get("base")?.takeIf {it.isJsonObject}?.asJsonObject ?: error("Actualizá el catálogo antes de publicar.")
+            val latest=remote.download()
+            check(CatalogRules.fingerprint(latest)==CatalogRules.fingerprint(base)) {"El catálogo remoto cambió desde la descarga. Se conservaron los pendientes; no se sobrescribieron títulos ni campos remotos. Revisá desde el dispositivo que publicó el cambio."}
+            val publication=CatalogRules.publicCopy(current)
+            CatalogRules.parse(publication.toString())
+            remote.publish(publication)
             // Only a confirmed catalog publication clears catalog pending work.
-            val next=state.deepCopy();next.add("base",current.deepCopy());next.addProperty("pending",false);next.addProperty("last_sync",now());commit(next)
+            val next=state.deepCopy();next.add("base",publication.deepCopy());next.addProperty("pending",false);next.addProperty("last_sync",now());commit(next)
         }
         return "Sincronización confirmada."
     }
