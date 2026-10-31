@@ -48,6 +48,7 @@ class MainActivity: ComponentActivity() {
     BackHandler(enabled=vm.screen !in setOf("home","startup")) {
         if(vm.screen in setOf("recoverySearch","recoveryPreview")) {vm.cancelRecovery();return@BackHandler}
         if(vm.screen=="providers") {vm.leaveProviders();return@BackHandler}
+        if(vm.screen=="collections") {if(vm.collections.page!="list") vm.collections.openList() else vm.screen="home";return@BackHandler}
         if(vm.busy) return@BackHandler
         vm.screen=when(vm.screen) {"review","search","enrichment" ->"home";"detail" ->"list";else ->"home"}
     }
@@ -55,7 +56,7 @@ class MainActivity: ComponentActivity() {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
             Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically) {
                 Text("MiFlix Admin",style=MaterialTheme.typography.titleLarge,modifier=Modifier.weight(1f))
-                if(vm.screen!="startup") TextButton(onClick={if(vm.screen in setOf("recoverySearch","recoveryPreview")) vm.cancelRecovery();if(vm.screen=="providers") vm.leaveProviders();vm.screen="home"},enabled=!vm.busy) {Text("Inicio")}
+                if(vm.screen!="startup") TextButton(onClick={if(vm.screen in setOf("recoverySearch","recoveryPreview")) vm.cancelRecovery();if(vm.screen=="providers") vm.leaveProviders();if(vm.screen=="collections") vm.collections.openList();vm.screen="home"},enabled=!vm.busy) {Text("Inicio")}
             }
             if(vm.message.isNotBlank()) Text(vm.message,Modifier.fillMaxWidth().background(Color(0xFF263449)).padding(12.dp),style=MaterialTheme.typography.bodyMedium)
             if(vm.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -67,6 +68,7 @@ class MainActivity: ComponentActivity() {
                     "startup" -> Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally) {CircularProgressIndicator();Spacer(Modifier.height(20.dp));Text("Actualizando catálogo…")}
                     "config" -> ConfigScreen(vm)
                     "providers" -> ProviderSettingsScreen(vm)
+                    "collections" -> CollectionsScreen(vm.collections)
                     "list" -> CatalogScreen(vm)
                     "detail" -> DetailScreen(vm) {open(it)}
                     "search" -> SearchScreen(vm)
@@ -130,6 +132,7 @@ class MainActivity: ComponentActivity() {
             val count=catalog?.let {CatalogRules.items(it).count {x->x.text("tipo")==type}} ?:0
             OutlinedButton(onClick={vm.openCategory(type)},modifier=Modifier.fillMaxWidth(),enabled=catalog!=null && !vm.busy) {Text("$label · $count")}
         }
+        OutlinedButton(onClick={vm.collections.openList();vm.screen="collections"},enabled=!vm.busy,modifier=Modifier.fillMaxWidth()) {Text("Colecciones · administración local")}
         if(vm.draft!=null) OutlinedButton(onClick={vm.resumeDraft()},enabled=!vm.busy,modifier=Modifier.fillMaxWidth()) {Text("Continuar revisión guardada")}
         if(vm.draft!=null) Text("Tu borrador se conserva. Guardá la revisión para incluirla al sincronizar.",style=MaterialTheme.typography.bodySmall)
         Button(onClick={vm.sync()},enabled=vm.writable && vm.pending,modifier=Modifier.fillMaxWidth()) {Text("Sincronizar cambios")}

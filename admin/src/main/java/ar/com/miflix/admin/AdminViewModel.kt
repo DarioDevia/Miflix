@@ -48,6 +48,7 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
         }
     }
     fun leaveProviders() {providerTestGeneration++;providerTestJob?.cancel();providerTestCancel?.invoke();providerTestCancel=null;tvdbApi.cancel();testingProvider=false;screen="config"}
+    val collections=CollectionController(app,viewModelScope,{config},{catalog})
     private val repo=AdminRepository(AndroidStateStore(app))
     var config by mutableStateOf(secure.load()); private set
     var screen by mutableStateOf("startup")
@@ -372,5 +373,5 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
         changeTelegramLink(link);sharedText="";screen="search"
     }
     fun dismissShare() {sharedText=""}
-    override fun onCleared() {recoveryProvider?.cancel();providerTestCancel?.invoke();tvdbApi.reset();super.onCleared()}
+    override fun onCleared() {collections.close();recoveryProvider?.cancel();providerTestCancel?.invoke();tvdbApi.reset();super.onCleared()}
 }

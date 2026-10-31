@@ -37,6 +37,21 @@ class HttpMetadata(private val config: AdminConfig,private val client: OkHttpCli
         require(path.matches(Regex("/(movie|tv)/[1-9]\\d*(?:/season/(?:0|[1-9]\\d*))?"))) {"Consulta no permitida."}
         return tmdb(path,mapOf("language" to language))
     }
+    // Collections reuse the same encrypted TMDB token/relay; no second credential configuration.
+    fun collectionRequest(path:String,language:String="es-AR",query:String?=null,page:Int=1):JsonObject {
+        require(language in setOf("es-AR","en-US")) {"Idioma de colección no permitido."}
+        require(path=="/search/collection" || path.matches(Regex("/collection/[1-9]\\d*(?:/images)?"))) {"Consulta de colección no permitida."}
+        require(page in 1..500 && (query==null || query.trim().length in 1..200)) {"Búsqueda o página inválidas."}
+        val params=mutableMapOf("language" to language)
+        if(path=="/search/collection") {require(query!=null) {"Escribí una colección."};params["query"]=query.trim();params["page"]=page.toString();params["include_adult"]="false"}
+        // All image languages are intentionally requested: /images without a language filter.
+        if(path.endsWith("/images")) params.clear()
+        return try {tmdb(path,params)} catch(e:IllegalStateException) {
+            if(config.tmdbToken.isBlank() && (e.message.orEmpty().contains("400") || e.message.orEmpty().contains("404")))
+                error("El relay actual no admite colecciones. Usá el TMDB Bearer Token local opcional de Configuración; no hace falta otra clave ni modificar el Worker.")
+            throw e
+        }
+    }
     fun cancelRecovery() { client.dispatcher.cancelAll() }
     override fun search(query: String,type: String,source: String): List<SearchResult> {
         require(query.trim().isNotBlank()) { "Escribí un título." }

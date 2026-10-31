@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://miflix.local/colecciones.schema.json",
+  "title": "Respaldo de colecciones MiFlix, etapa Admin local",
+  "type": "object",
+  "required": ["format", "version", "colecciones"],
+  "properties": {
+    "format": {"const": "miflix-collections"},
+    "version": {"const": 1},
+    "colecciones": {"type": "array", "maxItems": 1000, "items": {"$ref": "#/$defs/coleccion"}}
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "https": {"type": ["string", "null"], "maxLength": 2000, "pattern": "^(?:$|https://[^\\s/@]+(?:/[^\\s]*)?)$"},
+    "coleccion": {
+      "type": "object",
+      "required": ["id", "nombre", "origen", "orden", "visible", "titulos"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1, "maxLength": 300, "pattern": "\\S"},
+        "nombre": {"type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S"},
+        "descripcion": {"type": ["string", "null"], "maxLength": 12000},
+        "origen": {"enum": ["manual", "tmdb"]},
+        "tmdb_collection_id": {"type": ["integer", "null"], "minimum": 1},
+        "poster_url": {"$ref": "#/$defs/https"},
+        "backdrop_url": {"$ref": "#/$defs/https"},
+        "orden": {"type": "integer", "minimum": 0, "maximum": 1000000},
+        "visible": {"type": "boolean"},
+        "titulos": {"type": "array", "maxItems": 10000, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 300, "pattern": "\\S"}}
+      },
+      "allOf": [{"if": {"properties": {"origen": {"const": "tmdb"}}}, "then": {"required": ["tmdb_collection_id"], "properties": {"tmdb_collection_id": {"type": "integer", "minimum": 1}}}}],
+      "additionalProperties": true
+    }
+  }
+}

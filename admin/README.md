@@ -1,6 +1,16 @@
-# MiFlix Admin Android · 0.1.7-diagnostico
+# MiFlix Admin Android · 0.1.8-diagnostico
 
-Aplicación independiente para administrar el catálogo schema 1 desde un teléfono. Paquete `ar.com.miflix.admin`, versionCode 8, Android 8.0/API 26 o posterior. No reproduce video ni trailers y no incorpora Media3, ExoPlayer ni TDLib. No cambia el módulo `app`, Mobile ni TV.
+Aplicación independiente para administrar el catálogo schema 1 desde un teléfono. Paquete `ar.com.miflix.admin`, versionCode 9, Android 8.0/API 26 o posterior. No reproduce video ni trailers y no incorpora Media3, ExoPlayer ni TDLib. No cambia el módulo `app`, Mobile ni TV.
+
+## 0.1.8: colecciones manuales y sagas TMDB
+
+Inicio → **Colecciones** permite crear, editar, eliminar, ordenar y previsualizar colecciones locales. Cada una guarda solo referencias ordenadas a IDs MiFlix; puede mezclar películas, series y anime. Incluye borrador recuperable, un estado anterior, exportación/restauración JSON mediante selector de documentos y conservación de referencias temporalmente ausentes. No duplica ni borra títulos, ni modifica fechas o enlaces al editar colecciones.
+
+TMDB asiste con búsqueda de sagas por texto/ID, comparación de campos e identificación por TMDB ID y tipo. Cada integrante requiere selección manual; nombres/años solo proponen dudas. Se puede importar y personalizar sin perder cambios manuales en una consulta posterior. Español `es-AR` inicial, inglés explícito; selector visual de póster/fondo y URLs HTTPS propias. **Mundo Marvel** se arma manualmente o como híbrida, no como universo automático de `belongs_to_collection`.
+
+**Etapa local:** colecciones separadas del catálogo; guardar no genera pendientes ni bloqueos de publicación de títulos normales. No se publican ni aparecen todavía en Mobile/TV. El Worker fuente y Windows conocido preservan campos en las rutas probadas, pero el despliegue y todos los escritores no están garantizados. La restricción TheTVDB anterior se conserva sin eludirla.
+
+El relay actual no acepta colecciones TMDB: se reutiliza el **TMDB Bearer Token local opcional** de Configuración del servidor para estos endpoints. No se añadió otra configuración ni se modificó el Worker. Respaldo y contrato formal: [colecciones.schema.json](colecciones.schema.json). Auditoría, compatibilidad, riesgos y prueba Samsung: [0.1.8-collections.md](0.1.8-collections.md). Las notas siguientes son antecedentes.
 
 ## 0.1.7: TheTVDB en español y APIs y proveedores
 
