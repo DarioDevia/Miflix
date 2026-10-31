@@ -1,0 +1,1 @@
+{"private":true,"type":"module","engines":{"node":">=24"},"scripts":{"test":"node --test test/*.test.mjs","check":"node --check worker.mjs","build:check":"wrangler deploy --dry-run --outdir .dry-run","dev":"wrangler dev --local"},"devDependencies":{"miniflare":"4.20260730.0","wrangler":"4.27.0"}}

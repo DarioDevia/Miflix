@@ -1,0 +1,18 @@
+{
+  ".gitignore": "315666b776406de4c7cd059fb879720cf9b3c57bcd8efe24b56e5e83618302d3",
+  "README.md": "8b602f2151310543d239442e773c77a0a98ca8db1d65aca5e913eb9d9e9c031a",
+  "TEST-RESULTS.md": "df3245b0a13ed93150d80bd5aeb84aa811b9f7bd2d4d73b45e24a088648bd21d",
+  "admin-tool.py": "76ae90bd9143079db4d85e27edb25f299e4f04543c9207b5e801dab62e46c594",
+  "original/worker.mjs": "3a3bcf8ac6e6700fea57b4ad859839275a05a010c7f32539d3c2a683d2c6fc0d",
+  "package-lock.json": "665c01784689ba57cacdf46f96895122e257e088df85616fa099f8f78cbef2fc",
+  "package.json": "00cd3944bcb774780576d31f2ed859dfb386f29d187ec7c7e1b20af7b3b49c24",
+  "reference/Mobile-0.9.13-Catalog.kt": "a189fdb3a3ef528790cb05b4d1476314a02bf42a30af0aeb5de734b08a613c35",
+  "reference/TV-0.1.13-Catalog.kt": "6a378a589f4678b2a169edd1e69c43044c15edd8f640a08c4b9df8504ac170b2",
+  "reference/colecciones.schema.json": "1eea2ce1b5c7bc3262f7a11615bf87d120bae52af91bc9b7c1e5e6225b3083ce",
+  "rollback-readonly.mjs": "958d3556bd5dca785ca53eb9a8cd2f04890ac619d901253cb60d1b6394f200b6",
+  "test/admin-tool.test.py": "3d5336fa6476390b0334a72a1db6eb8c30e1f2510c4b70f6f38ffa3d881657e9",
+  "test/regression.test.mjs": "886352745f54c765400a7021907ce8a98a24c0e4ce0b48e663913d50df7cfcc2",
+  "test/runtime.test.mjs": "7eb25bec83250869cc2435581a56e7a7c673386f7c46ac2197e17cfcc358c823",
+  "worker.mjs": "96105007edc8d01d745807348ec3f0b4ff846b60b0180e2df43eb4483ba3c695",
+  "wrangler.toml": "7e3a77623bf9ace8c2a54043475f76c8cbbfd65e6c717cf7350d8c3811b5b3f7"
+}

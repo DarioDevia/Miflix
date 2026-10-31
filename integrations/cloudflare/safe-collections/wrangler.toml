@@ -1,0 +1,17 @@
+# Staging/local only. Do NOT point this template at production without review.
+name = "miflix-collections-test"
+main = "worker.mjs"
+compatibility_date = "2026-07-01"
+workers_dev = true
+[vars]
+REQUIRE_CATALOG_IF_MATCH = "true"
+[[kv_namespaces]]
+binding = "CATALOGO_KV"
+# Replace ONLY with a newly created STAGING namespace ID before remote deploy.
+id = "00000000000000000000000000000000"
+[[durable_objects.bindings]]
+name = "CATALOG_COORDINATOR"
+class_name = "CatalogCoordinator"
+[[migrations]]
+tag = "collections-sqlite-v1"
+new_sqlite_classes = ["CatalogCoordinator"]
