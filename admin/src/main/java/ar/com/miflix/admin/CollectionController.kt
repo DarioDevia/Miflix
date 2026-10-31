@@ -7,6 +7,16 @@ import kotlinx.coroutines.*
 
 class CollectionController(app:Application,private val scope:CoroutineScope,
     private val config:()->AdminConfig?,private val catalog:()->JsonObject?) {
+    private val sagaCache=SagaCache(CollectionFileStore(app,"collections-tmdb-cache.json"))
+    internal var sagaProviderFactory:(()->SagaProvider)?=null
+    private var sagaProvider:SagaProvider?=null
+    var sagaProgress by mutableStateOf(SagaProgress());private set
+    var sagaProposals by mutableStateOf<List<SagaProposal>>(emptyList());private set
+    var selectedSagas by mutableStateOf<Set<Long>>(emptySet())
+    var ignoredSagas by mutableStateOf<Set<Long>>(emptySet());private set
+    private var sagaReviewedCatalog:JsonObject?=null
+    private var sagaReviewedData:JsonObject?=null
+    var sagaConfirmation by mutableStateOf<JsonObject?>(null);private set
     private val repo=CollectionRepository(CollectionFileStore(app))
     var data by mutableStateOf(repo.data());private set
     var draft by mutableStateOf(repo.draft());private set
@@ -84,6 +94,52 @@ class CollectionController(app:Application,private val scope:CoroutineScope,
             finally {if(epoch==generation) busy=false}
         }
     }
+    fun pageSyncInfo() {if(!busy) page="collectionSync"}
+    fun showSagas() {if(!busy) page="sagas"}
+    fun detectSagas(refresh:Boolean=false) {
+        if(busy) return
+        try {
+            check(repo.writable) {repo.error}
+            val snapshot=catalog()?.deepCopy() ?: error("Descargá primero el catálogo.")
+            if(refresh) sagaCache.clear()
+            val p=sagaProviderFactory?.invoke() ?: TmdbSagaProvider(HttpMetadata(config() ?: error("Configurá TMDB.")))
+            sagaProvider=p;val epoch=++generation;busy=true;page="sagas";message="";selectedSagas=emptySet();ignoredSagas=emptySet();sagaProposals=emptyList();sagaProgress=SagaProgress()
+            val collections=data.deepCopy()
+            job=scope.launch {
+                try {
+                    withContext(Dispatchers.IO) {SagaDetection(p,sagaCache).scan(snapshot,collections) {progress,proposals ->
+                        withContext(Dispatchers.Main) {if(epoch==generation) {sagaProgress=progress;sagaProposals=proposals}}
+                    }}
+                    if(epoch==generation) message="Revisá las propuestas. No se modificó ninguna película ni colección. Los campos TMDB están en el idioma solicitado es-AR; pueden contener texto original."
+                } catch(e:CancellationException) {throw e}
+                catch(e:Exception) {if(epoch==generation) {fail(e);sagaProgress=sagaProgress.copy(complete=false,phase="Análisis interrumpido; reutilizá la caché para reanudar")}}
+                finally {if(epoch==generation) busy=false}
+            }
+        } catch(e:Exception) {fail(e)}
+    }
+    fun ignoreSaga(id:Long) {if(!busy) {ignoredSagas=ignoredSagas+id;selectedSagas=selectedSagas-id}}
+    fun reviewSagas()=mutate {
+        check(draft==null) {"Terminá o descartá el borrador antes de crear/actualizar propuestas."}
+        val next=SagaDetection.approve(repo.data(),catalog() ?: error("Catálogo no disponible."),sagaProposals,selectedSagas-ignoredSagas)
+        sagaReviewedCatalog=catalog()?.deepCopy();sagaReviewedData=repo.data();sagaConfirmation=next
+    }
+    fun cancelSagaConfirmation() {sagaConfirmation=null}
+    fun confirmSagas()=mutate {
+        val approved=sagaConfirmation ?: return@mutate
+        check(repo.data()==sagaReviewedData && catalog()==sagaReviewedCatalog) {"Los datos cambiaron después del resumen; revisá las propuestas otra vez."}
+        repo.replaceApproved(approved);data=repo.data();sagaConfirmation=null;selectedSagas=emptySet()
+        sagaProposals=sagaProposals.map {SagaDetection.proposal(it.detail,catalog()!!,data)}
+    }
+    fun editSaga(id:Long)=mutate {
+        check(draft==null) {"Terminá o descartá el borrador anterior."}
+        val p=sagaProposals.single {it.id==id}
+        val current=SagaDetection.proposal(p.detail,catalog() ?: error("Catálogo no disponible."),data)
+        check(current.existing.size<=1) {"Hay varias colecciones con este ID; resolvé el conflicto manualmente."}
+        val before=current.current ?: CollectionRules.fresh()
+        repo.stage(before,current.current?.text("id"));editingId=current.current?.text("id");draft=before
+        details=p.detail.deepCopy();detailsLanguage="es-AR";matches=CollectionImport.match(p.detail,catalog()!!)
+        selectedMembers=emptySet();selectedFields=emptySet();page="importPreview"
+    }
     fun startTmdb() {if(draft!=null && !busy) {page="tmdb";details=null;results=emptyList();query=draft!!.number("tmdb_collection_id")?.toString().orEmpty();language="es-AR"}}
     fun search(targetPage:Int=1) {
         if(busy) return
@@ -128,6 +184,6 @@ class CollectionController(app:Application,private val scope:CoroutineScope,
         } catch(e:Exception) {fail(e)}
     }
     fun chooseImage(image:CollectionImage)=mutate {require(image in images);stage(draft!!.deepCopy().apply {addProperty(image.field,image.url)});page="edit"}
-    fun cancelRequest() {generation++;provider?.cancel();job?.cancel();provider=null;busy=false}
+    fun cancelRequest() {if(busy && page=="sagas") {sagaProgress=sagaProgress.copy(complete=false,phase="Cancelado; los resultados consultados quedan en caché");message="Análisis cancelado sin guardar propuestas."};generation++;sagaProvider?.cancel();sagaProvider=null;provider?.cancel();job?.cancel();provider=null;busy=false}
     fun close() {cancelRequest()}
 }

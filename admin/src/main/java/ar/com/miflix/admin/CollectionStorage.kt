@@ -6,8 +6,8 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import java.io.File
 
-class CollectionFileStore(context:Context):StateStore {
-    private val file=AtomicFile(File(context.filesDir,"collections-state.json"))
+class CollectionFileStore(context:Context,name:String="collections-state.json"):StateStore {
+    private val file=AtomicFile(File(context.filesDir,name))
     @Synchronized override fun read():JsonObject? = try {JsonParser.parseString(file.openRead().bufferedReader().use {it.readText()}).asJsonObject}
         catch(_:java.io.FileNotFoundException) {null}
     @Synchronized override fun write(state:JsonObject) {

@@ -52,6 +52,27 @@ class HttpMetadata(private val config: AdminConfig,private val client: OkHttpCli
             throw e
         }
     }
+    // Isolated bulk transport: preserve status and Retry-After without exposing bodies/credentials.
+    fun sagaRequest(path:String):JsonObject {
+        require(path.matches(Regex("/(?:movie|collection)/[1-9][0-9]*"))) {"Consulta de saga no permitida."}
+        val direct=config.tmdbToken.isNotBlank()
+        val url=(if(direct) tmdbBase+path else config.baseUrl+"/admin/metadata/tmdb"+path).toHttpUrl().newBuilder().addQueryParameter("language","es-AR").build()
+        try {
+            return client.newCall(Request.Builder().url(url).header("Authorization","Bearer ${if(direct) config.tmdbToken else config.token}").build()).execute().use {response ->
+                if(!response.isSuccessful) {
+                    if(!direct && path.startsWith("/collection/") && response.code in setOf(400,404)) error("El relay no admite colecciones. Configurá el TMDB Bearer Token local existente.")
+                    throw SagaRequestFailure(response.code,SagaDetection.retryAfter(response.header("Retry-After")))
+                }
+                val source=response.body?.source() ?: error("Respuesta TMDB vacía.")
+                val out=java.io.ByteArrayOutputStream();val buffer=ByteArray(8192)
+                while(out.size()<=CatalogRules.MAX_BYTES) {
+                    val n=source.read(buffer,0,minOf(buffer.size,CatalogRules.MAX_BYTES+1-out.size()));if(n<0) break;out.write(buffer,0,n)
+                }
+                check(out.size()<=CatalogRules.MAX_BYTES) {"Respuesta TMDB demasiado grande."}
+                try {JsonParser.parseString(out.toString("UTF-8")).asJsonObject} catch(_:Exception) {error("Respuesta TMDB incompleta.")}
+            }
+        } catch(e:IllegalStateException) {throw e} catch(_:java.io.IOException) {throw SagaRequestFailure()} catch(_:Exception) {error("No se pudo consultar TMDB.")}
+    }
     fun cancelRecovery() { client.dispatcher.cancelAll() }
     override fun search(query: String,type: String,source: String): List<SearchResult> {
         require(query.trim().isNotBlank()) { "Escribí un título." }

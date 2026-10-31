@@ -54,8 +54,8 @@ import kotlinx.coroutines.withContext
         Text("No se publican todavía en Mobile/TV ni afectan la sincronización normal del catálogo.",Modifier.padding(16.dp),style=MaterialTheme.typography.bodySmall)
         if(c.message.isNotBlank()) Text(c.message,Modifier.padding(horizontal=16.dp),color=MaterialTheme.colorScheme.tertiary)
         if(c.busy || transfer) LinearProgressIndicator(Modifier.fillMaxWidth())
-        when(c.page) {
-            "list" -> LazyColumn(Modifier.weight(1f).padding(horizontal=16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.weight(1f)) { when(c.page) {
+            "list" -> LazyColumn(Modifier.fillMaxSize().padding(horizontal=16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 item {
                     if(c.draft!=null) {
                         Button(onClick={c.resume()},enabled=!c.busy) {Text("Continuar borrador de colección")}
@@ -65,6 +65,8 @@ import kotlinx.coroutines.withContext
                         OutlinedButton(onClick={c.begin("tmdb")},enabled=c.writable,modifier=Modifier.fillMaxWidth()) {Text("Importar saga TMDB")}
                         OutlinedButton(onClick={c.begin("hybrid")},enabled=c.writable,modifier=Modifier.fillMaxWidth()) {Text("Importar y personalizar")}
                     }
+                    OutlinedButton(onClick={c.showSagas()},enabled=c.writable,modifier=Modifier.fillMaxWidth()) {Text("Detectar sagas en mi catálogo")}
+                    OutlinedButton(onClick={c.pageSyncInfo()},enabled=!c.busy,modifier=Modifier.fillMaxWidth()) {Text("Estado de sincronización de colecciones")}
                     OutlinedButton(onClick={try {exporting=c.export();export.launch("MiFlix-colecciones.json")} catch(e:Exception) {c.notify(e.message.orEmpty())}},enabled=c.writable && !transfer,modifier=Modifier.fillMaxWidth()) {Text("Exportar respaldo de colecciones")}
                     OutlinedButton(onClick={restore.launch(arrayOf("application/json","text/plain","application/octet-stream"))},enabled=!c.busy && !transfer,modifier=Modifier.fillMaxWidth()) {Text("Restaurar respaldo desde archivo")}
                     if(c.hasBackup) OutlinedButton(onClick={undo=true},enabled=c.writable,modifier=Modifier.fillMaxWidth()) {Text("Restaurar estado anterior de colecciones")}
@@ -87,15 +89,17 @@ import kotlinx.coroutines.withContext
             "tmdb" -> CollectionSearchScreen(c)
             "importPreview" -> CollectionImportScreen(c)
             "images" -> CollectionImagesScreen(c)
-        }
-        if(c.busy) OutlinedButton(onClick={c.cancelRequest();c.backToEdit()},modifier=Modifier.fillMaxWidth().padding(horizontal=16.dp)) {Text("Cancelar consulta sin aplicar")}
+            "sagas" -> SagaDetectionScreen(c)
+            "collectionSync" -> CollectionSyncStatusScreen(c)
+        }}
+        if(c.busy) OutlinedButton(onClick={if(c.page=="sagas") c.cancelRequest() else {c.cancelRequest();c.backToEdit()}},modifier=Modifier.fillMaxWidth().padding(horizontal=16.dp)) {Text("Cancelar consulta sin aplicar")}
     }
     delete?.let {row ->AlertDialog(onDismissRequest={delete=null},title={Text("Eliminar colección")},text={Text("¿Eliminar ${row.text("nombre")}? Sus películas, series y anime permanecen intactos en el catálogo. Se conservará el estado anterior de colecciones.")},confirmButton={TextButton(onClick={delete=null;c.delete(row.text("id"))}) {Text("Eliminar colección")}},dismissButton={TextButton(onClick={delete=null}) {Text("Cancelar")}})}
     if(discard) AlertDialog(onDismissRequest={discard=false},title={Text("Descartar borrador")},text={Text("Se perderán las ediciones de esta colección sin guardar. El catálogo y las colecciones guardadas se conservan.")},confirmButton={TextButton(onClick={discard=false;c.discard()}) {Text("Descartar")}},dismissButton={TextButton(onClick={discard=false}) {Text("Cancelar")}})
     if(undo) AlertDialog(onDismissRequest={undo=false},title={Text("Restaurar estado anterior")},text={Text("Se reemplazará la lista local de colecciones por el estado anterior. No cambia ningún título del catálogo. Terminá o descartá el borrador antes de restaurar.")},confirmButton={TextButton(onClick={undo=false;c.undo()}) {Text("Restaurar")}},dismissButton={TextButton(onClick={undo=false}) {Text("Cancelar")}})
     c.restorePreview?.let {root ->AlertDialog(onDismissRequest={c.cancelRestore()},title={Text("Revisar respaldo antes de restaurar")},text={Text("${CollectionRules.list(root).size} colecciones. Se reemplazarán las colecciones locales y su borrador. Los títulos del catálogo, IDs y enlaces no cambian. Los IDs de títulos ausentes se conservarán. Se respalda el estado local anterior si es válido.")},confirmButton={TextButton(onClick={c.confirmRestore()}) {Text("Confirmar restauración")}},dismissButton={TextButton(onClick={c.cancelRestore()}) {Text("Cancelar")}})}
 }
-@Composable private fun CollectionArtwork(url:String,label:String,height:Int=150) {
+@Composable internal fun CollectionArtwork(url:String,label:String,height:Int=150) {
     if(url.isNotBlank() && CollectionRules.validUrl(url)) {
         var failed by remember(url) {mutableStateOf(false)}
         if(failed) Text("No se pudo cargar $label; podés cambiar la URL.") else AsyncImage(url,label,modifier=Modifier.fillMaxWidth().height(height.dp),onError={failed=true})
@@ -241,7 +245,7 @@ import kotlinx.coroutines.withContext
         item {CollectionTmdbCredits()}
     }
 }
-@Composable private fun CollectionTmdbCredits() {
+@Composable internal fun CollectionTmdbCredits() {
     androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.tmdb_logo),"TMDB",modifier=Modifier.width(90.dp).height(30.dp))
     Text("This product uses the TMDB API but is not endorsed or certified by TMDB.",style=MaterialTheme.typography.bodySmall)
     SourceLink("https://www.themoviedb.org","Datos e imágenes de TMDB")

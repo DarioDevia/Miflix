@@ -1,3 +1,9 @@
+# MiFlix Admin Android 0.1.9-diagnostico / 10
+
+Detección de sagas TMDB con revisión y aprobación, caché/reanudación, actualizaciones aditivas sin duplicar ni reemplazar personalizaciones. Compatible con colecciones y respaldos 0.1.8. **Colecciones aún locales: sincronización no habilitada y Worker sin desplegar.**
+
+Ver [auditoría y validación 0.1.9](0.1.9-auto-collections.md) y [evidencia de bloqueos y protocolo de servidor](../integrations/cloudflare/collections/README.md). applicationId/firma originales; actualizar sin desinstalar. No cambia clientes, Windows ni producción.
+
 # MiFlix Admin Android · 0.1.8-diagnostico
 
 Aplicación independiente para administrar el catálogo schema 1 desde un teléfono. Paquete `ar.com.miflix.admin`, versionCode 9, Android 8.0/API 26 o posterior. No reproduce video ni trailers y no incorpora Media3, ExoPlayer ni TDLib. No cambia el módulo `app`, Mobile ni TV.

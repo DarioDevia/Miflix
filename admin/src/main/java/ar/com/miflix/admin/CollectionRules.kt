@@ -112,6 +112,12 @@ class CollectionRepository(private val store:StateStore) {
         check(writable) {error};val previous=data();val fresh=CollectionRules.save(previous,draft,editing)
         commit(state.deepCopy().apply {addProperty("storage_version",1);add("backup",previous);add("data",fresh);remove("draft");remove("editing_id")})
     }
+    fun replaceApproved(next:JsonObject) {
+        check(writable) {error};check(draft()==null) {"Terminá o descartá el borrador antes de aplicar propuestas."}
+        val fresh=CollectionRules.parse(next.toString());val previous=data()
+        if(fresh==previous) return
+        commit(state.deepCopy().apply {addProperty("storage_version",1);add("backup",previous);add("data",fresh)})
+    }
     fun delete(id:String) {
         check(writable) {error};val previous=data();val fresh=CollectionRules.remove(previous,id)
         commit(state.deepCopy().apply {addProperty("storage_version",1);add("backup",previous);add("data",fresh)})
