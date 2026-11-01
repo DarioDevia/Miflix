@@ -1,8 +1,16 @@
-# MiFlix Cliente Android 0.9.13-diagnostico
+# MiFlix Cliente Android 0.9.14-diagnostico
 
-**Versión actual:** MiFlix Mobile `0.9.13-diagnostico` · `versionName = "0.9.13-diagnostico"` · `versionCode = 37` · `applicationId = "ar.com.miflix.client"`.
+**Versión actual:** MiFlix Mobile `0.9.14-diagnostico` · `versionName = "0.9.14-diagnostico"` · `versionCode = 38` · `applicationId = "ar.com.miflix.client"`.
 
-## 0.9.13 diagnóstico: Inicio, Buscar y sugerencias
+## 0.9.14 diagnóstico: colecciones públicas y sagas destacadas
+
+Mobile lee `colecciones` del mismo catálogo público y de su caché existente, sin endpoints administrativos ni sincronización adicional. Inicio añade Sagas destacadas después de Continuar viendo: hasta diez colecciones aleatorias, estables durante el proceso y con una preferencia pequeña de IDs para evitar repetir exactamente el orden anterior cuando sea posible.
+
+La nueva sección Colecciones muestra todas las colecciones visibles con películas presentes, por orden del administrador. Su detalle conserva el orden de IDs MiFlix, muestra imágenes/descripción y abre las fichas habituales. Las colecciones inválidas, ocultas o sin integrantes disponibles no rompen el catálogo. No cambia el reproductor ni se duplican películas.
+
+[Contrato, sesión, navegación, pruebas y firma local](docs/mobile-0.9.14-collections.md). La release automatizada está sin firmar: el certificado original de Mobile no se proporcionó en esta entrega. No se afirma compatibilidad de actualización firmada ni prueba física hasta completar esas verificaciones.
+
+## 0.9.13 diagnóstico: Inicio, Buscar y sugerencias (histórico)
 
 Buscar reutiliza las carátulas sin títulos inferiores, sin reservar espacio para textos; mantiene filtros, indicadores, accesibilidad y navegación. Inicio conserva Hero, Continuar viendo y Mi Lista; añade Últimos estrenos con la misma ventana de dos años del catálogo utilizada por Buscar, ordenada por año descendente. No hay fecha completa de estreno por título en el modelo actual: no se inventan meses ni días.
 

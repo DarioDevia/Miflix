@@ -51,6 +51,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -141,7 +142,7 @@ internal object MiFlixStyle {
     val secondaryText = Color(0xFFB8BEC9)
 }
 
-internal enum class Screen { HOME, SEARCH, SECTIONS, LIBRARY, DETAIL, PLAYER, SETTINGS, CONNECT }
+internal enum class Screen { HOME, SEARCH, SECTIONS, LIBRARY, DETAIL, PLAYER, SETTINGS, CONNECT, COLLECTIONS, COLLECTION_DETAIL }
 internal fun playbackFullscreenActive(screen: Screen, fullscreen: Boolean, episodeTransition: Boolean): Boolean =
     fullscreen && (screen == Screen.PLAYER || (screen == Screen.DETAIL && episodeTransition))
 
@@ -204,6 +205,8 @@ private fun ClientApp(
     var source by remember { mutableStateOf("Cargando…") }
     var problem by remember { mutableStateOf<String?>(null) }
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedCollectionId by rememberSaveable { mutableStateOf<String?>(null) }
+    var collectionReturnScreen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var screen by rememberSaveable { mutableStateOf(startupScreen(telegramState)) }
     var returnScreen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var detailReturnScreen by rememberSaveable { mutableStateOf(Screen.HOME) }
@@ -234,6 +237,8 @@ private fun ClientApp(
     val miFlixAccount = rememberMiFlixAccount()
     val searchScroll = rememberLazyGridState()
     val sectionsScroll = rememberLazyGridState()
+    val collectionsScroll = rememberLazyGridState()
+    val collectionSavedState = rememberSaveableStateHolder()
     val progressStore = remember(context) {
         PlaybackProgressStore(SharedPreferencesProgressStorage(context))
     }
@@ -268,6 +273,13 @@ private fun ClientApp(
     }
     val activity = context as? ComponentActivity
     val titles = catalog.items.orEmpty()
+    val collections = remember(catalog) { resolveCollections(catalog) }
+    val sagaSession = remember { ProcessSagaSession.get(AndroidSagaSelectionStorage(context.applicationContext)) }
+    val collectionsReady = source == "En línea" || source == "Copia local"
+    val featuredCollections = remember(collections, collectionsReady) {
+        sagaSession.select(collections, catalogReady = collectionsReady)
+    }
+    val selectedCollection = collections.firstOrNull { it.id == selectedCollectionId }
     val homeRows = remember(titles) { buildHomeRows(titles) }
     val homeLibrary = LocalPersonalLibrary.current
     val homeLibraryRevision = LocalLibraryRevision.current
@@ -341,6 +353,11 @@ private fun ClientApp(
         onDispose { owner.lifecycle.removeObserver(observer) }
     }
 
+    fun openCollection(value: ResolvedCollection) {
+        collectionReturnScreen = collectionOrigin(screen)
+        selectedCollectionId = value.id
+        screen = Screen.COLLECTION_DETAIL
+    }
     fun openDetail(title: Title) {
         detailReturnScreen = screen
         selectedId = title.id
@@ -406,6 +423,7 @@ private fun ClientApp(
                 screen = detailReturnScreen
                 selectedId = null
             }
+            Screen.COLLECTION_DETAIL -> screen = collectionReturnScreen
             Screen.SETTINGS -> screen = returnScreen
             Screen.CONNECT -> screen = Screen.HOME
             else -> screen = Screen.HOME
@@ -493,6 +511,8 @@ private fun ClientApp(
                                 Screen.SEARCH -> "Buscar"
                                 Screen.SECTIONS -> "Secciones"
                                 Screen.LIBRARY -> "Mi Lista"
+                                Screen.COLLECTIONS -> "Colecciones"
+                                Screen.COLLECTION_DETAIL -> selectedCollection?.collection?.nombre ?: "Colección"
                                 Screen.SETTINGS -> "Configuración"
                                 Screen.DETAIL -> selected?.titulo.orEmpty()
                                 Screen.PLAYER -> playbackTitle
@@ -506,14 +526,14 @@ private fun ClientApp(
                     },
                     navigationIcon = {
                         if (screen == Screen.DETAIL || screen == Screen.PLAYER ||
-                            screen == Screen.SETTINGS || screen == Screen.CONNECT) {
+                            screen == Screen.SETTINGS || screen == Screen.CONNECT || screen == Screen.COLLECTION_DETAIL) {
                             IconButton(onClick = ::goBack) {
                                 Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
                             }
                         }
                     },
                     actions = {
-                        if (screen == Screen.HOME || screen == Screen.SEARCH || screen == Screen.SECTIONS || screen == Screen.LIBRARY) {
+                        if (screen == Screen.HOME || screen == Screen.SEARCH || screen == Screen.SECTIONS || screen == Screen.LIBRARY || screen == Screen.COLLECTIONS) {
                             if (screen != Screen.SEARCH) {
                                 IconButton(onClick = { screen = Screen.SEARCH }) {
                                     Icon(Icons.Default.Search, contentDescription = "Buscar")
@@ -528,7 +548,7 @@ private fun ClientApp(
                 )
             },
             bottomBar = {
-                if (screen == Screen.HOME || screen == Screen.SEARCH || screen == Screen.SECTIONS || screen == Screen.LIBRARY) {
+                if (screen == Screen.HOME || screen == Screen.SEARCH || screen == Screen.SECTIONS || screen == Screen.LIBRARY || screen == Screen.COLLECTIONS) {
                     NavigationBar(containerColor = MiFlixStyle.surface,
                         windowInsets = if (normalEdgeToEdge) safeBars.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
                             else NavigationBarDefaults.windowInsets) {
@@ -536,7 +556,8 @@ private fun ClientApp(
                             Triple(Screen.HOME, "Inicio", Icons.Default.Home),
                             Triple(Screen.SEARCH, "Buscar", Icons.Default.Search),
                             Triple(Screen.SECTIONS, "Secciones", Icons.Default.List),
-                            Triple(Screen.LIBRARY, "Mi Lista", Icons.Default.Bookmark)
+                            Triple(Screen.LIBRARY, "Mi Lista", Icons.Default.Bookmark),
+                            Triple(Screen.COLLECTIONS, "Colecciones", Icons.Default.CollectionsBookmark)
                         ).forEach { (destination, label, icon) ->
                             NavigationBarItem(
                                 selected = screen == destination,
@@ -583,6 +604,8 @@ private fun ClientApp(
                     },
                     rows = homeRows,
                     discovery = discoveryRows,
+                    featuredCollections = featuredCollections,
+                    onCollection = ::openCollection,
                     favorites = homeFavorites,
                     onMore = { target ->
                         when (target) {
@@ -625,8 +648,16 @@ private fun ClientApp(
                     scrollState = sectionsScroll,
                     category = category,
                     onCategoryChange = { category = it },
+                    onCollections = { screen = Screen.COLLECTIONS },
                     onSelect = ::openDetail
                 )
+                Screen.COLLECTIONS -> CollectionsScreen(collections, Modifier.padding(padding),
+                    collectionsScroll, ::openCollection)
+                Screen.COLLECTION_DETAIL -> collectionSavedState.SaveableStateProvider(
+                    "collection:${selectedCollectionId.orEmpty()}") {
+                    CollectionDetailScreen(selectedCollection, Modifier.padding(padding),
+                        rememberLazyGridState(), ::openDetail, ::goBack)
+                }
                 Screen.LIBRARY -> PersonalLibraryScreen(Modifier.padding(padding), titles,
                     libraryWatchedTab, { libraryWatchedTab = it }, ::openDetail)
                 Screen.DETAIL -> if (selected != null) key(selected.id) { Detail(
@@ -736,6 +767,8 @@ private fun HomeScreen(
     onContinue: (ContinueWatchingItem) -> Unit,
     rows: HomeCatalogRows,
     discovery: HomeDiscoveryRows,
+    featuredCollections: List<ResolvedCollection>,
+    onCollection: (ResolvedCollection) -> Unit,
     favorites: HomeRow?,
     onMore: (HomeMoreTarget) -> Unit
 ) {
@@ -801,6 +834,9 @@ private fun HomeScreen(
                         }
                     }
                 }
+            }
+            if (featuredCollections.isNotEmpty()) item(key = "home:featured-collections") {
+                FeaturedCollectionsRow(featuredCollections, onCollection)
             }
             if (favorites != null) item(key = favorites.key) {
                 ContentRow(favorites.label, favorites.titles, showTitles = false,
@@ -893,7 +929,7 @@ private fun ContentRow(
 }
 
 @Composable
-private fun MovieCard(title: Title, modifier: Modifier = Modifier, showTitle: Boolean = true,
+internal fun MovieCard(title: Title, modifier: Modifier = Modifier, showTitle: Boolean = true,
     accessibilityLabel: String = title.titulo, onClick: () -> Unit) {
     val library = LocalPersonalLibrary.current
     LocalLibraryRevision.current
@@ -1000,12 +1036,13 @@ private fun <T> SearchChoice(label: String, value: T, options: List<Pair<T, Stri
 @Composable
 private fun SectionsScreen(
     modifier: Modifier, titles: List<Title>, scrollState: LazyGridState, category: String,
-    onCategoryChange: (String) -> Unit, onSelect: (Title) -> Unit
+    onCategoryChange: (String) -> Unit, onCollections: () -> Unit, onSelect: (Title) -> Unit
 ) {
     val filtered = remember(titles, category) { titles.filter { it.matchesCategory(category) } }
     Column(modifier.fillMaxSize()) {
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            item { FilterChip(selected = false, onClick = onCollections, label = { Text("Colecciones") }) }
             items(categories) { name ->
                 FilterChip(selected = category == name, onClick = { onCategoryChange(name) },
                     label = { Text(name) }, colors = FilterChipDefaults.filterChipColors(

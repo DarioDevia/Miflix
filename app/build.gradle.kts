@@ -44,8 +44,8 @@ android {
         applicationId = "ar.com.miflix.client"
         minSdk = 26
         targetSdk = 34
-        versionCode = 37
-        versionName = "0.9.13-diagnostico"
+        versionCode = 38
+        versionName = "0.9.14-diagnostico"
         buildConfigField("String", "SUGGESTIONS_USERNAME", "\"$suggestionsUsername\"")
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$identityWebId\"")
         buildConfigField("String", "MIFLIX_IDENTITY_URL", "\"$identityUrl\"")

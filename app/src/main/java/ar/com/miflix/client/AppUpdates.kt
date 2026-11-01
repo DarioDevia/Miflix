@@ -13,6 +13,11 @@ internal object AppUpdates {
     fun installedVersion() = InstalledVersion(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
 
     val history = listOf(
+        AppUpdate("0.9.14-diagnostico", 38, listOf(
+            "Colecciones públicas con imágenes, descripción y películas en el orden del catálogo.",
+            "Sagas destacadas aleatorias y estables durante la sesión, con variedad entre inicios.",
+            "Nueva sección Colecciones con todas las sagas disponibles y acceso a las fichas habituales."
+        )),
         AppUpdate("0.9.13-diagnostico", 37, listOf(
             "Buscar muestra carátulas sin títulos inferiores y conserva filtros e indicadores.",
             "Inicio incorpora Últimos estrenos por año y Últimos agregados cuando hay fechas válidas.",

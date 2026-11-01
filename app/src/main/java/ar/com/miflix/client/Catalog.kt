@@ -15,7 +15,8 @@ import java.util.concurrent.TimeUnit
 data class Catalog(
     @SerializedName("schema_version") val schemaVersion: String = "",
     @SerializedName("actualizado_en") val updatedAt: String? = null,
-    val items: List<Title> = emptyList()
+    val items: List<Title> = emptyList(),
+    @Transient val collections: List<CatalogCollection> = emptyList()
 )
 
 data class Title(
@@ -198,7 +199,8 @@ class CatalogRepository(private val context: Context) {
                 else item.addProperty("fecha_agregado", addedAt)
                 if (version != "2") normalizeAdminFields(item)
             }
-            if (version != "2") return Gson().fromJson(root, Catalog::class.java)
+            val collections = parseCatalogCollections(root)
+            if (version != "2") return Gson().fromJson(root, Catalog::class.java).copy(collections = collections)
 
             // El Worker del índice de anime publica una lista de publicaciones por título.
             // No inventamos temporadas o episodios: cada enlace es una publicación independiente.
@@ -245,7 +247,7 @@ class CatalogRepository(private val context: Context) {
                 )
             }
             return Catalog(schemaVersion = version, updatedAt = root.get("generated_at")?.asString,
-                items = titles)
+                items = titles, collections = collections)
         }
     }
 }
