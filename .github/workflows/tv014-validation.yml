@@ -20,7 +20,7 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
       - name: Herramientas QR de desarrollo (no APK dependencies)
-        run: python3 -m pip install -r tools/tv014-qr-requirements.txt
+        run: python3 -m pip install -r tools/tv013-qr-requirements.txt
       - name: Enumerar tareas existentes
         run: |
           chmod +x gradlew
