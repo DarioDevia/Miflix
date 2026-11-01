@@ -36,6 +36,15 @@ class CollectionController(app:Application,private val scope:CoroutineScope,
     var selectedFields by mutableStateOf<Set<String>>(emptySet())
     var images by mutableStateOf<List<CollectionImage>>(emptyList());private set
     var restorePreview by mutableStateOf<JsonObject?>(null);private set
+    internal var syncRemoteFactory:(()->CollectionsRemote)?=null
+    private var syncRemote:CollectionsRemote?=null
+    private var cloudConfig:AdminConfig?=null
+    var cloudReview by mutableStateOf<CollectionSyncReview?>(null);private set
+    var cloudConfirmation by mutableStateOf(false);private set
+    var cloudRecovery by mutableStateOf<CollectionSyncReview?>(null);private set
+    var selectedRemote by mutableStateOf<Set<String>>(emptySet())
+    var cloudPublishing by mutableStateOf(false);private set
+    var cloudAck by mutableStateOf("");private set
     val writable get()=repo.writable && !busy
     val hasBackup get()=repo.hasBackup
     val catalogItems get()=catalog()?.let {CatalogRules.items(it)}.orEmpty()
@@ -91,10 +100,65 @@ class CollectionController(app:Application,private val scope:CoroutineScope,
             try {withContext(Dispatchers.IO) {task()};if(epoch==generation) success()}
             catch(e:CancellationException) {throw e}
             catch(e:Exception) {if(epoch==generation) fail(e)}
-            finally {if(epoch==generation) busy=false}
+            finally {if(epoch==generation) {busy=false;cloudPublishing=false}}
         }
     }
-    fun pageSyncInfo() {if(!busy) page="collectionSync"}
+    fun pageSyncInfo() {if(!busy) {page="collectionSync";cloudConfirmation=false;cloudRecovery=null}}
+    fun readCloudCollections() {
+        if(busy) return
+        try {
+            check(repo.writable) {repo.error}
+            val cfg=config() ?: error("Configurá el servidor Cloudflare antes de consultar colecciones.")
+            val local=CollectionSync.document(repo.data())
+            val remote=syncRemoteFactory?.invoke() ?: HttpCollectionsRemote(cfg)
+            syncRemote=remote;cloudConfig=cfg;cloudReview=null;cloudConfirmation=false;cloudRecovery=null;selectedRemote=emptySet();cloudAck=""
+            var found:JsonObject?=null
+            work({found=remote.download()},{
+                cloudReview=CollectionSync.review(local,found!!)
+                message="Consulta completada. No se guardó ni publicó nada. Revisá las diferencias antes de continuar."
+            })
+        } catch(e:Exception) {fail(e)}
+    }
+    fun requestCloudPublish()=mutate {
+        val reviewed=cloudReview ?: error("Consultá primero las colecciones remotas.")
+        check(CollectionSync.document(repo.data())==reviewed.local) {"Las colecciones locales cambiaron; consultá de nuevo."}
+        check(config()==cloudConfig) {"La configuración cambió; consultá de nuevo."}
+        cloudConfirmation=true
+    }
+    fun cancelCloudConfirmation() {if(!busy) {cloudConfirmation=false;cloudRecovery=null}}
+    fun confirmCloudPublish(destructive:Boolean,empty:Boolean) {
+        if(busy) return
+        try {
+            check(cloudConfirmation) {"Revisá el resumen antes de confirmar."}
+            val reviewed=cloudReview ?: error("Consultá primero las colecciones remotas.")
+            check(config()==cloudConfig) {"La configuración cambió; consultá de nuevo."}
+            val outgoing=CollectionSync.authorize(reviewed,repo.data(),destructive,empty)
+            val remote=syncRemote ?: error("Consultá primero Cloudflare.")
+            var ack="";cloudPublishing=true;cloudConfirmation=false
+            work({
+                // Detect a visible change since review. This cannot close KV's read/write race.
+                check(CollectionSync.document(remote.download())==reviewed.remote) {"Las colecciones remotas cambiaron desde la comparación. No se envió el PUT; consultá y revisá de nuevo."}
+                ack=remote.publish(outgoing)
+            },{
+                cloudAck=ack;message="Cloudflare confirmó ${CollectionRules.list(outgoing).size} colecciones ($ack). La copia local y los borradores se conservaron. La lectura pública puede tardar en reflejar el cambio por la consistencia eventual de KV."
+            })
+        } catch(e:Exception) {cloudPublishing=false;fail(e)}
+    }
+    fun requestCloudRecovery()=mutate {
+        check(repo.draft()==null) {"Terminá o conservá y descartá explícitamente el borrador antes de recuperar colecciones. No se sobrescribió."}
+        val remote=cloudReview?.remote ?: error("Consultá primero las colecciones remotas.")
+        val current=repo.data();val merged=CollectionSync.merge(current,remote,selectedRemote)
+        cloudRecovery=CollectionSync.review(merged,current)
+    }
+    fun confirmCloudRecovery() {
+        if(busy) return
+        try {
+            val reviewed=cloudRecovery ?: error("Revisá primero las colecciones que vas a recuperar.")
+            check(repo.data()==reviewed.remote) {"Las colecciones locales cambiaron; revisá otra vez."}
+            repo.replaceApproved(reviewed.local);data=repo.data();cloudRecovery=null;cloudReview=null;selectedRemote=emptySet()
+            message="Colecciones seleccionadas recuperadas. Se conservó el estado anterior para revertir. No se publicó nada ni se modificó el catálogo."
+        } catch(e:Exception) {fail(e)}
+    }
     fun showSagas() {if(!busy) page="sagas"}
     fun detectSagas(refresh:Boolean=false) {
         if(busy) return
@@ -184,6 +248,6 @@ class CollectionController(app:Application,private val scope:CoroutineScope,
         } catch(e:Exception) {fail(e)}
     }
     fun chooseImage(image:CollectionImage)=mutate {require(image in images);stage(draft!!.deepCopy().apply {addProperty(image.field,image.url)});page="edit"}
-    fun cancelRequest() {if(busy && page=="sagas") {sagaProgress=sagaProgress.copy(complete=false,phase="Cancelado; los resultados consultados quedan en caché");message="Análisis cancelado sin guardar propuestas."};generation++;sagaProvider?.cancel();sagaProvider=null;provider?.cancel();job?.cancel();provider=null;busy=false}
+    fun cancelRequest() {if(cloudPublishing) message="Se interrumpió la espera de publicación. Conservamos la copia local; consultá Cloudflare antes de reintentar porque el servidor puede haber recibido el PUT.";if(busy && page=="sagas") {sagaProgress=sagaProgress.copy(complete=false,phase="Cancelado; los resultados consultados quedan en caché");message="Análisis cancelado sin guardar propuestas."};generation++;sagaProvider?.cancel();sagaProvider=null;provider?.cancel();syncRemote?.cancel();job?.cancel();provider=null;busy=false;cloudPublishing=false}
     fun close() {cancelRequest()}
 }

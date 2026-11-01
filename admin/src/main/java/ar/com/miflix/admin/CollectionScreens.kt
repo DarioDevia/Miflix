@@ -50,8 +50,8 @@ import kotlinx.coroutines.withContext
         }
     }
     Column(Modifier.fillMaxSize()) {
-        Text("Colecciones · solo este teléfono",Modifier.padding(horizontal=16.dp),style=MaterialTheme.typography.titleLarge)
-        Text("No se publican todavía en Mobile/TV ni afectan la sincronización normal del catálogo.",Modifier.padding(16.dp),style=MaterialTheme.typography.bodySmall)
+        Text("Colecciones",Modifier.padding(horizontal=16.dp),style=MaterialTheme.typography.titleLarge)
+        Text("Guardá y respaldá localmente. La publicación en Cloudflare es manual y separada del catálogo. Los clientes actuales pueden no mostrar colecciones.",Modifier.padding(16.dp),style=MaterialTheme.typography.bodySmall)
         if(c.message.isNotBlank()) Text(c.message,Modifier.padding(horizontal=16.dp),color=MaterialTheme.colorScheme.tertiary)
         if(c.busy || transfer) LinearProgressIndicator(Modifier.fillMaxWidth())
         Box(Modifier.weight(1f)) { when(c.page) {
@@ -66,7 +66,7 @@ import kotlinx.coroutines.withContext
                         OutlinedButton(onClick={c.begin("hybrid")},enabled=c.writable,modifier=Modifier.fillMaxWidth()) {Text("Importar y personalizar")}
                     }
                     OutlinedButton(onClick={c.showSagas()},enabled=c.writable,modifier=Modifier.fillMaxWidth()) {Text("Detectar sagas en mi catálogo")}
-                    OutlinedButton(onClick={c.pageSyncInfo()},enabled=!c.busy,modifier=Modifier.fillMaxWidth()) {Text("Estado de sincronización de colecciones")}
+                    OutlinedButton(onClick={c.pageSyncInfo()},enabled=!c.busy,modifier=Modifier.fillMaxWidth()) {Text("Sincronizar colecciones con Cloudflare")}
                     OutlinedButton(onClick={try {exporting=c.export();export.launch("MiFlix-colecciones.json")} catch(e:Exception) {c.notify(e.message.orEmpty())}},enabled=c.writable && !transfer,modifier=Modifier.fillMaxWidth()) {Text("Exportar respaldo de colecciones")}
                     OutlinedButton(onClick={restore.launch(arrayOf("application/json","text/plain","application/octet-stream"))},enabled=!c.busy && !transfer,modifier=Modifier.fillMaxWidth()) {Text("Restaurar respaldo desde archivo")}
                     if(c.hasBackup) OutlinedButton(onClick={undo=true},enabled=c.writable,modifier=Modifier.fillMaxWidth()) {Text("Restaurar estado anterior de colecciones")}
@@ -92,7 +92,7 @@ import kotlinx.coroutines.withContext
             "sagas" -> SagaDetectionScreen(c)
             "collectionSync" -> CollectionSyncStatusScreen(c)
         }}
-        if(c.busy) OutlinedButton(onClick={if(c.page=="sagas") c.cancelRequest() else {c.cancelRequest();c.backToEdit()}},modifier=Modifier.fillMaxWidth().padding(horizontal=16.dp)) {Text("Cancelar consulta sin aplicar")}
+        if(c.busy && !c.cloudPublishing) OutlinedButton(onClick={if(c.page in setOf("sagas","collectionSync")) c.cancelRequest() else {c.cancelRequest();c.backToEdit()}},modifier=Modifier.fillMaxWidth().padding(horizontal=16.dp)) {Text("Cancelar consulta sin aplicar")}
     }
     delete?.let {row ->AlertDialog(onDismissRequest={delete=null},title={Text("Eliminar colección")},text={Text("¿Eliminar ${row.text("nombre")}? Sus películas, series y anime permanecen intactos en el catálogo. Se conservará el estado anterior de colecciones.")},confirmButton={TextButton(onClick={delete=null;c.delete(row.text("id"))}) {Text("Eliminar colección")}},dismissButton={TextButton(onClick={delete=null}) {Text("Cancelar")}})}
     if(discard) AlertDialog(onDismissRequest={discard=false},title={Text("Descartar borrador")},text={Text("Se perderán las ediciones de esta colección sin guardar. El catálogo y las colecciones guardadas se conservan.")},confirmButton={TextButton(onClick={discard=false;c.discard()}) {Text("Descartar")}},dismissButton={TextButton(onClick={discard=false}) {Text("Cancelar")}})

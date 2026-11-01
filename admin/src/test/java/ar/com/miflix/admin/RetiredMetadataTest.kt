@@ -25,7 +25,7 @@ internal object LegacyFixtures {
         override fun archive(state:JsonObject):String {check(!failArchive) {"synthetic archive failure"};val id=RetiredMetadata.hash(JsonPrimitive(state.toString()));archives.putIfAbsent(id,state.deepCopy());return id}
         override fun readArchive(id:String)=archives.getValue(id).toString()
     }
-    class Remote(var root:JsonObject):AdminRemote {var writes=0;var fail=false;override fun download()=root.deepCopy();override fun publish(catalog:JsonObject){check(!fail) {"synthetic network failure"};writes++;root=catalog.deepCopy()}}
+    class Remote(var root:JsonObject):AdminRemote {var writes=0;var fail=false;override fun download()=root.deepCopy();override fun publish(catalog:JsonObject){check(!fail) {"synthetic network failure"};writes++;root=CatalogCollections.carry(catalog,root)}}
     fun state(current:JsonObject,base:JsonObject?=null)=JsonObject().apply {add("catalog",current.deepCopy());base?.let {add("base",it.deepCopy())};addProperty("pending",true)}
 }
 @RunWith(RobolectricTestRunner::class)

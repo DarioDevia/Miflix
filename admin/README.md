@@ -1,3 +1,11 @@
+# MiFlix Admin Android 0.1.11-diagnostico / 12
+
+Sincronización manual de colecciones mediante el Worker de producción: consulta, comparación por ID/campos, confirmación de reemplazos y vacíos, recuperación selectiva con respaldo. Se reutiliza el token Cloudflare existente. No hay publicación automática ni cambios del Worker o clientes. Se conservan las funciones de 0.1.10 y las colecciones/sagas locales.
+
+Ver [contrato, pruebas, límites y primera sincronización de Depredador](0.1.11-cloudflare-collections.md). `applicationId=ar.com.miflix.admin`; actualizar con la firma original, sin desinstalar ni borrar datos. KV no garantiza atomicidad y el GET previo no elimina todos los conflictos: usar un administrador a la vez. La prueba física de 0.1.11 está pendiente.
+
+## Antecedentes de versiones anteriores
+
 # MiFlix Admin Android 0.1.10-diagnostico / 11
 
 Corrección: TheTVDB retirado; publicación normal recuperada mediante saneamiento por campo, respaldo privado previo y revisión de incidencias. Conserva TMDB, TVmaze, fechas, Telegram y las colecciones locales 0.1.8/0.1.9. Usa GET/PUT originales de Cloudflare; no modifica el Worker ni publica colecciones locales.

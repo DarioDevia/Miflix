@@ -40,7 +40,7 @@ class HttpAdminRemote(private val config: AdminConfig, private val client: OkHtt
         catch (_: Exception) { error("No fue posible completar la conexión. Revisá Internet y reintentá.") }
     }
     override fun download(): JsonObject = CatalogRules.parse(request("/catalogo.json").toString())
-    override fun publish(catalog: JsonObject) { check(request("/admin/catalogo",CatalogRules.publicCopy(catalog)).get("ok")?.asBoolean == true) { "El servidor no confirmó la publicación." } }
+    override fun publish(catalog: JsonObject) { check(request("/admin/catalogo",CatalogCollections.without(CatalogRules.publicCopy(catalog))).get("ok")?.asBoolean == true) { "El servidor no confirmó la publicación." } }
 
 }
 
@@ -96,12 +96,16 @@ class AdminRepository(private val store: StateStore) {
         CatalogRules.parse(incoming.toString())
         if(pending && !discard) {
             val base=state.get("base")?.takeIf { it.isJsonObject }?.asJsonObject
-            check(base!=null && CatalogRules.fingerprint(incoming)==CatalogRules.fingerprint(base)) {
+            check(base!=null && CatalogCollections.fingerprint(incoming)==CatalogCollections.fingerprint(base)) {
                 "El remoto cambió y tenés trabajo pendiente. Conservamos tu copia; sincronizá desde el dispositivo correcto o descartá explícitamente para descargar."
             }
         }
         val next=state.deepCopy()
         if(!pending || discard) { next.add("catalog",incoming.deepCopy());next.add("base",incoming.deepCopy());next.addProperty("pending",false) }
+        else {
+            next.add("catalog",CatalogCollections.carry(catalog!!,incoming))
+            next.add("base",CatalogCollections.carry(state.getAsJsonObject("base"),incoming))
+        }
         next.addProperty("last_download",now())
         commit(next);writable=true
         return ""
@@ -190,12 +194,12 @@ class AdminRepository(private val store: StateStore) {
             val current=catalog ?: error("Sin catálogo.")
             val base=state.get("base")?.takeIf {it.isJsonObject}?.asJsonObject ?: error("Actualizá el catálogo antes de publicar.")
             val latest=remote.download()
-            check(CatalogRules.fingerprint(latest)==CatalogRules.fingerprint(base)) {"El catálogo remoto cambió desde la descarga. Se conservaron los pendientes; no se sobrescribieron títulos ni campos remotos. Revisá desde el dispositivo que publicó el cambio."}
-            val publication=CatalogRules.publicCopy(current)
+            check(CatalogCollections.fingerprint(latest)==CatalogCollections.fingerprint(base)) {"El catálogo remoto cambió desde la descarga. Se conservaron los pendientes; no se sobrescribieron títulos ni campos remotos. Revisá desde el dispositivo que publicó el cambio."}
+            val publication=CatalogCollections.without(CatalogRules.publicCopy(current))
             CatalogRules.parse(publication.toString())
             remote.publish(publication)
             // Only a confirmed catalog publication clears catalog pending work.
-            val next=state.deepCopy();next.add("base",publication.deepCopy());next.addProperty("pending",false);next.addProperty("last_sync",now());commit(next)
+            val next=state.deepCopy();next.add("base",CatalogCollections.carry(publication,latest));next.add("catalog",CatalogCollections.carry(current,latest));next.addProperty("pending",false);next.addProperty("last_sync",now());commit(next)
         }
         return "Sincronización confirmada."
     }
