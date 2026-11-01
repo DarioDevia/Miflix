@@ -1,0 +1,180 @@
+{
+  "sourceCommit": "6f0c9d94b6abc02feaee7207fa33b4dacce36729",
+  "run": "https://github.com/DarioDevia/Miflix/actions/runs/41294143890",
+  "unit": {
+    "Tv": {
+      "tests": 281,
+      "failures": 0,
+      "ignored": 0
+    },
+    "Mobile": {
+      "tests": 281,
+      "failures": 0,
+      "ignored": 0
+    }
+  },
+  "lint": {
+    "tv": {
+      "severity": {
+        "Warning": 17
+      },
+      "ids": {
+        "ObsoleteLintCustomCheck": 1,
+        "ApplySharedPref": 2,
+        "OldTargetApi": 1,
+        "UnusedAttribute": 1,
+        "VectorRaster": 1,
+        "GradleDependency": 4,
+        "DiscouragedApi": 1,
+        "SetJavaScriptEnabled": 2,
+        "StaticFieldLeak": 1,
+        "Overdraw": 1,
+        "UnusedResources": 1,
+        "IconLauncherShape": 1
+      }
+    },
+    "mobile": {
+      "severity": {
+        "Warning": 14
+      },
+      "ids": {
+        "ObsoleteLintCustomCheck": 1,
+        "ApplySharedPref": 2,
+        "OldTargetApi": 1,
+        "UnusedAttribute": 1,
+        "GradleDependency": 4,
+        "DiscouragedApi": 1,
+        "SetJavaScriptEnabled": 2,
+        "StaticFieldLeak": 1,
+        "IconLauncherShape": 1
+      }
+    }
+  },
+  "apk": {
+    "CI-debug": {
+      "sha256": "f082f3ee921a8250f42bcac80a6ff81e628b9a8bcb284745775477679e019297",
+      "bytes": 114645257,
+      "report": {
+        "tvLibraryBackupExcluded": true,
+        "requestsQr": {
+          "sha256": "260478e570101b569de5511987e4c8ceed5ccc5132566c72706688b1918d7c49",
+          "size": 780
+        },
+        "intro": {
+          "sha256": "ecede13d1d994ba31de549b7d3ca557e64d69c4f3518bbae07caae5841423b17",
+          "size": 2134895
+        },
+        "package": "ar.com.miflix.client.tv",
+        "versionName": "0.1.14-diagnostico",
+        "versionCode": 15,
+        "minSdk": 26,
+        "targetSdk": 34,
+        "testOnly": false,
+        "debuggable": true,
+        "leanbackRequired": true,
+        "touchscreenRequired": false,
+        "leanbackLauncher": true,
+        "permissions": [
+          "android.permission.ACCESS_NETWORK_STATE",
+          "android.permission.INTERNET",
+          "ar.com.miflix.client.tv.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+        ],
+        "cleartextTraffic": false,
+        "libraries": {
+          "arm64-v8a": {
+            "sha256": "249f325cde35ba778ef019258a40b2ecd2cfbd67d45e534902281c4dfba0f1a4",
+            "size": 22729264,
+            "elf_class": 2,
+            "elf_machine": 183
+          },
+          "armeabi-v7a": {
+            "sha256": "6551a4935f888b8b80adee5e995884765f7047cd32afc64a8c98e540cffcedb6",
+            "size": 16371168,
+            "elf_class": 1,
+            "elf_machine": 40
+          },
+          "x86": {
+            "sha256": "0aa3c3482608cdc02ed8a9883e4c0832e12e1dcbf52b2dcb448edf826b5699d1",
+            "size": 27180944,
+            "elf_class": 1,
+            "elf_machine": 3
+          },
+          "x86_64": {
+            "sha256": "40738f25f9da60125c1b9add0abb55558f02798c5ca291ecacdd5b0cc140f6e0",
+            "size": 25265264,
+            "elf_class": 2,
+            "elf_machine": 62
+          }
+        }
+      }
+    },
+    "unsigned": {
+      "sha256": "96b9ff58d2f688eb3bb0e1488dced4108ffc855bf4a76cdc868d62a9472eb4ca",
+      "bytes": 108695996,
+      "report": {
+        "tvLibraryBackupExcluded": false,
+        "requestsQr": {
+          "sha256": "260478e570101b569de5511987e4c8ceed5ccc5132566c72706688b1918d7c49",
+          "size": 780
+        },
+        "intro": {
+          "sha256": "ecede13d1d994ba31de549b7d3ca557e64d69c4f3518bbae07caae5841423b17",
+          "size": 2134895
+        },
+        "package": "ar.com.miflix.client.tv",
+        "versionName": "0.1.14-diagnostico",
+        "versionCode": 15,
+        "minSdk": 26,
+        "targetSdk": 34,
+        "testOnly": false,
+        "debuggable": false,
+        "leanbackRequired": true,
+        "touchscreenRequired": false,
+        "leanbackLauncher": true,
+        "permissions": [
+          "android.permission.ACCESS_NETWORK_STATE",
+          "android.permission.INTERNET",
+          "ar.com.miflix.client.tv.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+        ],
+        "cleartextTraffic": false,
+        "libraries": {
+          "arm64-v8a": {
+            "sha256": "249f325cde35ba778ef019258a40b2ecd2cfbd67d45e534902281c4dfba0f1a4",
+            "size": 22729264,
+            "elf_class": 2,
+            "elf_machine": 183
+          },
+          "armeabi-v7a": {
+            "sha256": "6551a4935f888b8b80adee5e995884765f7047cd32afc64a8c98e540cffcedb6",
+            "size": 16371168,
+            "elf_class": 1,
+            "elf_machine": 40
+          },
+          "x86": {
+            "sha256": "0aa3c3482608cdc02ed8a9883e4c0832e12e1dcbf52b2dcb448edf826b5699d1",
+            "size": 27180944,
+            "elf_class": 1,
+            "elf_machine": 3
+          },
+          "x86_64": {
+            "sha256": "40738f25f9da60125c1b9add0abb55558f02798c5ca291ecacdd5b0cc140f6e0",
+            "size": 25265264,
+            "elf_class": 2,
+            "elf_machine": 62
+          }
+        }
+      },
+      "optimizedBackupResourcesVerified": {
+        "data-extraction-rules": {
+          "compiledPath": "res/4j.xml",
+          "libraryExclusions": 2
+        },
+        "full-backup-content": {
+          "compiledPath": "res/Qq.xml",
+          "libraryExclusions": 1
+        }
+      },
+      "reportNote": "The debug-only inspector uses unoptimized resource paths. Release exclusion XML was independently inspected at AAPT-optimized paths; no application resources were changed."
+    }
+  }
+}

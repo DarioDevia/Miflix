@@ -119,8 +119,7 @@ Se ejecutará sólo si existe un emulador limpio adecuado; no se da por ejecutad
 
 En Work hay JDK 17 pero no SDK Android ni distribución Gradle utilizable; el wrapper
 no pudo descargar Gradle por restricción de red. No se instaló un SDK completo ni se
-inició emulador. Las compilaciones se realizan en GitHub Actions. Los resultados finales
-se incorporarán a esta documentación tras recuperar los informes de CI.
+inició emulador. Las compilaciones se realizan en GitHub Actions. Los resultados finales se encuentran en la sección siguiente y en el JSON de validación publicado.
 
 ## APK y actualización Windows 11
 
@@ -174,3 +173,83 @@ certificado original si no se proporciona para comparar.
   audio/subtítulos/seek, tráilers, Telegram y QR. Verificar persistencia tras actualizar.
 
 La versión sólo queda validada físicamente después de esas pruebas del propietario.
+
+## Referencias exactas y archivos
+
+- Mobile consultado: `85671548a4a696f22eb4fcc408c7b801c4ad3065`.
+- Admin/esquema consultado: `b0829c1963354ba6e1c659948e18708f6c63c13d`.
+- Los archivos de estas ramas se leyeron con git show; no se modificaron ni fusionaron.
+- Fuentes nuevas: TvCatalogCollections, TvCollectionsSession, TvCollectionsStorage,
+  TvCollectionScreens, TvGenreRows.
+- Cableado acotado: Catalog, MainActivity, TvNavigation, filas de TvScreens.
+- Tests nuevos: TvCatalogCollectionsTest, TvCollectionsSessionTest, TvGenreRowsTest;
+  dos casos añadidos al runner de instrumentación TV. Todos los tests JVM previos intactos.
+- Herramientas: nuevo check_tv014_contract y workflow tv014-validation; verificador
+  de APK/fixture actualizado sólo al número esperado de versión y contrato vigente.
+- Documentación: README, CHANGELOG_TV y este informe. Gradle sólo cambia versión TV.
+
+## Resultados finales de CI y artefactos
+
+Ejecución aprobada: https://github.com/DarioDevia/Miflix/actions/runs/41294143890
+
+Commit de código compilado: `6f0c9d94b6abc02feaee7207fa33b4dacce36729`.
+Los commits posteriores de esta entrega sólo documentan resultados; no cambian APK.
+Artefacto `TV-0.1.14-validacion`, ID `13078812575` (publicado en esa ejecución).
+Primer intento detenido por una referencia incorrecta al archivo de requisitos QR;
+se corrigió únicamente la ruta del workflow. El segundo intento finalizó correctamente.
+
+| Comprobación | Resultado real |
+| --- | --- |
+| Tests JVM TV | 281, cero fallos, cero omitidos |
+| Tests JVM Mobile | 281, cero fallos, cero omitidos |
+| Nuevas pruebas JVM | 32 por variante; las 249 anteriores conservadas |
+| Lint TV | 0 errores, 17 advertencias |
+| Lint Mobile | 0 errores, 14 advertencias |
+| Contratos Python | 9 protección + 14 APK + 3 localización + 2 QR: 28 aprobados |
+| compileTvDebugKotlin / compileMobileDebugKotlin | Correctos |
+| assembleTvDebug / assembleTvRelease | Correctos; BUILD SUCCESSFUL en 4m47s |
+| assembleTvDebugAndroidTest | Correcto; instrumentación sólo compilada, NO ejecutada |
+| ABI reales en ambas APK | armeabi-v7a, arm64-v8a, x86, x86_64; ELF/hash/size originales |
+| Instalación / DPAD / reproducción física | Pendientes, no ejecutados |
+
+Las advertencias coinciden en cantidad e IDs con 0.1.13. Incluyen el verificador
+personalizado obsoleto de Compose, SharedPreferences.apply, target SDK, dependencias,
+getIdentifier histórico de la intro, WebView JavaScript y StaticFieldLeak anterior.
+No se deshabilitó Lint, no se creó baseline ni se actualizaron dependencias para ocultarlas.
+El verificador obsoleto implica una limitación previa de cobertura de los detectores
+personalizados de esa dependencia; no equivale a una garantía de ausencia de defectos.
+
+Inspección real de manifest: package `ar.com.miflix.client.tv`, versión `0.1.14-diagnostico`,
+code `15`, minSdk `26`, targetSdk `34`, testOnly `false`, Leanback/launcher presentes,
+pantalla táctil no requerida y permisos sin cambios. Debug: debuggable=true;
+release unsigned: debuggable=false. MP4 original (hash ecede13d…) y QR (hash 260478e…)
+conservados en ambas. El ZIP descargado coincide con el SHA-256 del artefacto GitHub:
+`931497cd6c89b22b2421f829d3ac3e074f2a4149c496dd15c429cf614759eec8`.
+
+El verificador estándar comprueba exclusiones de backup en debug. En release AAPT
+renombra los recursos: la inspección complementaria confirmó `res/Qq.xml`
+(full-backup-content) y `res/4j.xml` (data-extraction-rules), con las exclusiones de
+biblioteca/progreso intactas. Un resultado false del inspector de rutas debug para
+esa release no significa que falte la exclusión: se conserva esta distinción en el JSON.
+
+| Archivo | Bytes | Tipo |
+| --- | --- | --- |
+| MiFlix-TV-0.1.14-diagnostico-CI-debug.apk | 114645257 | Firma temporal de CI, verificada por apksigner |
+| MiFlix-TV-0.1.14-diagnostico-unsigned.apk | 108695996 | Release sin firmar; no instalable hasta firmar |
+
+SHA-256 debug:
+`f082f3ee921a8250f42bcac80a6ff81e628b9a8bcb284745775477679e019297`
+
+SHA-256 release unsigned:
+`96b9ff58d2f688eb3bb0e1488dced4108ffc855bf4a76cdc868d62a9472eb4ca`
+
+Certificado SHA-256 CI debug:
+`43b8b393431b998a008ef771472d09026eedb018acba34ded6c204ddd88116ad`.
+No se pudo comparar con la APK instalada/clave original porque no está disponible aquí.
+Ambas APK de CI carecen de configuración privada Telegram. Para actualizar la versión
+familiar, compilar localmente con la configuración y clave originales; no instalar
+estas salidas como si su compatibilidad con la TV estuviera comprobada.
+
+Los informes HTML/XML originales y comprobaciones están en el artefacto de Actions.
+Resumen reproducible: `docs/TV_0.1.14_CI_VALIDACION.json`. Fuente y artefactos listos
+para validación física; no se da por validada la interacción real por aprobar JVM/Lint.

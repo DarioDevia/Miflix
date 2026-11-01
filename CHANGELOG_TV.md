@@ -5,7 +5,8 @@
 - Géneros locales con normalización de escritura, separados por películas/series/anime y listas lazy.
 - Catálogos anteriores compatibles; datos opcionales inválidos no impiden títulos.
 - Reproducción, intro, Hero y biblioteca 0.1.13 protegidos por contratos byte a byte.
-- Pruebas y CI: consultar docs/TV_0.1.14_COLECCIONES_GENEROS.md. Validación física pendiente.
+- CI aprobada: 281 tests por variante, Lint sin errores, Debug/Release compiladas e inspeccionadas; DPAD físico pendiente.
+- Informes: docs/TV_0.1.14_COLECCIONES_GENEROS.md y TV_0.1.14_CI_VALIDACION.json.
 
 # Historial de MiFlix TV
 

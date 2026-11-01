@@ -514,3 +514,7 @@ Rama `feature/tv-0.1.14-collections-genres`, versión `0.1.14-diagnostico / 15`.
 Sagas destacadas por proceso, sección Colecciones, detalle ordenado y géneros separados por tipo.
 [Contrato, compilación, firma y pruebas físicas](docs/TV_0.1.14_COLECCIONES_GENEROS.md).
 No validada todavía en TV físico. Mobile y motor de reproducción conservados.
+
+Validación automática TV 0.1.14: 281 tests TV + 281 Mobile aprobados; Lint sin errores
+(TV 17 advertencias / Mobile 14), Debug y Release compiladas.
+[Informes y artefactos CI](https://github.com/DarioDevia/Miflix/actions/runs/41294143890).
