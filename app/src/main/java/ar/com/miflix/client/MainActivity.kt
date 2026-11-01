@@ -107,7 +107,7 @@ private object MiFlixStyle {
     val secondaryText = Color(0xFFB8BEC9)
 }
 
-internal enum class Screen { HOME, SEARCH, SECTIONS, DETAIL, PLAYER, SETTINGS, CONNECT, LIBRARY }
+internal enum class Screen { HOME, SEARCH, SECTIONS, DETAIL, PLAYER, SETTINGS, CONNECT, LIBRARY, COLLECTIONS, COLLECTION_DETAIL }
 internal fun playbackFullscreenActive(screen: Screen, fullscreen: Boolean, episodeTransition: Boolean): Boolean =
     fullscreen && (screen == Screen.PLAYER || (screen == Screen.DETAIL && episodeTransition))
 
@@ -164,6 +164,16 @@ private fun ClientApp(
     var libraryWatchedTab by rememberSaveable { mutableStateOf(false) }
     var libraryFocusKey by rememberSaveable { mutableStateOf<String?>(null) }
     val libraryScroll = rememberLazyGridState()
+    var collectionId by rememberSaveable { mutableStateOf<String?>(null) }
+    var collectionOrigin by rememberSaveable { mutableStateOf(Screen.HOME) }
+    var collectionsFocus by rememberSaveable { mutableStateOf<String?>(null) }
+    var collectionMovieFocus by rememberSaveable(collectionId) { mutableStateOf<String?>(null) }
+    val collectionsScroll = rememberLazyGridState()
+    val collectionMoviesScroll = rememberLazyGridState()
+    var collectionsReady by remember { mutableStateOf(false) }
+    val sagaSession = remember {
+        if (BuildConfig.IS_TV) TvProcessCollections.get(TvSagaPreferences(context)) else null
+    }
     val inputMode = LocalInputModeManager.current
     LaunchedEffect(Unit) { if (BuildConfig.IS_TV) inputMode.requestInputMode(InputMode.Keyboard) }
     val telegramSession = remember { TelegramSession.get(context) }
@@ -223,6 +233,12 @@ private fun ClientApp(
     val owner = LocalLifecycleOwner.current
     val activity = context as? ComponentActivity
     val titles = catalog.items.orEmpty()
+    val publicCollections = remember(catalog) {
+        if (BuildConfig.IS_TV) resolveTvCollections(catalog) else emptyList()
+    }
+    val featuredCollections = remember(publicCollections, collectionsReady) {
+        sagaSession?.select(publicCollections, collectionsReady).orEmpty()
+    }
     val featuredSession = remember { FeaturedSession() }
     val featured = remember(titles) {
         if (BuildConfig.IS_TV) null else featuredSession.select(titles)
@@ -251,6 +267,7 @@ private fun ClientApp(
                 }
                 if (loaded.source == "En línea" || loaded.source == "Copia local") {
                     catalog = loaded.catalog
+                    collectionsReady = true
                 }
                 source = loaded.source
                 problem = loaded.error
@@ -265,7 +282,7 @@ private fun ClientApp(
             )) refresh()
     }
     LaunchedEffect(url) {
-        repository.loadCached()?.let { catalog = it; source = "Copia local" }
+        repository.loadCached()?.let { catalog = it; source = "Copia local"; collectionsReady = true }
         cacheLoaded = true
         // La primera carga no depende de terminar la autorización de Telegram.
         if (screen == Screen.HOME || screen == Screen.CONNECT) refreshIfDue()
@@ -301,6 +318,13 @@ private fun ClientApp(
         onDispose { if (observing) prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
 
+    fun openCollection(item: TvResolvedCollection) {
+        collectionOrigin = screen
+        collectionId = item.id
+        collectionMovieFocus = null
+        scope.launch { collectionMoviesScroll.scrollToItem(0) }
+        screen = Screen.COLLECTION_DETAIL
+    }
     fun openDetail(title: Title) {
         detailReturnScreen = screen
         selectedId = title.id
@@ -366,6 +390,7 @@ private fun ClientApp(
                 screen = detailReturnScreen
                 selectedId = null
             }
+            Screen.COLLECTION_DETAIL -> screen = collectionOrigin
             Screen.SETTINGS -> screen = returnScreen
             Screen.CONNECT -> screen = Screen.HOME
             else -> screen = Screen.HOME
@@ -444,6 +469,8 @@ private fun ClientApp(
                                 Screen.SEARCH -> "Buscar"
                                 Screen.SECTIONS -> "Secciones"
                                 Screen.LIBRARY -> "Mi Lista"
+                                Screen.COLLECTIONS -> "Colecciones"
+                                Screen.COLLECTION_DETAIL -> "Colección"
                                 Screen.SETTINGS -> "Configuración"
                                 Screen.DETAIL -> selected?.titulo.orEmpty()
                                 Screen.PLAYER -> playbackTitle
@@ -504,7 +531,7 @@ private fun ClientApp(
                 }
             }
         ) { padding ->
-            TvNavigationShell(BuildConfig.IS_TV && screen in listOf(Screen.HOME, Screen.SEARCH, Screen.SECTIONS, Screen.LIBRARY),
+            TvNavigationShell(BuildConfig.IS_TV && screen in listOf(Screen.HOME, Screen.SEARCH, Screen.SECTIONS, Screen.LIBRARY, Screen.COLLECTIONS),
                 screen.name, { screen = Screen.valueOf(it) }, { screen = Screen.CONNECT }, ::openSettings,
                 ::refresh, busy) {
             when (screen) {
@@ -525,7 +552,7 @@ private fun ClientApp(
                         if (target != null) requestPlayback(target.progressKey, target.link, target.name,
                             if (target.seasonIndex >= 0) findPreviousPlayableEpisode(title, target.seasonIndex, target.episodeIndex, ::validTelegramLink) else null,
                             if (target.seasonIndex >= 0) findNextPlayableEpisode(title, target.seasonIndex, target.episodeIndex, ::validTelegramLink) else null)
-                    }) else HomeScreen(
+                    }, featuredCollections, ::openCollection) else HomeScreen(
                     modifier = Modifier.padding(padding),
                     scrollState = homeScroll,
                     titles = titles,
@@ -581,6 +608,12 @@ private fun ClientApp(
                     onCategoryChange = { category = it },
                     onSelect = ::openDetail
                 )
+                Screen.COLLECTIONS -> if (BuildConfig.IS_TV) TvCollectionsGrid(publicCollections,
+                    collectionsScroll, collectionsFocus, { collectionsFocus = it }, ::openCollection,
+                    { screen = Screen.HOME })
+                Screen.COLLECTION_DETAIL -> if (BuildConfig.IS_TV) TvCollectionDetail(
+                    publicCollections.firstOrNull { it.id == collectionId }, collectionsReady,
+                    collectionMoviesScroll, collectionMovieFocus, { collectionMovieFocus = it }, ::goBack, ::openDetail)
                 Screen.LIBRARY -> if (BuildConfig.IS_TV) TvLibraryScreen(titles, libraryWatchedTab,
                     { libraryWatchedTab = it; libraryFocusKey = null }, libraryScroll, libraryFocusKey,
                     { libraryFocusKey = it }, ::openDetail)

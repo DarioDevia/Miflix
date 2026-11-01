@@ -58,6 +58,7 @@ internal fun TvNavigationShell(enabled: Boolean, selected: String, onNavigate: (
             val destinations = listOf(Triple("HOME", "Inicio", Icons.Default.Home),
                 Triple("SEARCH", "Buscar", Icons.Default.Search), Triple("SECTIONS", "Secciones", Icons.Default.List),
                 Triple("LIBRARY", "Mi Lista", Icons.Default.Favorite),
+                Triple("COLLECTIONS", "Colecciones", Icons.Default.Collections),
                 Triple("CONNECT", "Telegram", Icons.Default.AccountCircle),
                 Triple("SETTINGS", "Configuración", Icons.Default.Settings),
                 Triple("REFRESH", if (busy) "Actualizando…" else "Actualizar", Icons.Default.Refresh))

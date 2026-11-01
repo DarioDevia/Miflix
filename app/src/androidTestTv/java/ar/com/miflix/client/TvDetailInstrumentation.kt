@@ -159,6 +159,10 @@ class TvDetailInstrumentation : Instrumentation() {
                 key(KeyEvent.KEYCODE_DPAD_CENTER)
                 eventually { focused().contains("Temporada 2") }
             }.also { if (!it) failures++ }
+            runCase("collections-grid-detail-dpad-back") { collectionsNavigation() }
+                .also { if (!it) failures++ }
+            runCase("collections-long-grid") { collectionsLongGrid() }
+                .also { if (!it) failures++ }
             runCase("reported-film-published-artwork") {
                 val title = CatalogRepository.parseCatalog("""{"schema_version":"1.2.0","items":[{
                     "id":"reported-film", "tipo":"pelicula", "titulo":"Los Ilusionistas: Nada es lo que Parece",
@@ -303,6 +307,71 @@ class TvDetailInstrumentation : Instrumentation() {
         activity?.let { previous -> runOnMainSync { previous.finish() }; waitForIdleSync() }
         activity = startActivitySync(Intent(targetContext,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         waitForIdleSync()
+    }
+
+    private fun collectionFixture(count: Int) = (0 until count).map { index ->
+        val titles = (0..11).map { movie("Saga $index película $it").copy(id="s$index-m$it", posterUrl=art("poster")) }
+        TvResolvedCollection(TvCatalogCollection("s$index", "Saga $index", "Descripción de prueba", "manual",
+            null, art("poster"), null, index, true, titles.map { it.id }), titles)
+    }
+
+    private fun collectionsNavigation() {
+        val collections = collectionFixture(3)
+        startLibraryFixture()
+        runOnMainSync {
+            (activity as ComponentActivity).setContent {
+                var selected by remember { mutableStateOf<TvResolvedCollection?>(null) }
+                var title by remember { mutableStateOf<Title?>(null) }
+                var gridFocus by remember { mutableStateOf<String?>(null) }
+                var movieFocus by remember { mutableStateOf<String?>(null) }
+                val grid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+                val members = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+                val back = { if (title != null) title = null else selected = null }
+                MaterialTheme {
+                    BackHandler(onBack = back)
+                    Box(Modifier.fillMaxSize().background(ComposeColor.Black)) {
+                        if (title != null) TvDetail(title!!, { true }, { _, _, _, _, _ -> })
+                        else if (selected != null) TvCollectionDetail(selected, true, members, movieFocus,
+                            { movieFocus = it }, back, { title = it })
+                        else TvCollectionsGrid(collections, grid, gridFocus, { gridFocus = it },
+                            { selected = it }, {})
+                    }
+                }
+            }
+        }
+        eventually { focused().contains("Saga 0") }
+        key(KeyEvent.KEYCODE_DPAD_RIGHT)
+        eventually { focused().contains("Saga 1") }
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { focused().contains("Volver") && hasText("Saga 1") }
+        key(KeyEvent.KEYCODE_DPAD_DOWN)
+        eventually { focused().contains("Saga 1 película 0") }
+        key(KeyEvent.KEYCODE_DPAD_RIGHT)
+        eventually { focused().contains("Saga 1 película 1") }
+        key(KeyEvent.KEYCODE_DPAD_CENTER)
+        eventually { focused().contains("Reproducir") }
+        key(KeyEvent.KEYCODE_BACK)
+        eventually { focused().contains("Saga 1 película 1") }
+        key(KeyEvent.KEYCODE_BACK)
+        eventually { focused().contains("Saga 1") && !focused().contains("película") }
+    }
+
+    private fun collectionsLongGrid() {
+        val collections = collectionFixture(120)
+        startLibraryFixture()
+        runOnMainSync {
+            (activity as ComponentActivity).setContent {
+                MaterialTheme {
+                    TvCollectionsGrid(collections, androidx.compose.foundation.lazy.grid.rememberLazyGridState(),
+                        null, {}, {}, {})
+                }
+            }
+        }
+        eventually { focused().contains("Saga 0") }
+        repeat(12) { key(KeyEvent.KEYCODE_DPAD_DOWN) }
+        check(focused().contains("Saga ") && !focused().endsWith("Saga 0"))
+        repeat(12) { key(KeyEvent.KEYCODE_DPAD_UP) }
+        eventually { focused().contains("Saga 0") }
     }
 
     private fun memoryLibrary() = TvPersonalLibraryStore(object : TvLibraryStorage {

@@ -507,3 +507,10 @@ Usamos el paquete comunitario io.github.tdlib-android:core:0.1.1, que distribuye
 MainActivity.kt mantiene la interfaz existente y abre la ruta de reproducción. TelegramSession.kt guarda la sesión de TDLib dentro de la aplicación, resuelve los enlaces y solicita rangos. TelegramVideo.kt implementa la caché acotada y el DataSource de Media3. PlaybackScreen.kt muestra autenticación, buffering y PlayerView. Catalog.kt mantiene la descarga, validación y caché del catálogo; Cloudflare Worker y MiFlix Admin no se modifican.
 
 La compilación automatizada de GitHub Actions ejecuta tests y assemble de ambas variantes y adjunta el APK. Que la compilación pase confirma dependencias y código, pero el inicio de sesión y la reproducción deben verificarse en un teléfono con cuenta autorizada y una publicación real con video.
+
+## Android TV 0.1.14
+
+Rama `feature/tv-0.1.14-collections-genres`, versión `0.1.14-diagnostico / 15`.
+Sagas destacadas por proceso, sección Colecciones, detalle ordenado y géneros separados por tipo.
+[Contrato, compilación, firma y pruebas físicas](docs/TV_0.1.14_COLECCIONES_GENEROS.md).
+No validada todavía en TV físico. Mobile y motor de reproducción conservados.

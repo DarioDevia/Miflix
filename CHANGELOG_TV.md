@@ -1,3 +1,12 @@
+## 0.1.14-diagnostico / 15
+
+- Sagas destacadas: hasta diez colecciones públicas por proceso, rotación entre procesos y actualización estable.
+- Menú Colecciones, detalle con miembros por ID MiFlix en orden Admin, retorno y foco existentes.
+- Géneros locales con normalización de escritura, separados por películas/series/anime y listas lazy.
+- Catálogos anteriores compatibles; datos opcionales inválidos no impiden títulos.
+- Reproducción, intro, Hero y biblioteca 0.1.13 protegidos por contratos byte a byte.
+- Pruebas y CI: consultar docs/TV_0.1.14_COLECCIONES_GENEROS.md. Validación física pendiente.
+
 # Historial de MiFlix TV
 
 ## 0.1.13-diagnostico / 14

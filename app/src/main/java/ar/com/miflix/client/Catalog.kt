@@ -15,7 +15,8 @@ import java.util.concurrent.TimeUnit
 data class Catalog(
     @SerializedName("schema_version") val schemaVersion: String = "",
     @SerializedName("actualizado_en") val updatedAt: String? = null,
-    val items: List<Title> = emptyList()
+    val items: List<Title> = emptyList(),
+    val tvCollections: List<TvCatalogCollection> = emptyList()
 )
 
 data class Title(
@@ -182,6 +183,9 @@ class CatalogRepository(private val context: Context) {
             require(Regex("^1(\\.[0-9]+){0,2}$").matches(version) || version == "2") {
                 "Versión de catálogo incompatible: $version"
             }
+            val collections = if (BuildConfig.IS_TV) parseTvCatalogCollections(root) else emptyList()
+            // Optional metadata must not be reflectively decoded into the title model.
+            root.remove("tvCollections")
             val array = root.getAsJsonArray("items") ?: error("Falta items.")
             val ids = mutableSetOf<String>()
             for (entry in array) {
@@ -199,12 +203,18 @@ class CatalogRepository(private val context: Context) {
                     val text = optionalText(item, field)
                     if (text == null) item.remove(field) else item.addProperty(field, text)
                 }
+                if (BuildConfig.IS_TV) {
+                    val genres = item.get("generos")?.takeIf { it.isJsonArray }?.asJsonArray
+                        ?.filter { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+                        ?.map { it.asString }.orEmpty()
+                    item.add("generos", Gson().toJsonTree(genres))
+                }
                 // TV discovery is optional; invalid metadata never blocks the catalog.
                 val addedAt = if (BuildConfig.IS_TV) optionalText(item, "fecha_agregado") else null
                 if (addedAt == null) item.remove("fecha_agregado") else item.addProperty("fecha_agregado", addedAt)
                 if (version != "2") normalizeAdminFields(item)
             }
-            if (version != "2") return Gson().fromJson(root, Catalog::class.java)
+            if (version != "2") return Gson().fromJson(root, Catalog::class.java).copy(tvCollections = collections)
 
             // El Worker del índice de anime publica una lista de publicaciones por título.
             // No inventamos temporadas o episodios: cada enlace es una publicación independiente.
@@ -253,7 +263,7 @@ class CatalogRepository(private val context: Context) {
                 )
             }
             return Catalog(schemaVersion = version, updatedAt = root.get("generated_at")?.asString,
-                items = titles)
+                items = titles, tvCollections = collections)
         }
     }
 }
