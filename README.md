@@ -3,12 +3,20 @@
 | Variante | versionName | versionCode | applicationId | APK debug |
 | --- | --- | --- | --- | --- |
 | Mobile | 0.9.2-diagnostico | 26 | ar.com.miflix.client | app-mobile-debug.apk |
-| TV | 0.1.13-diagnostico | 14 | ar.com.miflix.client.tv | app-tv-debug.apk |
+| TV | 0.1.15-diagnostico | 16 | ar.com.miflix.client.tv | app-tv-debug.apk |
 
 TV se desarrolla en `miflix-tv`, basada en `miflix-cliente` HEAD
 `b3b3156cb6aff846822d591317f9f377c5d2df4c` (README corregido), que contiene
 el commit funcional móvil validado `5d896013478f8126c2dac3ed2f692fc305904509`.
 La rama móvil no se modifica. Cada variante conserva su propio versionado.
+
+## MiFlix TV 0.1.15: candidata Google TV Home
+
+Rama `feature/tv-0.1.15-google-home`, desde la estable 0.1.14 e20be389.
+Recomendaciones automáticas, canal heredado único y apertura de fichas reutilizan el experimento validado.
+Sin pantalla de sonda ni servicio permanente. TV no incorpora credenciales del desarrollador:
+configuración personal en Conectar Telegram. Firma familiar y validación física pendientes.
+[Arquitectura, seguridad, firma, compilación y pruebas](docs/TV_0.1.15_GOOGLE_HOME.md).
 
 ## MiFlix TV 0.1.13: biblioteca personal
 

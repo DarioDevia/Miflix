@@ -1,0 +1,62 @@
+name: Validar candidata TV 0.1.15 Home
+on:
+  push:
+    branches: [feature/tv-0.1.15-google-home]
+    paths: ['app/**', 'tools/**', '.github/workflows/tv015-home-validation.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Contratos y herramientas locales
+        run: |
+          python3 tools/check_tv015_home_contract.py
+          python3 tools/test_tv_physical_apk.py
+          python3 tools/test_locate_tv_apk.py
+      - name: Sintaxis PowerShell sin claves ni ADB
+        shell: pwsh
+        run: |
+          foreach ($script in @('tools/build_tv_physical_debug.ps1','tools/sign_tv_candidate.ps1')) {
+            $tokens=$null; $parseErrors=$null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $script),[ref]$tokens,[ref]$parseErrors) | Out-Null
+            if ($parseErrors.Count) { $parseErrors | Format-List; exit 1 }
+          }
+      - name: Tests Lint y compilaciones sin credenciales
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:testTvDebugUnitTest :app:testTvReleaseUnitTest :app:testMobileDebugUnitTest :app:lintTvDebug :app:lintTvRelease :app:lintMobileDebug :app:assembleTvDebug :app:assembleTvRelease :app:assembleMobileDebug --console=plain '-Pandroid.injected.testOnly=false' '-Pandroid.injected.build.abi=armeabi-v7a,arm64-v8a,x86,x86_64'
+      - name: Inspeccion real y artefactos candidatos
+        run: |
+          set -euo pipefail
+          mkdir -p tv015-delivery
+          apk=$(python3 tools/locate_tv_apk.py)
+          release=$(python3 tools/locate_tv_apk.py --variant tvRelease)
+          mobile=$(python3 tools/locate_tv_apk.py --variant mobileDebug)
+          signer=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          python3 tools/inspect_tv015_apks.py --debug "$apk" --release "$release" --mobile "$mobile" --apksigner "$signer" > tv015-delivery/packaging-and-security.json
+          python3 tools/summarize_tv015_validation.py > tv015-delivery/validation-summary.json
+          cp "$apk" tv015-delivery/MiFlix-TV-0.1.15-candidate-CI-debug.apk
+          cp "$release" tv015-delivery/MiFlix-TV-0.1.15-candidate-unsigned.apk
+          "$signer" verify --print-certs "$apk" > tv015-delivery/ci-debug-certificate.txt
+          sha256sum tv015-delivery/*.apk > tv015-delivery/SHA256SUMS.txt
+          ./gradlew :app:dependencies --configuration mobileDebugRuntimeClasspath --console=plain > tv015-delivery/mobile-dependencies.txt
+          ! grep -q 'androidx.tvprovider:tvprovider' tv015-delivery/mobile-dependencies.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TV-0.1.15-candidata-validacion
+          path: |
+            app/build/reports/
+            tv015-delivery/
+          if-no-files-found: warn

@@ -1,12 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="com.android.providers.tv.permission.WRITE_EPG_DATA" />
+    <!-- Removed from the library merge: deprecated on the supported API levels. -->
+    <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" tools:node="remove" />
     <uses-feature android:name="android.software.leanback" android:required="true" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <application android:label="MiFlix TV" android:banner="@drawable/miflix_tv_banner" tools:replace="android:label">
-        <activity android:name=".MainActivity" android:exported="true" android:theme="@style/Theme.MiFlix.TV" android:screenOrientation="landscape" android:hardwareAccelerated="true">
+        <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask" android:theme="@style/Theme.MiFlix.TV" android:screenOrientation="landscape" android:hardwareAccelerated="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Legacy authority retained so previously published generated artwork keeps loading. -->
+        <provider android:name=".TvHomeImages" android:authorities="${applicationId}.homeprobe.images"
+            android:exported="true" android:grantUriPermissions="false" />
     </application>
 </manifest>

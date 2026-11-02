@@ -64,6 +64,18 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private val homeEntry = TvHomeIntegration()
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        homeEntry.receive(intent)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        homeEntry.save(outState)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         Log.d("MiFlixPlayback", "ORIENTATION_CHANGE orientation=${newConfig.orientation} " +
@@ -78,6 +90,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        homeEntry.create(intent, savedInstanceState)
         val preferences = getSharedPreferences("miflix_client", MODE_PRIVATE)
         val repository = CatalogRepository(this)
         val showTvIntro = BuildConfig.IS_TV && TvIntroProcess.session.claim(savedInstanceState != null)
@@ -85,6 +98,7 @@ class MainActivity : ComponentActivity() {
             TvStartupGate(showTvIntro) {
             TvPersonalLibraryHost {
                 ClientApp(
+                    homeEntry = homeEntry,
                     repository = repository,
                     initialUrl = startupCatalogUrl(preferences.getString("catalog_url", null)),
                     initialInvite = preferences.getString("channel_invite", "").orEmpty(),
@@ -153,6 +167,7 @@ private fun openTelegram(context: Context, link: String) {
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 private fun ClientApp(
+    homeEntry: TvHomeIntegration,
     repository: CatalogRepository,
     initialUrl: String,
     initialInvite: String,
@@ -329,6 +344,20 @@ private fun ClientApp(
         detailReturnScreen = screen
         selectedId = title.id
         screen = Screen.DETAIL
+    }
+    homeEntry.ObserveCatalog(catalog, collectionsReady && !busy && problem == null)
+    homeEntry.Dispatch(titles, collectionsReady && !busy, telegramState is TelegramSession.State.Ready) { title ->
+        // Only TV dispatches: use the normal detail and Back route, never playback.
+        pendingResume = null
+        pendingNavigation = null
+        playbackIssue = null
+        episodeTransition = false
+        fullscreen = false
+        if (telegramState is TelegramSession.State.Ready) {
+            screen = Screen.HOME
+            selectedId = null
+            if (title != null) openDetail(title)
+        }
     }
     fun startPlayback(key: String, link: String, name: String, positionMs: Long,
         previous: EpisodeNavigationTarget?, next: EpisodeNavigationTarget?) {
@@ -1064,8 +1093,7 @@ private fun SettingsScreen(
             }
         }
         item { SectionHeading("Canal de Telegram") }
-        if (BuildConfig.IS_TV) tvTelegramSetupMessage(BuildConfig.TELEGRAM_API_ID,
-            BuildConfig.TELEGRAM_API_HASH.isNotBlank())?.let { message ->
+        if (BuildConfig.IS_TV) tvHomeCredentialMessage()?.let { message ->
             item { Text(message, color = MiFlixStyle.secondaryText) }
         }
         item { Text("Cada persona abre la invitación y se une con su propia cuenta de Telegram.",

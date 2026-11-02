@@ -12,8 +12,8 @@ from verify_tv_physical_apk import INTRO_SHA256, INTRO_SIZE, REQUESTS_QR_SHA256,
 class PackagingPolicyTest(unittest.TestCase):
     def setUp(self):
         self.provenance=json.loads(PROVENANCE.read_text())
-        self.report={"package":"ar.com.miflix.client.tv","versionName":"0.1.14-diagnostico",
-            "versionCode":15,"minSdk":26,"targetSdk":34,"testOnly":False,"debuggable":True,
+        self.report={"package":"ar.com.miflix.client.tv","versionName":"0.1.15-diagnostico",
+            "versionCode":16,"minSdk":26,"targetSdk":34,"testOnly":False,"debuggable":True,
             "leanbackRequired":True,"touchscreenRequired":False,"leanbackLauncher":True,
             "tvLibraryBackupExcluded":True,
             "requestsQr":{"sha256":REQUESTS_QR_SHA256,"size":REQUESTS_QR_SIZE},
@@ -65,11 +65,11 @@ class PackagingPolicyTest(unittest.TestCase):
 
 class FrozenSourcesTest(unittest.TestCase):
     def test_protected_sources_and_progress_remain_exact(self):
-        from check_tv014_contract import Tv014Contracts
-        Tv014Contracts().test_protected_runtime_sources_byte_exact()
+        from check_tv015_home_contract import Tv015HomeContracts
+        Tv015HomeContracts().test_protected_runtime_sources_byte_exact()
     def test_only_tv_version_changes_and_arm_configuration_is_identical(self):
-        from check_tv014_contract import Tv014Contracts
-        Tv014Contracts().test_gradle_only_changes_tv_version()
+        from check_tv015_home_contract import Tv015HomeContracts
+        Tv015HomeContracts().test_gradle_scope_and_safe_tv_credentials()
 class IntroAssetPolicyTest(unittest.TestCase):
     setUp = PackagingPolicyTest.setUp
     errors = PackagingPolicyTest.errors

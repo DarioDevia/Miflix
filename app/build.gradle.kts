@@ -39,10 +39,14 @@ android {
         create("tv") {
             dimension = "device"
             applicationIdSuffix = ".tv"
+            // Private TV candidates never embed developer Telegram credentials, even on a configured PC.
+            // Existing per-device provisioning and stored credentials remain the authentication path.
+            buildConfigField("int", "TELEGRAM_API_ID", "0")
+            buildConfigField("String", "TELEGRAM_API_HASH", "\"\"")
             // These libraries already exist together in core:0.1.1. No native build here.
             ndk { abiFilters += setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64") }
-            versionCode = 15
-            versionName = "0.1.14-diagnostico"
+            versionCode = 16
+            versionName = "0.1.15-diagnostico"
             testInstrumentationRunner = "ar.com.miflix.client.TvDetailInstrumentation"
             buildConfigField("boolean", "IS_TV", "true")
         }
@@ -57,6 +61,7 @@ android {
 }
 
 dependencies {
+    add("tvImplementation", "androidx.tvprovider:tvprovider:1.1.0")
     implementation(platform("androidx.compose:compose-bom:2024.02.00"))
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.activity:activity-compose:1.8.2")

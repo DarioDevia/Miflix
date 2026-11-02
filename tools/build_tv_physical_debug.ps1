@@ -13,9 +13,12 @@ if (-not (Test-Path $apksigner)) { throw 'Official apksigner.bat not found.' }
 $null = Get-Command py -ErrorAction Stop
 Push-Location (Split-Path $PSScriptRoot -Parent)
 try {
+    if (-not (Test-Path (Join-Path $env:USERPROFILE '.android\debug.keystore') -PathType Leaf)) {
+        throw 'Original local debug key missing. Restore it; do not generate another identity to update an existing installation.'
+    }
     # Explicit target set prevents carrying a single emulator ABI into this build.
     # testOnly=false is for this normal APK task only; no global/manifest override.
-    & .\gradlew.bat :app:testTvDebugUnitTest :app:testMobileDebugUnitTest :app:lintTvDebug :app:lintMobileDebug :app:assembleTvDebug `
+    & .\gradlew.bat :app:testTvDebugUnitTest :app:testTvReleaseUnitTest :app:testMobileDebugUnitTest :app:lintTvDebug :app:lintTvRelease :app:lintMobileDebug :app:assembleTvDebug :app:assembleTvRelease :app:assembleMobileDebug `
         '-Pandroid.injected.build.abi=armeabi-v7a,arm64-v8a,x86,x86_64' `
         '-Pandroid.injected.testOnly=false'
     if ($LASTEXITCODE -ne 0) { throw 'Gradle failed. Do not distribute the APK.' }
@@ -23,5 +26,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Cannot locate a unique TV Debug APK from AGP metadata.' }
     & py -3 tools/verify_tv_physical_apk.py $tvApkPath --apksigner $apksigner
     if ($LASTEXITCODE -ne 0) { throw 'APK inspection failed. Do not distribute the APK.' }
+    $releasePath = & py -3 tools/locate_tv_apk.py --variant tvRelease
+    $mobilePath = & py -3 tools/locate_tv_apk.py --variant mobileDebug
+    & py -3 tools/inspect_tv015_apks.py --debug $tvApkPath --release $releasePath --mobile $mobilePath --apksigner $apksigner
+    if ($LASTEXITCODE -ne 0) { throw 'Home/security/variant inspection failed.' }
     Write-Host 'Packaging and signature checked; installation/playback on a physical TV remain pending.'
 } finally { Pop-Location }

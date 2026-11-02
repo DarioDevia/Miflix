@@ -1,3 +1,12 @@
+## 0.1.15-diagnostico / 16 — candidata
+
+- Migra selectivamente Google TV Home a TV Debug/Release: selección validada, reconciliación conservadora y apertura de la ficha existente.
+- Publicación oportunista desde catálogo válido en primer plano, sin otra descarga de catálogo ni servicio periódico; coalescing y espera ante fallos.
+- Canal propio único sin fijar ID 2; imágenes horizontales cacheadas/acotadas y proveedor sólo de PNG públicos.
+- API ID/hash del desarrollador excluidos de TV. Formulario TV personal mediante la autenticación existente; sesiones/credenciales excluidas de backup TV.
+- Preserva reproducción, intro, Hero, biblioteca y catálogo. Mobile permanece funcionalmente aislado.
+- Candidata: firma compatible, aprovisionamiento familiar y validación física requieren comprobación local. No es distribución final autorizada.
+
 ## 0.1.14-diagnostico / 15
 
 - Sagas destacadas: hasta diez colecciones públicas por proceso, rotación entre procesos y actualización estable.

@@ -1,6 +1,6 @@
 """Inspect only manifest/native packaging, never DEX, sessions or BuildConfig.
 
-Default mode requires a signed universal TV 0.1.14 debug APK and Android apksigner.
+Default mode requires a signed universal TV 0.1.15 debug APK and Android apksigner.
 --inspect diagnoses older APKs without claiming verification or installability.
 Uses Python 3 standard library; does not execute or modify the APK.
 """
@@ -104,8 +104,8 @@ def inspect_apk(path):
 
 def packaging_errors(report, provenance):
     errors=[]
-    expected = {"package":"ar.com.miflix.client.tv", "versionName":"0.1.14-diagnostico",
-        "versionCode":15,"minSdk":26,"targetSdk":34,"testOnly":False,"debuggable":True,
+    expected = {"package":"ar.com.miflix.client.tv", "versionName":"0.1.15-diagnostico",
+        "versionCode":16,"minSdk":26,"targetSdk":34,"testOnly":False,"debuggable":True,
         "leanbackRequired":True,"touchscreenRequired":False,"leanbackLauncher":True,
         "cleartextTraffic":False,"tvLibraryBackupExcluded":True}
     for key,value in expected.items():
@@ -114,7 +114,7 @@ def packaging_errors(report, provenance):
         errors.append("Original TV intro MP4 missing or altered (path/hash/size)")
     if report.get("requestsQr") != {"sha256": REQUESTS_QR_SHA256, "size": REQUESTS_QR_SIZE}:
         errors.append("Exact public-contact QR missing or altered")
-    allowed = {"android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE",
+    allowed = {"com.android.providers.tv.permission.WRITE_EPG_DATA", "android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE",
         "ar.com.miflix.client.tv.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"}
     if not set(report.get("permissions",[])) <= allowed:
         errors.append("Unexpected permissions; inspect merged manifest before distribution")
@@ -156,7 +156,7 @@ def main():
             print("REJECTED: " + "; ".join(errors),file=sys.stderr)
             return 1
         verify_signature(args.apksigner,args.apk)
-        print("PASS: inspected TV 0.1.14 debug packaging and signature. Physical installation/playback still untested.")
+        print("PASS: inspected TV 0.1.15 debug packaging and signature. Physical installation/playback still untested.")
         return 0
     except (OSError,ValueError,KeyError,IndexError,struct.error,BadZipFile) as error:
         print("REJECTED: " + str(error),file=sys.stderr)

@@ -3,9 +3,17 @@
     <cloud-backup>
         <exclude domain="sharedpref" path="miflix_playback_progress.xml" />
         <exclude domain="sharedpref" path="miflix_tv_library.xml" />
+        <exclude domain="sharedpref" path="miflix_telegram.xml" />
+        <exclude domain="sharedpref" path="miflix_home_probe.xml" />
+        <exclude domain="file" path="tdlib/" />
+        <exclude domain="file" path="tv_home_probe_art/" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="miflix_playback_progress.xml" />
         <exclude domain="sharedpref" path="miflix_tv_library.xml" />
+        <exclude domain="sharedpref" path="miflix_telegram.xml" />
+        <exclude domain="sharedpref" path="miflix_home_probe.xml" />
+        <exclude domain="file" path="tdlib/" />
+        <exclude domain="file" path="tv_home_probe_art/" />
     </device-transfer>
 </data-extraction-rules>

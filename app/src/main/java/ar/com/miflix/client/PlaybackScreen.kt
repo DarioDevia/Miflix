@@ -216,8 +216,7 @@ private fun TelegramLogin(
                 if (BuildConfig.TELEGRAM_API_ID > 0 && BuildConfig.TELEGRAM_API_HASH.isNotBlank()) {
                     CircularProgressIndicator()
                 } else {
-                    if (BuildConfig.IS_TV) Text(tvTelegramSetupMessage(BuildConfig.TELEGRAM_API_ID,
-                        BuildConfig.TELEGRAM_API_HASH.isNotBlank()).orEmpty())
+                    if (BuildConfig.IS_TV) TvHomeCredentials(session)
                     else {
                         Text("Esta compilación no está preparada para conectar Telegram. Pedile al administrador la APK familiar configurada.")
                         Text("Diagnóstico de desarrollo: falta la configuración privada de Telegram durante la compilación.")
