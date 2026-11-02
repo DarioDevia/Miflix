@@ -15,6 +15,21 @@ class ProbeContract(unittest.TestCase):
             after=(ROOT/path).read_bytes()
             if path=='app/build.gradle.kts':after=after.decode().replace(ADDITION,'').replace(SOURCE_SET,'').encode()
             self.assertEqual(before,after,path)
+    def test_working_image_and_app_opening_paths_are_preserved(self):
+        path='app/src/tvDebug/java/ar/com/miflix/client/TvHomeProbeActivity.kt'
+        old=subprocess.check_output(['git','show','1bed37f520dd14bb1f34ed35dda7dfbf76a11e69:'+path],cwd=ROOT,text=True)
+        new=(ROOT/path).read_text()
+        for start,end in [('    private fun appIntent(', '    private data class OwnChannel'),
+            ('    private fun image(', '    private suspend fun publish(')]:
+            self.assertEqual(old[old.index(start):old.index(end)],new[new.index(start):new.index(end)])
+    def test_ten_releases_have_no_synthetic_or_year_fallback(self):
+        source=(ROOT/'app/src/tvDebug/java/ar/com/miflix/client/TvHomeProbeReleases.kt').read_text()
+        self.assertIn('HOME_PROBE_LIMIT = 10',source)
+        self.assertIn('date>today',source)
+        self.assertIn('HOME_PROBE_DISPLAY_NAME = "MiFlix TV"',source)
+        self.assertIn('"MiFlix - Prueba Home"',source)
+        for forbidden in ('fecha_agregado','fecha_emision','setOf(2026','LocalDate.of(title.year','PRUEBA SINTÉTICA'):
+            self.assertNotIn(forbidden,source)
     def test_only_required_epg_write_permission_survives_library_manifest(self):
         root=ET.parse(ROOT/'app/src/tvDebug/AndroidManifest.xml').getroot()
         android='{http://schemas.android.com/apk/res/android}';tools='{http://schemas.android.com/tools}'

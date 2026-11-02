@@ -7,29 +7,30 @@ class TvHomeProbePolicyTest {
     private fun movie(id:String,type:String="pelicula") = Title(id=id,tipo=type,titulo="Título $id",
         telegramUrl="https://t.me/c/1/1",backdropUrl="https://artwork.test/$id.jpg")
     private fun desired(key:String="a",title:String="A") = HomeProbeDesired(HOME_PROBE_PREFIX+key,mapOf("title" to title))
-    @Test fun noCatalogCreatesFiveClearlyMarkedFixtures() {
-        val cards=homeProbeCards(emptyList())
-        assertEquals(5,cards.size);assertTrue(cards.all { it.synthetic && it.title.startsWith("PRUEBA SINTÉTICA") })
-        assertEquals(5,cards.map { it.key }.distinct().size)
+    private val today=java.time.LocalDate.of(2026,11,1)
+    private fun select(titles:List<Title>)=homeProbeCards(HomeProbeCatalog(titles,
+        titles.associate { it.id to HomeProbeDate(java.time.LocalDate.of(2026,1,1)) }),today).cards
+    @Test fun noCatalogCreatesNoSyntheticFixtures() {
+        assertTrue(homeProbeCards(HomeProbeCatalog(emptyList(),emptyMap()),today).cards.isEmpty())
     }
-    @Test fun fiveAvailableCatalogItemsRemainRealAndBalancedAcrossTypes() {
-        val cards=homeProbeCards(listOf(movie("m1"),movie("m2"),movie("m3"),movie("s","serie"),movie("a","anime")))
-        assertEquals(5,cards.size);assertFalse(cards.any { it.synthetic })
-        assertEquals(listOf("pelicula","serie","anime"),cards.take(3).map { it.type })
+    @Test fun availableDatedItemsAreRealAndStableAtDateTies() {
+        val cards=select(listOf(movie("m"),movie("s","serie"),movie("a","anime")))
+        assertEquals(listOf("Título a","Título m","Título s"),cards.map { it.title })
+        assertFalse(cards.any { it.synthetic })
     }
-    @Test fun insufficientCatalogFillsOnlyMissingSlotsAndRejectsUnplayableEntries() {
-        val cards=homeProbeCards(listOf(movie("m"),movie("bad").copy(telegramUrl=null)))
-        assertEquals(1,cards.count { !it.synthetic });assertEquals(4,cards.count { it.synthetic })
+    @Test fun insufficientCatalogPublishesOnlyRealAvailableEntries() {
+        val cards=select(listOf(movie("m"),movie("bad").copy(telegramUrl=null)))
+        assertEquals(1,cards.size);assertFalse(cards.any { it.synthetic })
     }
     @Test fun sameIdsAreStableAcrossMetadataUpdatesAndNoTelegramUrlLeaksInKeys() {
-        val first=homeProbeCards(listOf(movie("m"))).first()
-        val next=homeProbeCards(listOf(movie("m").copy(titulo="Nuevo nombre"))).first()
+        val first=select(listOf(movie("m"))).first()
+        val next=select(listOf(movie("m").copy(titulo="Nuevo nombre"))).first()
         assertEquals(first.key,next.key);assertEquals(64,first.key.removePrefix(HOME_PROBE_PREFIX).length)
         assertFalse(first.key.contains("t.me"));assertEquals("Nuevo nombre",next.title)
     }
     @Test fun duplicatesNeverCreateRepeatedCardsAndImagesOnlyUsePublishedBackdrops() {
-        val cards=homeProbeCards(listOf(movie("m"),movie("m"),movie("n").copy(backdropUrl=null)))
-        assertEquals(2,cards.count { !it.synthetic });assertEquals(5,cards.map { it.key }.distinct().size)
+        val cards=select(listOf(movie("m"),movie("m"),movie("n").copy(backdropUrl=null)))
+        assertEquals(2,cards.size);assertEquals(2,cards.map { it.key }.distinct().size)
         assertEquals("https://artwork.test/m.jpg",cards.first().image);assertNull(cards[1].image)
     }
     @Test fun firstRunInsertsEachDesiredProgram() {

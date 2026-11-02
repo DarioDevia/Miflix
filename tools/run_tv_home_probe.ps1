@@ -36,7 +36,8 @@ try {
     Write-Host 'Consultar sólo el tag de sonda, sin volcar Logcat global:'
     Write-Host "& '$adb' -s '$Serial' logcat -d -s MiFlixHomeProbe:I '*:S'"
     Write-Host 'Cuando aparezca PROGRAMAS_VERIFICADOS, solicitar visibilidad desde la sonda y abrir Home.'
-    Write-Host 'Publicar una segunda vez debe dar upserts=0 y duplicados=0 si el catálogo no cambió.'
+    Write-Host 'Publicar una segunda vez debe dar upserts=0 y duplicados=0 si el catálogo y la fecha de corte no cambiaron.'
+    Write-Host 'Sin fecha completa no se publican títulos: revisar sinFecha y faltan. Nunca se inventan días o tarjetas.'
     Write-Host 'Sólo la inspección visual de LauncherX permite nivel 4. Abrir MiFlix es una prueba intermedia; ficha directa pendiente.'
 } finally {
     $env:JAVA_HOME=$previousJavaHome

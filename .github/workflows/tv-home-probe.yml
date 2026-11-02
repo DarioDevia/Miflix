@@ -21,6 +21,13 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Contrato de aislamiento
         run: python3 tools/check_tv_home_probe_contract.py
+      - name: Sintaxis PowerShell (sin ejecutar ADB ni leer configuración)
+        shell: pwsh
+        run: |
+          $tokens=$null
+          $parseErrors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path tools/run_tv_home_probe.ps1),[ref]$tokens,[ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count) { $parseErrors | Format-List; exit 1 }
       - name: Tests, Lint y compilación (no emulador)
         run: |
           chmod +x gradlew
@@ -33,7 +40,7 @@ jobs:
           release=$(python3 tools/locate_tv_apk.py --variant tvRelease)
           mobile=$(python3 tools/locate_tv_apk.py --variant mobileDebug)
           signer=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
-          cp "$apk" home-probe-delivery/MiFlix-TV-0.1.14-HomeProbe-CI-debug.apk
+          cp "$apk" home-probe-delivery/MiFlix-TV-0.1.14-Home10-CI-debug.apk
           python3 tools/inspect_tv_home_probe_apk.py --debug "$apk" --release "$release" --mobile "$mobile" --apksigner "$signer" > home-probe-delivery/packaging.json
           "$signer" verify --print-certs "$apk" > home-probe-delivery/ci-certificate.txt
           sha256sum home-probe-delivery/*.apk > home-probe-delivery/SHA256SUMS.txt
@@ -44,7 +51,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: TV-HomeProbe-validacion-nivel1
+          name: TV-Home10-validacion
           path: |
             app/build/reports/
             home-probe-delivery/

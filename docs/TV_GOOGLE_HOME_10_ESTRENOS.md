@@ -1,0 +1,188 @@
+# MiFlix Google TV Home — hasta 10 estrenos con fecha completa
+
+## Base y prueba real anterior
+
+Base remota verificada: `experiment/tv-google-home-probe-work`,
+`1bed37f520dd14bb1f34ed35dda7dfbf76a11e69`. La rama estable 0.1.14 y sus fuentes
+se conservan. Versión experimental sin cambio: 0.1.14-diagnostico / 15, mismo package.
+
+El usuario confirmó nivel 4 en Google TV API 36: fila MiFlix TV con cinco carátulas
+reales. Se registra como evidencia aportada por el usuario; Work no volvió a observar
+el emulador. No se reconstruye la integración ni se cambia TvProvider/PreviewProgram.
+Nivel 5 pendiente: los enlaces existentes abren MiFlix, no la ficha específica.
+
+No hay acceso desde Work a la PC ni al worktree Windows. La corrección local no estaba
+en el HEAD remoto; se incorpora su compatibilidad por el nombre informado, sin afirmar
+que se recuperó el archivo local ni sobrescribirlo. Publicación con comparación de HEAD.
+
+## Decisión explícita y bloqueo de datos
+
+El usuario eligió **exigir fecha completa**, aceptando menos de diez o ninguna tarjeta.
+No se sustituye con año, fecha_agregado, posición del JSON, ID Telegram, sincronización,
+fecha actual ni fecha de una temporada/episodio. No se rellenan huecos con fixtures.
+
+Inventario de código real (sin abrir credenciales):
+- `catalogo.schema.json` y `Title`: año en `year`; compatibilidad de lectura de `anio`.
+- Admin Android actual consultado:
+  `feature/admin-0.1.11-cloudflare-collections`, `b0829c1963354ba6e1c659948e18708f6c63c13d`.
+  `Metadata.kt` recorta release_date/first_air_date de TMDB a cuatro caracteres al guardar
+  `anio`. Para AniList guarda seasonYear como anio. No conserva una fecha completa de
+  estreno del título en ese flujo.
+- `fecha_emision` existe en temporadas y episodios: es emisión de ESA parte, no estreno
+  de la serie. Ni siquiera la fecha de T1 se utiliza como sustituto implícito.
+- Mobile consultado: `feature/mobile-0.9.14-collections`,
+  `85671548a4a696f22eb4fcc408c7b801c4ad3065`; no aporta una fecha completa al modelo Title.
+- El catálogo de producción no se obtuvo desde Work; en el entorno previo devuelve 403.
+  No se inventa un inventario de sus fechas actuales. No se accede al relay administrativo
+  ni a tokens para enriquecer datos. Admin y Worker quedan intactos.
+
+**Limitación imprescindible:** el catálogo generado únicamente por esos flujos puede
+carecer de todas las fechas necesarias. El selector no puede recuperar días/meses
+que no existen. En ese caso informa sinFecha y faltan, y publica cero títulos elegibles.
+Que compile no significa que el catálogo actual permita mostrar diez estrenos.
+
+## Lectura experimental de fechas
+
+`TvHomeProbeReleases.kt` lee el mismo JSON público en una estructura tvDebug separada;
+no modifica Catalog, Title ni el esquema remoto. Si existen en el JSON, admite campos
+opcionales completos en la RAÍZ de cada título:
+
+| Tipo | Fechas completas admitidas |
+| --- | --- |
+| Película | release_date o fecha_estreno |
+| Serie | first_air_date o fecha_estreno (estreno de la serie) |
+| Anime | first_air_date, release_date o fecha_estreno del título completo |
+
+Estas columnas opcionales son compatibilidad explícita, **no una afirmación de que
+Admin ya las publique ni de que existan actualmente en producción**. Los nombres
+release_date/first_air_date corresponden a los datos originales que Admin recorta.
+fecha_estreno se admite como campo inequívoco del título si está presente; no se crea.
+No se inspeccionan temporadas/episodios para obtener la fecha raíz. En anime la fecha
+se refiere al título (serie o película), no a su última temporada.
+
+Formato admitido: YYYY-MM-DD válido (incluidos años bisiestos, año >=1888 como el
+esquema de catálogo). Fechas parciales, formatos inválidos y valores de tipo distinto
+se excluyen individualmente. Campos completos contradictorios excluyen el título,
+en lugar de elegir silenciosamente uno. Si el año simple difiere de la fecha completa,
+manda la fecha completa y se informa discrepanciasAnio; no se inventa otra fecha.
+
+La fecha de corte proviene de LocalDate.now() en el dispositivo y se captura una sola
+vez por selección. No se fija 2026: al cambiar el año del sistema cambia la selección.
+Se excluye cualquier fecha posterior al día actual, incluso dentro de ese mismo año.
+Se ordena por fecha completa descendente: año actual, anterior y todos los anteriores
+necesarios; empates por ID estable. No se impone un límite de sólo un año de retroceso.
+Se deduplica por Title.id, se conservan los objetos originales y la política existente
+de disponibilidad. Se eligen hasta diez. faltan siempre es 10 menos el total elegido.
+
+## Canal, programas e imágenes
+
+- Nombre canónico único: MiFlix TV.
+- Se reconocen MiFlix TV, MiFlix y MiFlix - Prueba Home, además del marcador existente.
+- Se prefiere id=2 sólo tras comprobar dueño, tipo Preview e identidad reconocida.
+  Un id=2 de otra app, otro tipo o nombre ajeno no se adopta. Si fue eliminado,
+  se busca otro canal propio reconocido; no se fuerza ese número al proveedor.
+- No se borran canales existentes. Canales propios desconocidos provocan una salida
+  segura antes de crear otro. La preferencia local es una pista, no prueba de identidad.
+- Se actualiza el nombre del canal reconocido a MiFlix TV cuando sea necesario.
+- Mismo namespace de programas y claves SHA de ID MiFlix: se conservan identidades y
+  se actualizan metadatos/peso, en vez de crear una nueva familia de programas.
+- Pesos de diez a uno reflejan el orden elegido. El launcher controla cuántas tarjetas
+  dibuja y cuántas son visibles simultáneamente; no se promete ver diez en pantalla.
+- Se eliminan duplicados/obsoletos sólo del namespace administrado por esta sonda.
+  Registros desconocidos o heredados sin marcador quedan intactos.
+- Las funciones de imagen horizontal y apertura existentes son idénticas a la base.
+  No cambian APIs, dependencias, permisos ni el comportamiento de fichas/reproducción.
+
+## Actualización e idempotencia
+
+Cada sincronización relee la caché pública actual, incluidos los campos opcionales
+que el modelo estable no conserva pero sí el JSON original. Por tanto primero usar
+Actualizar en MiFlix cuando cambie el catálogo remoto, luego ejecutar la sonda. No
+hay una selección persistida para siempre. Si no existe una copia válida, se intenta
+el endpoint público fijo, sin credenciales. Un fallo de transporte/parseo aborta antes
+de tocar canal/programas y no se transforma en una lista vacía artificial.
+
+Un catálogo válido vacío o sin fechas elegibles SÍ produce selección vacía, según la
+regla estricta elegida. **Puede retirar las cinco tarjetas anteriores de la sonda y
+ocultar la fila hasta que existan fechas completas elegibles.** No borra datos de la
+biblioteca ni progreso ni programas ajenos. Esto es falta de datos, no fallo de API.
+
+Se verifica desde la propia app que el total propio coincide con el seleccionado,
+que los metadatos corresponden y que no quedan duplicados. Repetir con el mismo
+catálogo y fecha de corte produce cero upserts/eliminaciones. Al cambiar catálogo o
+hacerse elegible un estreno en un nuevo día, se actualizan sólo las diferencias.
+
+Logcat de diagnóstico, sin URLs/credenciales/IDs crudos del catálogo:
+- CANAL_EXISTENTE id=2 nombre=MiFlix TV (si efectivamente se reutiliza ese registro).
+- PROGRAMAS_VERIFICADOS propios=N reales=N sinteticos=0 faltan=10-N fuente=...
+- ESTRENOS anioActual=... fechaCorte=... sinFecha=... invalidas=... futuras=...
+  conflictivas=... discrepanciasAnio=...
+- CAMBIOS upserts=... eliminadosSonda=... browsable=... logoGuardado=...
+- SIN_FECHAS_COMPLETAS_ELEGIBLES cuando N=0.
+
+Los anteriores son patrones esperados, NO logs observados de esta nueva versión en
+el emulador. Work no tiene ADB ni acceso a emulator-5554; esa confirmación queda pendiente.
+
+## Cambios y pruebas
+
+Sólo tvDebug, sus tests, herramientas experimentales y documentación. Nuevos:
+TvHomeProbeReleases.kt y TvHomeProbeReleasesTest.kt. Cambios acotados:
+TvHomeProbeActivity, selección de TvHomeProbePolicy y sus cinco tests de selección,
+check_tv_home_probe_contract, mensaje del script PowerShell y workflow experimental.
+Los siete tests existentes de reconciliación de programas permanecen. Fuentes y tests
+estables de TV/Mobile siguen comparándose byte a byte con la base 0.1.14.
+
+Pruebas nuevas: 10/6/3/0 estrenos del año actual, límite diez, varios años de retroceso,
+orden por día, cambio automático de año, fechas futuras, ausentes/inválidas/parciales,
+bisiestos, conflictos, duplicados, catálogos incompletos, root versus temporadas,
+actualización/idempotencia y reconocimiento seguro del canal legado id=2.
+Se preservan exactamente los bloques existentes de imagen y apertura mediante contrato.
+
+CI ejecuta tests TV/Mobile, Lint TV Debug/TV Release/Mobile, compilaciones de las tres
+variantes, sintaxis PowerShell y el inspector de aislamiento de manifiestos/ABI/firma.
+Sin baseline ni supresiones. No inicia emuladores ni prueba visualmente LauncherX.
+Los resultados finales se incorporarán al cerrar la ejecución.
+
+## Windows: no sobrescribir el worktree con tu corrección local
+
+No usar reset --hard ni cambiar encima de archivos modificados. Abrir un worktree
+nuevo desde el repositorio existente, dejando intacto el anterior:
+
+```powershell
+cd C:\Users\devia\StudioProjects\Miflix-TV-HomeProbe-Work
+git status --short
+git fetch origin
+git worktree add ..\Miflix-TV-Home10-Work origin/experiment/tv-google-home-probe-work
+cd ..\Miflix-TV-Home10-Work
+```
+
+Conservar en esa carpeta tu configuración privada local habitual, sin publicarla ni
+compartirla; los worktrees no copian archivos ignorados. Usar la clave de firma local
+original. El script comprueba presencia de configuración, sin imprimir su contenido;
+no crea keystore, desinstala ni limpia datos.
+
+```powershell
+.\tools\run_tv_home_probe.ps1
+```
+
+Usa el JDK 17 y SDK existentes. Compila, ejecuta tests/Lint, instala con -r y abre la
+sincronización. Actualizar previamente el catálogo de MiFlix. No ejecutar esperando
+que un catálogo con sólo años produzca diez estrenos: el resultado estricto será vacío.
+
+Para repetir sin recompilar, una vez actualizada la app:
+
+```powershell
+$adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+& $adb -s emulator-5554 shell am start -n ar.com.miflix.client.tv/ar.com.miflix.client.TvHomeProbeActivity --es probe_action publish
+& $adb -s emulator-5554 logcat -d -s MiFlixHomeProbe:I '*:S'
+```
+
+Esperar al resultado en pantalla antes de repetir/volcar logs; no confundir registros
+anteriores del mismo tag con la nueva ejecución (comprobar hora y formato con faltan).
+Primera sincronización: N<=10, fechas no futuras, canal 2 si sigue reconocido. Segunda:
+mismo canal, N y orden, upserts=0, eliminadosSonda=0, duplicados=0. Inspeccionar después
+Home con el mando; Google TV decide su presentación. No declarar nivel 5 por abrir MiFlix.
+
+Si la fila queda vacía por falta de fechas, el bloqueo está documentado: poblar esos
+datos requerirá una tarea de catálogo/Admin fuera de este alcance, o cambiar la regla
+con autorización. Esta entrega no modifica producción para saltarse esa limitación.

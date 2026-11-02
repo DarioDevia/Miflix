@@ -64,7 +64,7 @@ class TvHomeProbeActivity : ComponentActivity() {
             val button=Button(this).apply { text=label;setOnClickListener { callback() } }
             controls += button; root.addView(button,ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT)
         }
-        action("Publicar / actualizar 5 tarjetas") { runProbe { publish() } }
+        action("Sincronizar hasta 10 estrenos reales") { runProbe { publish() } }
         action("Consultar canal y programas desde MiFlix") { runProbe { inspect() } }
         action("Solicitar visibilidad (API)") { requestVisibility(false) }
         action("Solicitar confirmación del sistema") { requestVisibility(true) }
@@ -118,15 +118,16 @@ class TvHomeProbeActivity : ComponentActivity() {
         return result
     }
     private fun findChannel(channels: List<OwnChannel>): OwnChannel? {
-        val eligible=channels.filter { it.marker==HOME_PROBE_CHANNEL || it.name=="MiFlix" }
-        val saved=prefs.getLong("channel_id",-1)
-        return eligible.firstOrNull { it.id==saved } ?: eligible.sortedWith(
-            compareBy<OwnChannel> { it.marker!=HOME_PROBE_CHANNEL }.thenBy { it.id }).firstOrNull()
+        val saved=runCatching { prefs.getLong("channel_id",-1) }.getOrDefault(-1)
+        val selected=homeProbeChannel(channels.map {
+            HomeProbeChannel(it.id,it.name,it.marker,packageName,true)
+        },packageName,saved)
+        return channels.firstOrNull { it.id==selected?.id }
     }
     private fun ensureChannel(): Pair<Long,Boolean> {
         val all=ownChannels()
         val old=findChannel(all)
-        val values=Channel.Builder().setType(TvContractCompat.Channels.TYPE_PREVIEW).setDisplayName("MiFlix")
+        val values=Channel.Builder().setType(TvContractCompat.Channels.TYPE_PREVIEW).setDisplayName(HOME_PROBE_DISPLAY_NAME)
             .setAppLinkIntentUri(Uri.parse(appIntent().toUri(Intent.URI_INTENT_SCHEME))).build().toContentValues()
             .apply { put("internal_provider_id",HOME_PROBE_CHANNEL) }
         val id=if(old!=null) old.id else {
@@ -135,7 +136,7 @@ class TvHomeProbeActivity : ComponentActivity() {
             ContentUris.parseId(contentResolver.insert(TvContractCompat.Channels.CONTENT_URI,values)
                 ?: error("No channel URI"))
         }
-        if(old!=null && old.marker!=HOME_PROBE_CHANNEL)
+        if(old!=null && (old.marker!=HOME_PROBE_CHANNEL || old.name!=HOME_PROBE_DISPLAY_NAME))
             check(contentResolver.update(TvContractCompat.buildChannelUri(id),values,null,null)==1)
         prefs.edit().putLong("channel_id",id).apply()
         if(old==null || prefs.getLong("logo_channel",-1)!=id) {
@@ -163,19 +164,21 @@ class TvHomeProbeActivity : ComponentActivity() {
         } }
         return result
     }
-    private suspend fun cards(): Pair<List<HomeProbeCard>,String> {
-        val cached=CatalogRepository(applicationContext).loadCached()
-        if(cached!=null && cached.items.orEmpty().isNotEmpty()) return homeProbeCards(cached.items) to "CACHE_LOCAL"
-        val downloaded=try {
+    private suspend fun cards(): Pair<HomeProbeSelection,String> {
+        // Read the latest complete public snapshot every sync; never rewrite the app catalog cache.
+        val cached=runCatching { homeProbeParseCatalog(File(filesDir,"catalogo.json").readText()) }.getOrNull()
+        val snapshot:HomeProbeCatalog
+        val source:String
+        if(cached!=null) { snapshot=cached;source="CACHE_LOCAL" }
+        else {
             val client=OkHttpClient.Builder().callTimeout(20,TimeUnit.SECONDS).build()
             val raw=client.newCall(Request.Builder().url(CatalogRepository.DEFAULT_URL).build()).execute().use {
                 check(it.isSuccessful);it.body?.string() ?: error("Empty response")
             }
-            require(raw.length<=6*1024*1024)
-            CatalogRepository.parseCatalog(raw)
-        } catch(cancelled:CancellationException) { throw cancelled }
-          catch(_:Exception) { null }
-        return homeProbeCards(downloaded?.items.orEmpty()) to if(downloaded!=null) "CATALOGO_PUBLICO" else "SOLO_FIXTURES"
+            snapshot=homeProbeParseCatalog(raw);source="CATALOGO_PUBLICO"
+        }
+        // Any transport/parser failure aborts before channel/program mutations, never becomes [] or fixtures.
+        return homeProbeCards(snapshot,java.time.LocalDate.now()) to source
     }
     private fun image(card: HomeProbeCard): Uri {
         card.image?.let { return Uri.parse(it) }
@@ -201,14 +204,15 @@ class TvHomeProbeActivity : ComponentActivity() {
     }
     private suspend fun publish(): String {
         probeStage="CATALOG_SELECTION"
-        val (cards,source)=cards()
+        val (selection,source)=cards()
+        val cards=selection.cards
         currentCoroutineContext().ensureActive()
         probeStage="ENSURE_OWN_CHANNEL"
         val (channel,created)=ensureChannel()
         val values=cards.mapIndexed { index, card ->
             // tvprovider 1.1.0 marks inherited metadata setters RestrictedApi. Use the
             // public Android TvContract columns instead; no reflection or lint suppression.
-            PreviewProgram.Builder().setChannelId(channel).setWeight(5-index).build().toContentValues().apply {
+            PreviewProgram.Builder().setChannelId(channel).setWeight(HOME_PROBE_LIMIT-index).build().toContentValues().apply {
                 put(TvContract.PreviewPrograms.COLUMN_TYPE, if(card.type=="pelicula")
                     TvContract.PreviewPrograms.TYPE_MOVIE else TvContract.PreviewPrograms.TYPE_TV_SERIES)
                 put(TvContract.PreviewPrograms.COLUMN_TITLE,card.title)
@@ -221,7 +225,7 @@ class TvHomeProbeActivity : ComponentActivity() {
         }
         val desired=values.mapIndexed { index, value -> HomeProbeDesired(cards[index].key,
             value.valueSet().associate { it.key to it.value?.toString() }) }
-        val columns=desired.flatMap { it.payload.keys }.toSet()
+        val columns=desired.flatMap { it.payload.keys }.toSet()+TvContract.PreviewPrograms.COLUMN_POSTER_ART_URI
         probeStage="QUERY_AND_RECONCILE_PROGRAMS"
         val plan=homeProbePlan(programRows(channel,columns),desired)
         for(change in plan.upserts) {
@@ -245,13 +249,15 @@ class TvHomeProbeActivity : ComponentActivity() {
         File(filesDir,"tv_home_probe_art").listFiles().orEmpty().filter {
             Regex("[a-f0-9]{64}\\.png").matches(it.name) && it.name !in retained
         }.forEach { it.delete() }
-        val count=after.count { it.key?.startsWith(HOME_PROBE_PREFIX)==true };check(count==5)
+        val count=after.count { it.key?.startsWith(HOME_PROBE_PREFIX)==true };check(count==cards.size)
         val visible=ownChannels().firstOrNull { it.id==channel }?.browsable
         currentChannel=channel
-        return "${if(created)"CANAL_CREADO" else "CANAL_EXISTENTE"} id=$channel\n"+
-            "PROGRAMAS_VERIFICADOS propios=$count reales=${cards.count { !it.synthetic }} sinteticos=${cards.count { it.synthetic }} fuente=$source\n"+
+        return "${if(created)"CANAL_CREADO" else "CANAL_EXISTENTE"} id=$channel nombre=$HOME_PROBE_DISPLAY_NAME\n"+
+            "PROGRAMAS_VERIFICADOS propios=$count reales=$count sinteticos=0 faltan=${selection.missingSlots} fuente=$source\n"+
+            "ESTRENOS anioActual=${selection.asOf.year} fechaCorte=${selection.asOf} sinFecha=${selection.missingDates} invalidas=${selection.invalidDates} futuras=${selection.futureDates} conflictivas=${selection.conflictingDates} discrepanciasAnio=${selection.yearMismatches}\n"+
             "CAMBIOS upserts=${plan.upserts.size} eliminadosSonda=${plan.deleteIds.size} browsable=$visible logoGuardado=${prefs.getLong("logo_channel",-1)==channel}\n"+
-            "NIVEL_3 sólo si estos registros fueron verificados; Home y tarjeta no observados."
+            (if(count>0) "Registros verificados; visibilidad de esta selección pendiente en Home."
+            else "SIN_FECHAS_COMPLETAS_ELEGIBLES; no se inventan recomendaciones.")
     }
     private fun inspect(): String {
         probeStage="INSPECT_OWN_PROVIDER"
@@ -260,7 +266,7 @@ class TvHomeProbeActivity : ComponentActivity() {
         currentChannel=channel.id
         val rows=programRows(channel.id)
         val owned=rows.filter { it.key?.startsWith(HOME_PROBE_PREFIX)==true }
-        return "CANAL_EXISTENTE id=${channel.id}\nCONSULTA_PROPIA canalesPreview=${channels.size} browsable=${channel.browsable}"+
+        return "CANAL_EXISTENTE id=${channel.id} nombre=${channel.name}\nCONSULTA_PROPIA canalesPreview=${channels.size} browsable=${channel.browsable}"+
             " programasSonda=${owned.size} duplicados=${owned.size-owned.map { it.key }.distinct().size}"+
             " otrosProgramas=${rows.size-owned.size}\nVISIBILIDAD_EN_HOME=NO_OBSERVADA"
     }

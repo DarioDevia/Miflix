@@ -1,3 +1,7 @@
+> Documento histórico de la entrega inicial de cinco tarjetas.
+> Para la selección estricta de hasta diez estrenos y el canal legado, ver
+> [TV_GOOGLE_HOME_10_ESTRENOS.md](TV_GOOGLE_HOME_10_ESTRENOS.md).
+
 # Experimento MiFlix → Home del sistema (Google TV / Android TV)
 
 ## Base, recuperación y límites de acceso

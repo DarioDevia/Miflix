@@ -10,25 +10,6 @@ internal fun homeProbeHash(value: String): String = MessageDigest.getInstance("S
 internal data class HomeProbeCard(val key: String, val title: String, val description: String,
     val type: String, val image: String?, val synthetic: Boolean)
 
-/** Stable catalog order, balanced types, never Telegram links as external identity or payload. */
-internal fun homeProbeCards(titles: List<Title>): List<HomeProbeCard> {
-    val groups = listOf("pelicula", "serie", "anime").map { type -> titles.asSequence()
-        .filter { it.tipo == type && it.id.isNotBlank() && it.titulo.isNotBlank() && tvFeaturedTarget(it) != null }
-        .distinctBy { it.id }.iterator() }
-    val chosen = mutableListOf<Title>()
-    while (chosen.size < 5 && groups.any { it.hasNext() }) {
-        for (group in groups) if (group.hasNext() && chosen.size < 5) chosen += group.next()
-    }
-    val real = chosen.distinctBy { it.id }.map { title -> HomeProbeCard(
-        HOME_PROBE_PREFIX + homeProbeHash("catalog:" + title.id), title.titulo,
-        title.sinopsis?.takeIf(String::isNotBlank)?.take(1000) ?: "Prueba de apertura de MiFlix. No inicia reproducción.",
-        title.tipo, tvDetailArtwork(title).backgrounds.firstOrNull(), false) }
-    // Explicit synthetic cards fill only missing slots; never claim they exist in the remote catalog.
-    return real + (real.size until 5).map { i -> HomeProbeCard(
-        HOME_PROBE_PREFIX + homeProbeHash("fixture:$i"), "PRUEBA SINTÉTICA ${i + 1}",
-        "Tarjeta experimental, no es un título del catálogo. Abre MiFlix, no una ficha.", "pelicula", null, true) }
-}
-
 internal data class HomeProbeStored(val id: Long, val key: String?, val payload: Map<String, String?>)
 internal data class HomeProbeDesired(val key: String, val payload: Map<String, String?>)
 internal data class HomeProbeUpsert(val existingId: Long?, val desired: HomeProbeDesired)
