@@ -8,6 +8,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.net.Uri
+import android.media.tv.TvContract
 import android.os.Bundle
 import android.util.Log
 import android.view.ViewGroup
@@ -137,7 +138,7 @@ class TvHomeProbeActivity : ComponentActivity() {
         if(old!=null && old.marker!=HOME_PROBE_CHANNEL)
             check(contentResolver.update(TvContractCompat.buildChannelUri(id),values,null,null)==1)
         prefs.edit().putLong("channel_id",id).apply()
-        if(prefs.getLong("logo_channel",-1)!=id) {
+        if(old==null || prefs.getLong("logo_channel",-1)!=id) {
             val image=Bitmap.createBitmap(240,240,Bitmap.Config.ARGB_8888)
             try {
                 Canvas(image).apply { drawColor(Color.rgb(20,24,32));drawText("MiFlix",22f,135f,
@@ -204,12 +205,20 @@ class TvHomeProbeActivity : ComponentActivity() {
         currentCoroutineContext().ensureActive()
         probeStage="ENSURE_OWN_CHANNEL"
         val (channel,created)=ensureChannel()
-        val values=cards.mapIndexed { index, card -> PreviewProgram.Builder().setChannelId(channel)
-            .setType(if(card.type=="pelicula")TvContractCompat.PreviewPrograms.TYPE_MOVIE else TvContractCompat.PreviewPrograms.TYPE_TV_SERIES)
-            .setTitle(card.title).setDescription(card.description).setPosterArtUri(image(card))
-            .setPosterArtAspectRatio(TvContractCompat.PreviewPrograms.ASPECT_RATIO_16_9)
-            .setIntentUri(Uri.parse(appIntent(card.key).toUri(Intent.URI_INTENT_SCHEME)))
-            .setInternalProviderId(card.key).setWeight(5-index).build().toContentValues() }
+        val values=cards.mapIndexed { index, card ->
+            // tvprovider 1.1.0 marks inherited metadata setters RestrictedApi. Use the
+            // public Android TvContract columns instead; no reflection or lint suppression.
+            PreviewProgram.Builder().setChannelId(channel).setWeight(5-index).build().toContentValues().apply {
+                put(TvContract.PreviewPrograms.COLUMN_TYPE, if(card.type=="pelicula")
+                    TvContract.PreviewPrograms.TYPE_MOVIE else TvContract.PreviewPrograms.TYPE_TV_SERIES)
+                put(TvContract.PreviewPrograms.COLUMN_TITLE,card.title)
+                put(TvContract.PreviewPrograms.COLUMN_SHORT_DESCRIPTION,card.description)
+                put(TvContract.PreviewPrograms.COLUMN_POSTER_ART_URI,image(card).toString())
+                put(TvContract.PreviewPrograms.COLUMN_POSTER_ART_ASPECT_RATIO,TvContract.PreviewPrograms.ASPECT_RATIO_16_9)
+                put(TvContract.PreviewPrograms.COLUMN_INTENT_URI,appIntent(card.key).toUri(Intent.URI_INTENT_SCHEME))
+                put(TvContract.PreviewPrograms.COLUMN_INTERNAL_PROVIDER_ID,card.key)
+            }
+        }
         val desired=values.mapIndexed { index, value -> HomeProbeDesired(cards[index].key,
             value.valueSet().associate { it.key to it.value?.toString() }) }
         val columns=desired.flatMap { it.payload.keys }.toSet()

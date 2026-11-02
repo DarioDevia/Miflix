@@ -30,6 +30,12 @@ class ProbeContract(unittest.TestCase):
         for marker in ('requestChannelBrowsable','PROGRAMAS_VERIFICADOS','CANAL_EXISTENTE','VISIBILIDAD_EN_HOME=NO_OBSERVADA',
             'ChannelLogoUtils.storeChannelLogo','writes.withLock','scope.cancel()','Dispatchers.IO'):
             self.assertIn(marker,activity)
+    def test_program_metadata_uses_public_framework_columns_without_suppressions(self):
+        s=(ROOT/'app/src/tvDebug/java/ar/com/miflix/client/TvHomeProbeActivity.kt').read_text()
+        self.assertIn('TvContract.PreviewPrograms.COLUMN_INTENT_URI',s)
+        self.assertIn('TvContract.PreviewPrograms.COLUMN_POSTER_ART_ASPECT_RATIO',s)
+        for forbidden in ('@SuppressLint','@Suppress(','.setTitle(','.setDescription(','.setPosterArtUri(','.setPosterArtAspectRatio(','.setIntentUri(','.setInternalProviderId('):
+            self.assertNotIn(forbidden,s)
     def test_exported_artwork_provider_is_read_only_and_path_limited(self):
         s=(ROOT/'app/src/tvDebug/java/ar/com/miflix/client/TvHomeProbeImages.kt').read_text()
         for marker in ('[a-f0-9]{64}','mode != "r"','tv_home_probe_art','ParcelFileDescriptor.MODE_READ_ONLY'):
