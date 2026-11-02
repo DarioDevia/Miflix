@@ -47,6 +47,8 @@ android {
             buildConfigField("boolean", "IS_TV", "true")
         }
     }
+    // AGP creates combined-variant configurations only after the source set exists.
+    sourceSets.maybeCreate("tvDebug")
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

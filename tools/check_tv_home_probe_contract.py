@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 BASE='e20be389c79e0176fc9fa068fd1c91354f824641'
+SOURCE_SET='    // AGP creates combined-variant configurations only after the source set exists.\n    sourceSets.maybeCreate("tvDebug")\n'
 ADDITION='    // Isolated experiment: absent from TV Release and every Mobile variant.\n    add("tvDebugImplementation", "androidx.tvprovider:tvprovider:1.1.0")\n'
 class ProbeContract(unittest.TestCase):
     def test_all_preexisting_app_sources_tests_resources_and_tools_unchanged(self):
@@ -11,11 +12,12 @@ class ProbeContract(unittest.TestCase):
         for path in files:
             before=subprocess.check_output(['git','show',BASE+':'+path],cwd=ROOT)
             after=(ROOT/path).read_bytes()
-            if path=='app/build.gradle.kts':after=after.decode().replace(ADDITION,'').encode()
+            if path=='app/build.gradle.kts':after=after.decode().replace(ADDITION,'').replace(SOURCE_SET,'').encode()
             self.assertEqual(before,after,path)
     def test_dependency_is_scoped_to_tv_debug_only(self):
         s=(ROOT/'app/build.gradle.kts').read_text()
         self.assertEqual(1,s.count(ADDITION))
+        self.assertEqual(1,s.count(SOURCE_SET))
         self.assertNotIn('tvImplementation',s)
         self.assertNotIn('engage-tv',s)
     def test_no_external_service_secrets_or_playback_changes(self):

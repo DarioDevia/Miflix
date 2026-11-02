@@ -40,6 +40,7 @@ class TvHomeProbeActivity : ComponentActivity() {
     private val controls = mutableListOf<Button>()
     private val prefs by lazy { getSharedPreferences("miflix_home_probe", MODE_PRIVATE) }
     private var currentChannel: Long? = null
+    private var probeStage = "START"
     private val confirm = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         status("CONFIRMACION_RESULTADO code=${result.resultCode}; no demuestra visibilidad en Home")
         runProbe { inspect() }
@@ -94,7 +95,7 @@ class TvHomeProbeActivity : ComponentActivity() {
             catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) {
                 // Never log exception messages, URLs, raw catalog, title IDs or Telegram data.
-                status("SONDA_ERROR tipo=${failure.javaClass.simpleName}; no implica borrado de canal")
+                status("SONDA_ERROR etapa=$probeStage tipo=${failure.javaClass.simpleName}; no implica borrado de canal")
             } finally { controls.forEach { it.isEnabled=true } }
         }
     }
@@ -198,8 +199,10 @@ class TvHomeProbeActivity : ComponentActivity() {
         return Uri.Builder().scheme("content").authority(packageName+".homeprobe.images").appendPath(filename).build()
     }
     private suspend fun publish(): String {
+        probeStage="CATALOG_SELECTION"
         val (cards,source)=cards()
         currentCoroutineContext().ensureActive()
+        probeStage="ENSURE_OWN_CHANNEL"
         val (channel,created)=ensureChannel()
         val values=cards.mapIndexed { index, card -> PreviewProgram.Builder().setChannelId(channel)
             .setType(if(card.type=="pelicula")TvContractCompat.PreviewPrograms.TYPE_MOVIE else TvContractCompat.PreviewPrograms.TYPE_TV_SERIES)
@@ -210,6 +213,7 @@ class TvHomeProbeActivity : ComponentActivity() {
         val desired=values.mapIndexed { index, value -> HomeProbeDesired(cards[index].key,
             value.valueSet().associate { it.key to it.value?.toString() }) }
         val columns=desired.flatMap { it.payload.keys }.toSet()
+        probeStage="QUERY_AND_RECONCILE_PROGRAMS"
         val plan=homeProbePlan(programRows(channel,columns),desired)
         for(change in plan.upserts) {
             currentCoroutineContext().ensureActive()
@@ -221,6 +225,7 @@ class TvHomeProbeActivity : ComponentActivity() {
             currentCoroutineContext().ensureActive()
             check(contentResolver.delete(TvContractCompat.buildPreviewProgramUri(id),null,null)==1)
         }
+        probeStage="VERIFY_PROGRAMS"
         val after=programRows(channel,columns)
         val remaining=homeProbePlan(after,desired)
         check(remaining.upserts.isEmpty() && remaining.deleteIds.isEmpty())
@@ -236,10 +241,11 @@ class TvHomeProbeActivity : ComponentActivity() {
         currentChannel=channel
         return "${if(created)"CANAL_CREADO" else "CANAL_EXISTENTE"} id=$channel\n"+
             "PROGRAMAS_VERIFICADOS propios=$count reales=${cards.count { !it.synthetic }} sinteticos=${cards.count { it.synthetic }} fuente=$source\n"+
-            "CAMBIOS upserts=${plan.upserts.size} eliminadosSonda=${plan.deleteIds.size} browsable=$visible\n"+
+            "CAMBIOS upserts=${plan.upserts.size} eliminadosSonda=${plan.deleteIds.size} browsable=$visible logoGuardado=${prefs.getLong("logo_channel",-1)==channel}\n"+
             "NIVEL_3 sólo si estos registros fueron verificados; Home y tarjeta no observados."
     }
     private fun inspect(): String {
+        probeStage="INSPECT_OWN_PROVIDER"
         val channels=ownChannels();val channel=findChannel(channels)
             ?: return "CONSULTA_PROPIA canalesPreview=${channels.size}; canal reconocido ausente (no se borra ni crea nada)"
         currentChannel=channel.id
