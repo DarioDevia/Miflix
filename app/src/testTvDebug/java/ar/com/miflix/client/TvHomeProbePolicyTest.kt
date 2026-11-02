@@ -60,8 +60,8 @@ class TvHomeProbePolicyTest {
             try { homeProbePlan(emptyList(),targets);fail("Must reject") }catch(_:IllegalArgumentException) { }
         }
     }
-    @Test fun emptyDesiredSetDoesNotDeleteForeignPrograms() {
+    @Test fun emptyDesiredSetPreservesAllPrograms() {
         val plan=homeProbePlan(listOf(HomeProbeStored(1,"foreign",emptyMap()),HomeProbeStored(2,HOME_PROBE_PREFIX+"stale",emptyMap())),emptyList())
-        assertEquals(listOf(2L),plan.deleteIds);assertTrue(plan.upserts.isEmpty())
+        assertTrue(plan.deleteIds.isEmpty());assertTrue(plan.upserts.isEmpty())
     }
 }

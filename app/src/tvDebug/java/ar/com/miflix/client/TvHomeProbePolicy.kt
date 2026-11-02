@@ -19,6 +19,8 @@ internal data class HomeProbePlan(val upserts: List<HomeProbeUpsert>, val delete
 internal fun homeProbePlan(existing: List<HomeProbeStored>, desired: List<HomeProbeDesired>): HomeProbePlan {
     require(desired.all { it.key.startsWith(HOME_PROBE_PREFIX) })
     require(desired.map { it.key }.distinct().size == desired.size)
+    // An empty/failed selection is never authorization to remove the last published set.
+    if (desired.isEmpty()) return HomeProbePlan(emptyList(), emptyList())
     val owned = existing.filter { it.key?.startsWith(HOME_PROBE_PREFIX) == true }.sortedBy { it.id }
     val byKey = owned.groupBy { it.key }
     val keep = desired.map { it.key }.toSet()

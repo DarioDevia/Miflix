@@ -1,3 +1,41 @@
+> **Corrección vigente: años válidos y conservación de tarjetas.** La política estricta descrita más abajo es histórica y queda reemplazada por esta sección.
+
+## Selección corregida
+
+- `year` y `anio`, normalizados por el parser existente, son años de estreno válidos (desde 1888 hasta el año del sistema).
+- Una fecha completa válida del título tiene prioridad sobre su año aproximado; las discrepancias se diagnostican. No se usan fechas de temporadas ni episodios para fechar la serie.
+- Orden: año descendente, fecha completa descendente cuando exista, títulos sin día/mes después de los fechados del mismo año, desempate por ID estable. No se fabrican días ni meses.
+- Fecha completa futura: excluida incluso si el año es actual. Año futuro: excluido. Fecha ausente, inválida o contradictoria: se puede utilizar el año válido del título; se conserva el diagnóstico.
+- Máximo diez, sin duplicados, sin usar fecha de incorporación. El año cambia automáticamente con el reloj del sistema.
+
+## Protección del último conjunto publicado
+
+Un error de descarga o lectura aborta la operación. Una selección vacía devuelve `SELECCION_VACIA_CONSERVADA` antes de crear/modificar el canal, imágenes o programas. El reconciliador también trata el conjunto deseado vacío como cero escrituras: las cinco tarjetas anteriores se conservan.
+
+Con uno a diez títulos se preparan todas las imágenes y metadatos, se insertan/actualizan los programas deseados y se vuelve a consultar el proveedor. Sólo después de comprobar todos los reemplazos se eliminan programas obsoletos propios. Fallos parciales no autorizan limpieza anticipada; una nueva sincronización reconcilia lo pendiente. El proveedor no ofrece aquí una transacción global y no se afirma atomicidad.
+
+Se mantiene la adopción segura del canal propio id=2 y el nombre `MiFlix TV`. No hay cambios de API, imágenes, enlaces, Release, Mobile, reproducción, Cloudflare ni Admin.
+
+## Actualización local sin sobrescribir cambios
+
+No hacer reset/clean ni reemplazar el worktree con la corrección local. Crear otro:
+
+```powershell
+cd C:\Users\devia\StudioProjects\Miflix-TV-HomeProbe-Work
+git status --short
+git fetch origin
+git worktree add ..\Miflix-TV-Home10-Protected origin/experiment/tv-google-home-probe-work
+cd ..\Miflix-TV-Home10-Protected
+# Preparar configuración privada y firma originales localmente, sin agregarlas a Git.
+.\tools\run_tv_home_probe.ps1
+```
+
+Actualizar el catálogo desde MiFlix y sincronizar la sonda. Revisar `PROGRAMAS_VERIFICADOS`, `ESTRENOS` y `CAMBIOS`. Repetir: cero upserts/eliminaciones si no cambió el catálogo ni la selección. Si no hay elegibles, comprobar `SELECCION_VACIA_CONSERVADA` y que siguen las tarjetas anteriores. No desinstalar ni borrar datos ante un conflicto de firma; compilar con la clave local original.
+
+El nivel 4 previamente observado se conserva como antecedente. La nueva selección no está observada en el emulador de Work, no se declaran diez tarjetas visibles ni nivel 5. El launcher controla la presentación.
+
+---
+
 # MiFlix Google TV Home — hasta 10 estrenos con fecha completa
 
 ## Base y prueba real anterior

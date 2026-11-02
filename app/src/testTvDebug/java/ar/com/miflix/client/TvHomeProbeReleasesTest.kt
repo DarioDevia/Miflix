@@ -67,9 +67,9 @@ class TvHomeProbeReleasesTest {
         assertNull(snapshot.releases.getValue("movie").date);assertNull(snapshot.releases.getValue("series").date)
         assertEquals(LocalDate.of(2026,1,1),snapshot.releases.getValue("anime").date)
     }
-    @Test fun oldYearOnlyCatalogProducesZeroAndDoesNotBorrowToday() {
+    @Test fun yearOnlyCatalogPublishesWithoutInventingDates() {
         val s=homeProbeParseCatalog("""{"schema_version":1,"items":[{"id":"a","tipo":"pelicula","titulo":"A","telegram_url":"https://t.me/c/1/1","year":2026}]}""")
-        val selection=homeProbeCards(s,today);assertTrue(selection.cards.isEmpty());assertEquals(1,selection.missingDates)
+        val selection=homeProbeCards(s,today);assertEquals(1,selection.cards.size);assertEquals(1,selection.missingDates)
     }
     @Test fun malformedOptionalDatesDoNotInvalidateTheCatalog() {
         for (date in listOf("{}","[]","true","42","null","\"bad\"")) {
@@ -102,4 +102,34 @@ class TvHomeProbeReleasesTest {
         assertNull(homeProbeChannel(listOf(HomeProbeChannel(2,"Unrelated",null,"ours",true)),"ours",2))
         assertNull(homeProbeChannel(emptyList(),"ours",-1))
     }
+    @Test fun mixedDatesAndYearsSortByYearThenKnownDateWithoutFakeDays() {
+        val titles=listOf(title("unknown").copy(year=2026),title("dated").copy(year=2026),
+            title("old").copy(year=2025),title("future").copy(year=2027),title("future-day").copy(year=2026))
+        val s=HomeProbeCatalog(titles,mapOf("dated" to HomeProbeDate(today),"future-day" to HomeProbeDate(today.plusDays(1))))
+        assertEquals(listOf("dated","unknown","old"),homeProbeCards(s,today).cards.map { it.title })
+        assertEquals(2,homeProbeCards(s,today).futureDates)
+    }
+    @Test fun bothYearAliasesAndInvalidFullDatesRetainUsableYears() {
+        for(field in listOf("year","anio")) {
+            val s=homeProbeParseCatalog("""{"schema_version":1,"items":[{"id":"a","tipo":"pelicula","titulo":"A","telegram_url":"https://t.me/c/1/1","$field":2026,"release_date":"bad"}]}""")
+            assertEquals(1,homeProbeCards(s,today).cards.size)
+            assertNull(s.releases.getValue("a").date)
+        }
+    }
+    @Test fun emptySelectionPreservesFivePublishedCardsWithoutWrites() {
+        val previous=(1..5).map { HomeProbeStored(it.toLong(),HOME_PROBE_PREFIX+it,mapOf("title" to "old$it")) }
+        val empty=homeProbeCards(HomeProbeCatalog(emptyList(),emptyMap()),today)
+        assertTrue(empty.cards.isEmpty())
+        val plan=homeProbePlan(previous,emptyList())
+        assertTrue(plan.deleteIds.isEmpty());assertTrue(plan.upserts.isEmpty())
+    }
+    @Test fun yearOnlySelectionFillsTenAcrossPreviousYearsAndRollsOver() {
+        val titles=(0..11).map { title("y$it").copy(year=if(it<6)2026 else 2025) }
+        val s=HomeProbeCatalog(titles,emptyMap())
+        assertEquals(10,homeProbeCards(s,today).cards.size)
+        val future=HomeProbeCatalog(listOf(title("next").copy(year=2027)),emptyMap())
+        assertTrue(homeProbeCards(future,today).cards.isEmpty())
+        assertEquals(1,homeProbeCards(future,LocalDate.of(2027,1,1)).cards.size)
+    }
+
 }

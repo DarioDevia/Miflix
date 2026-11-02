@@ -22,7 +22,7 @@ internal data class HomeProbeSelection(val cards:List<HomeProbeCard>,val missing
     val missingSlots get()=HOME_PROBE_LIMIT-cards.size
 }
 
-/** Only explicit whole-title fields. Never year, addedAt, season/episode air dates or current date. */
+/** Optional whole-title dates; coarse years remain years, never fabricated dates. */
 internal fun homeProbeReleaseDate(type:String,fields:Map<String,String?>):HomeProbeDate {
     val names=when(type) {
         "pelicula" -> listOf("fecha_estreno","release_date")
@@ -59,22 +59,26 @@ internal fun homeProbeParseCatalog(raw:String):HomeProbeCatalog {
     return HomeProbeCatalog(catalog.items.orEmpty(),releases)
 }
 
-/** Descending full date naturally walks current year, then previous years, with stable ID ties. */
+/** Years descend first; known complete dates precede unknown days within the same year. */
 internal fun homeProbeCards(snapshot:HomeProbeCatalog,today:LocalDate):HomeProbeSelection {
     val available=snapshot.titles.asSequence().filter { it.id.isNotBlank() && it.titulo.isNotBlank() &&
         it.tipo in setOf("pelicula","serie","anime") && tvFeaturedTarget(it)!=null }.distinctBy { it.id }.toList()
     var missing=0;var invalid=0;var conflicting=0;var future=0;var mismatches=0
+    data class Release(val title:Title,val year:Int,val date:LocalDate?)
     val dated=available.mapNotNull { title ->
         val value=snapshot.releases[title.id] ?: HomeProbeDate(null,"missing")
         val date=value.date
-        if(date==null) { when(value.issue) { "invalid" -> invalid++;"conflict" -> conflicting++;else -> missing++ };null }
-        else if(date>today) { future++;null }
-        else {
-            if(title.year!=null && title.year!=date.year)mismatches++
-            title to date // The explicit full date is authoritative; a coarse year is never substituted.
+        if(date==null)when(value.issue) { "invalid" -> invalid++;"conflict" -> conflicting++;else -> missing++ }
+        val year=date?.year ?: title.year?.takeIf { it>=1888 }
+        if(date!=null && title.year!=null && title.year!=date.year)mismatches++
+        when {
+            date!=null && date>today -> { future++;null }
+            year!=null && year>today.year -> { future++;null }
+            year==null -> null
+            else -> Release(title,year,date)
         }
-    }.sortedWith(compareByDescending<Pair<Title,LocalDate>> { it.second }.thenBy { it.first.id })
-    val cards=dated.take(HOME_PROBE_LIMIT).map { (title,_) -> HomeProbeCard(
+    }.sortedWith(compareByDescending<Release> { it.year }.thenByDescending { it.date }.thenBy { it.title.id })
+    val cards=dated.take(HOME_PROBE_LIMIT).map { (title,_,_) -> HomeProbeCard(
         HOME_PROBE_PREFIX+homeProbeHash("catalog:"+title.id),title.titulo,
         title.sinopsis?.takeIf(String::isNotBlank)?.take(1000) ?: "Abre MiFlix. No inicia reproducción.",
         title.tipo,tvDetailArtwork(title).backgrounds.firstOrNull(),false) }

@@ -206,6 +206,7 @@ class TvHomeProbeActivity : ComponentActivity() {
         probeStage="CATALOG_SELECTION"
         val (selection,source)=cards()
         val cards=selection.cards
+        if(cards.isEmpty()) return "SELECCION_VACIA_CONSERVADA fuente=$source; tarjetas existentes intactas; sinFecha=${selection.missingDates} invalidas=${selection.invalidDates} futuras=${selection.futureDates}"
         currentCoroutineContext().ensureActive()
         probeStage="ENSURE_OWN_CHANNEL"
         val (channel,created)=ensureChannel()
@@ -234,6 +235,9 @@ class TvHomeProbeActivity : ComponentActivity() {
             if(change.existingId==null) check(contentResolver.insert(TvContractCompat.PreviewPrograms.CONTENT_URI,value)!=null)
             else check(contentResolver.update(TvContractCompat.buildPreviewProgramUri(change.existingId),value,null,null)==1)
         }
+        // Confirm every replacement exists with its prepared metadata before removing stale cards.
+        probeStage="VERIFY_REPLACEMENTS_BEFORE_DELETE"
+        check(homeProbePlan(programRows(channel,columns),desired).upserts.isEmpty())
         for(id in plan.deleteIds) {
             currentCoroutineContext().ensureActive()
             check(contentResolver.delete(TvContractCompat.buildPreviewProgramUri(id),null,null)==1)
@@ -257,7 +261,7 @@ class TvHomeProbeActivity : ComponentActivity() {
             "ESTRENOS anioActual=${selection.asOf.year} fechaCorte=${selection.asOf} sinFecha=${selection.missingDates} invalidas=${selection.invalidDates} futuras=${selection.futureDates} conflictivas=${selection.conflictingDates} discrepanciasAnio=${selection.yearMismatches}\n"+
             "CAMBIOS upserts=${plan.upserts.size} eliminadosSonda=${plan.deleteIds.size} browsable=$visible logoGuardado=${prefs.getLong("logo_channel",-1)==channel}\n"+
             (if(count>0) "Registros verificados; visibilidad de esta selección pendiente en Home."
-            else "SIN_FECHAS_COMPLETAS_ELEGIBLES; no se inventan recomendaciones.")
+            else "SELECCION_VACIA_CONSERVADA; no se inventan recomendaciones.")
     }
     private fun inspect(): String {
         probeStage="INSPECT_OWN_PROVIDER"

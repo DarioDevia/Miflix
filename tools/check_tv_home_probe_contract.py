@@ -22,10 +22,14 @@ class ProbeContract(unittest.TestCase):
         for start,end in [('    private fun appIntent(', '    private data class OwnChannel'),
             ('    private fun image(', '    private suspend fun publish(')]:
             self.assertEqual(old[old.index(start):old.index(end)],new[new.index(start):new.index(end)])
-    def test_ten_releases_have_no_synthetic_or_year_fallback(self):
+    def test_ten_releases_accept_years_without_inventing_dates(self):
         source=(ROOT/'app/src/tvDebug/java/ar/com/miflix/client/TvHomeProbeReleases.kt').read_text()
         self.assertIn('HOME_PROBE_LIMIT = 10',source)
         self.assertIn('date>today',source)
+        self.assertIn('title.year?.takeIf',source)
+        activity=(ROOT/'app/src/tvDebug/java/ar/com/miflix/client/TvHomeProbeActivity.kt').read_text()
+        self.assertLess(activity.index('if(cards.isEmpty()) return'),activity.index('val (channel,created)=ensureChannel()'))
+        self.assertIn('VERIFY_REPLACEMENTS_BEFORE_DELETE',activity)
         self.assertIn('HOME_PROBE_DISPLAY_NAME = "MiFlix TV"',source)
         self.assertIn('"MiFlix - Prueba Home"',source)
         for forbidden in ('fecha_agregado','fecha_emision','setOf(2026','LocalDate.of(title.year','PRUEBA SINTÉTICA'):
