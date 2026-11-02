@@ -79,3 +79,19 @@ $adb="$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 ```
 
 Diagnósticos: SOLICITUD_RECIBIDA, FICHA_SOLICITADA, SOLICITUD_RECHAZADA, TITULO_NO_DISPONIBLE o CATALOGO_ESPERA_AGOTADA. FICHA_SOLICITADA prueba el despacho del callback, no reemplaza la observación de la ficha específica.
+
+## Resultado de entrega
+
+Código validado: `27f5fbb98fc7c2d79f02fd11fc53f6b743760781`.
+CI: https://github.com/DarioDevia/Miflix/actions/runs/41386182365 — conclusión success.
+
+- Nueve contratos Python aprobados y sintaxis PowerShell aprobada.
+- Doce tests JVM nuevos de políticas/reductor incorporados; todas las tareas testTvDebugUnitTest, testTvReleaseUnitTest y testMobileDebugUnitTest aprobaron.
+- lintTvDebug, lintTvRelease y lintMobileDebug aprobaron sin deshabilitar controles. Hay advertencias existentes y de parámetros sin uso en los adaptadores deliberadamente inactivos; no se afirma cero advertencias.
+- assembleTvDebug, assembleTvRelease y assembleMobileDebug aprobaron. Gradle BUILD SUCCESSFUL in 6m 22s.
+- Inspección de APK aprobada: ARM/TDLib y recursos protegidos, identidad/versionado, componentes y permisos experimentales sólo en tvDebug; MainActivity singleTask sólo en tvDebug, modo anterior en Release/Mobile.
+- Artefacto: https://github.com/DarioDevia/Miflix/actions/runs/41386182365/artifacts/13115378382 . Incluye APK debug de CI (nombre histórico MiFlix-TV-0.1.14-Home10-CI-debug.apk), informes Lint/tests, SHA256SUMS y certificado de CI. No es una firma comprobada contra la instalación del usuario. El artefacto ZIP tiene SHA-256 `6ba0ad44d5914ef091fb0c89ddeec3861ac5e6a386a0ca696f680b5f3d898857` (no confundir con hash de APK).
+- No se ejecutaron ADB, Android Studio, emulador ni pruebas de DPAD en Work. No se ha verificado físicamente el nivel 5 ni se afirma que las diez tarjetas sean visibles simultáneamente.
+- La selección de estrenos y la protección contra conjunto vacío no cambian. Tras compilar localmente se debe sincronizar para actualizar los Intents de los programas ya publicados.
+
+El commit posterior de cierre contiene únicamente este informe; el código entregado es idéntico al validado por CI.
