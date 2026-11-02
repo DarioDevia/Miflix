@@ -3,13 +3,13 @@ $ErrorActionPreference='Stop'
 $a='a'*64
 $b='b'*64
 foreach ($header in @('Signer #1 certificate SHA-256 digest: ','V2 Signer: certificate SHA-256 digest: ')) {
-    if ((Get-MiFlixCertificateDigest -Lines @($header+$a)) -ne $a) { throw 'Valid public signer format rejected.' }
+    if ((Get-MiFlixCertificateDigest -Lines @(($header+$a))) -ne $a) { throw 'Valid public signer format rejected.' }
 }
-if ((Get-MiFlixCertificateDigest -Lines @('Signer #1 certificate SHA-256 digest: '+$a,'V2 Signer: certificate SHA-256 digest: '+$a)) -ne $a) { throw 'Repeated identical identity rejected.' }
+if ((Get-MiFlixCertificateDigest -Lines @("Signer #1 certificate SHA-256 digest: $a","V2 Signer: certificate SHA-256 digest: $a")) -ne $a) { throw 'Repeated identical identity rejected.' }
 foreach ($case in @('missing','ambiguous','malformed')) {
     $lines=switch ($case) {
         'missing' { @('No public certificate') }
-        'ambiguous' { @('Signer #1 certificate SHA-256 digest: '+$a,'Signer #2 certificate SHA-256 digest: '+$b) }
+        'ambiguous' { @("Signer #1 certificate SHA-256 digest: $a","Signer #2 certificate SHA-256 digest: $b") }
         'malformed' { @('V2 Signer: certificate SHA-256 digest: short') }
     }
     $rejected=$false
