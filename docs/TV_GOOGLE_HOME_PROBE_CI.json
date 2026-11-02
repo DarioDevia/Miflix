@@ -1,0 +1,163 @@
+{
+  "sourceCommit": "cea12df85f2ed9a85914d04e6819e95f725138c5",
+  "run": "https://github.com/DarioDevia/Miflix/actions/runs/41368218105",
+  "levelVerified": 1,
+  "runtimeProviderVerified": false,
+  "googleTvHomeVisible": null,
+  "deepLinkToDetailImplemented": false,
+  "unit": {
+    "Tv": {
+      "tests": 293,
+      "failures": 0,
+      "ignored": 0
+    },
+    "Mobile": {
+      "tests": 281,
+      "failures": 0,
+      "ignored": 0
+    }
+  },
+  "lint": {
+    "tvDebug": {
+      "severity": {
+        "Warning": 20
+      },
+      "ids": {
+        "ObsoleteLintCustomCheck": 1,
+        "ApplySharedPref": 2,
+        "OldTargetApi": 1,
+        "UnusedAttribute": 1,
+        "VectorRaster": 1,
+        "GradleDependency": 4,
+        "DiscouragedApi": 1,
+        "SetJavaScriptEnabled": 2,
+        "ExportedContentProvider": 1,
+        "StaticFieldLeak": 1,
+        "Overdraw": 1,
+        "UnusedResources": 1,
+        "IconLauncherShape": 1,
+        "SetTextI18n": 2
+      }
+    },
+    "tvRelease": {
+      "severity": {
+        "Warning": 17
+      },
+      "ids": {
+        "ObsoleteLintCustomCheck": 1,
+        "ApplySharedPref": 2,
+        "OldTargetApi": 1,
+        "UnusedAttribute": 1,
+        "VectorRaster": 1,
+        "GradleDependency": 4,
+        "DiscouragedApi": 1,
+        "SetJavaScriptEnabled": 2,
+        "StaticFieldLeak": 1,
+        "Overdraw": 1,
+        "UnusedResources": 1,
+        "IconLauncherShape": 1
+      }
+    },
+    "mobileDebug": {
+      "severity": {
+        "Warning": 14
+      },
+      "ids": {
+        "ObsoleteLintCustomCheck": 1,
+        "ApplySharedPref": 2,
+        "OldTargetApi": 1,
+        "UnusedAttribute": 1,
+        "GradleDependency": 4,
+        "DiscouragedApi": 1,
+        "SetJavaScriptEnabled": 2,
+        "StaticFieldLeak": 1,
+        "IconLauncherShape": 1
+      }
+    }
+  },
+  "packaging": {
+    "tvDebug": {
+      "tvLibraryBackupExcluded": true,
+      "requestsQr": {
+        "sha256": "260478e570101b569de5511987e4c8ceed5ccc5132566c72706688b1918d7c49",
+        "size": 780
+      },
+      "intro": {
+        "sha256": "ecede13d1d994ba31de549b7d3ca557e64d69c4f3518bbae07caae5841423b17",
+        "size": 2134895
+      },
+      "package": "ar.com.miflix.client.tv",
+      "versionName": "0.1.14-diagnostico",
+      "versionCode": 15,
+      "minSdk": 26,
+      "targetSdk": 34,
+      "testOnly": false,
+      "debuggable": true,
+      "leanbackRequired": true,
+      "touchscreenRequired": false,
+      "leanbackLauncher": true,
+      "permissions": [
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.INTERNET",
+        "ar.com.miflix.client.tv.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+        "com.android.providers.tv.permission.WRITE_EPG_DATA"
+      ],
+      "cleartextTraffic": false,
+      "libraries": {
+        "arm64-v8a": {
+          "sha256": "249f325cde35ba778ef019258a40b2ecd2cfbd67d45e534902281c4dfba0f1a4",
+          "size": 22729264,
+          "elf_class": 2,
+          "elf_machine": 183
+        },
+        "armeabi-v7a": {
+          "sha256": "6551a4935f888b8b80adee5e995884765f7047cd32afc64a8c98e540cffcedb6",
+          "size": 16371168,
+          "elf_class": 1,
+          "elf_machine": 40
+        },
+        "x86": {
+          "sha256": "0aa3c3482608cdc02ed8a9883e4c0832e12e1dcbf52b2dcb448edf826b5699d1",
+          "size": 27180944,
+          "elf_class": 1,
+          "elf_machine": 3
+        },
+        "x86_64": {
+          "sha256": "40738f25f9da60125c1b9add0abb55558f02798c5ca291ecacdd5b0cc140f6e0",
+          "size": 25265264,
+          "elf_class": 2,
+          "elf_machine": 62
+        }
+      }
+    },
+    "experimentComponents": [
+      [
+        "activity",
+        {
+          "label": "MiFlix Home — experimento",
+          "name": "ar.com.miflix.client.TvHomeProbeActivity",
+          "exported": true,
+          "screenOrientation": 0
+        }
+      ],
+      [
+        "provider",
+        {
+          "name": "ar.com.miflix.client.TvHomeProbeImages",
+          "exported": true,
+          "authorities": "ar.com.miflix.client.tv.homeprobe.images",
+          "grantUriPermissions": false
+        }
+      ]
+    ],
+    "releaseAndMobileIsolated": true,
+    "runtimeProviderAndLauncherTested": false
+  },
+  "apk": {
+    "file": "MiFlix-TV-0.1.14-HomeProbe-CI-debug.apk",
+    "bytes": 114711452,
+    "sha256": "7c8f555ce65900794fba28d951b346bc37a003da4451b30555ce5351c282bee3",
+    "certificateReport": "V2 Signer: certificate DN: C=US, O=Android, CN=Android Debug\nV2 Signer: certificate SHA-256 digest: 60b50ad70de4554a69dc3fb9e6facf22b78a1e2a306cd8a9c8881672e2f153cd\nV2 Signer: certificate SHA-1 digest: 82fa46c4b01e3505fc1b6dede71b2b65bffbed0f\nV2 Signer: certificate MD5 digest: 27f05c6ee7d729facaef5a2e93f8cb1a\n"
+  },
+  "runtimeVisibilityStatus": "NOT_OBSERVED"
+}

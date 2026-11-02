@@ -40,7 +40,9 @@ que LauncherX dibujó tarjetas. `requestChannelBrowsable()` no devuelve una capt
 ni una garantía observada de presentación de un launcher concreto.
 
 Permiso oficial: `com.android.providers.tv.permission.WRITE_EPG_DATA` únicamente.
-READ_EPG_DATA está obsoleto; no se agregan READ_TV_LISTINGS, permisos privilegiados,
+La dependencia declara READ_EPG_DATA en su manifiesto de biblioteca: se excluye
+explícitamente mediante `tools:node="remove"` en tvDebug. Está obsoleto desde API 23;
+no se agregan READ_TV_LISTINGS, permisos privilegiados,
 root, WRITE_SECURE_SETTINGS ni cambios de launcher o región. Una consulta shell
 con `No result found` usa otra identidad de llamante y no refuta la consulta que
 hace la propia app. Es una diferencia de acceso que debe diagnosticarse desde la app;
@@ -77,11 +79,13 @@ Nuevos en `app/src/tvDebug/java/ar/com/miflix/client/`:
 Manifiesto `app/src/tvDebug/AndroidManifest.xml`: actividad explícita ADB (sin icono
 ni integración automática en Inicio), permiso EPG, proveedor de imágenes de prueba.
 Gradle sólo añade `tvDebugImplementation` de `androidx.tvprovider:tvprovider:1.1.0`,
-que no estará en TV Release ni Mobile. No cambia SDK/AGP/Kotlin/Gradle/JDK/versiones,
+que no estará en TV Release ni Mobile. Se declara explícitamente el source set combinado
+con `sourceSets.maybeCreate("tvDebug")` antes de agregar esa dependencia, como requiere
+esta configuración de AGP. No cambia SDK/AGP/Kotlin/Gradle/JDK/versiones,
 applicationId ni firma. Ninguna fuente o recurso estable previo se modifica.
 
 Tests: `app/src/testTvDebug/.../TvHomeProbePolicyTest.kt` (12 casos),
-`tools/check_tv_home_probe_contract.py` (4 contratos),
+`tools/check_tv_home_probe_contract.py` (6 contratos),
 `tools/inspect_tv_home_probe_apk.py` y workflow `.github/workflows/tv-home-probe.yml`.
 Automatización Windows: `tools/run_tv_home_probe.ps1`. Este informe es la documentación.
 
@@ -105,6 +109,9 @@ argumentos sólo consulta datos; `probe_action=publish` actualiza las cinco tarj
 - Selecciona hasta cinco títulos disponibles, equilibrando película/serie/anime con
   los metadatos reales. Cuando falten entradas, completa sólo esos huecos con tarjetas
   llamadas PRUEBA SINTÉTICA. El log indica reales/sintéticas y origen; no finge datos.
+- Los metadatos se cargan por columnas públicas de `android.media.tv.TvContract.PreviewPrograms`.
+  Se usa PreviewProgram para canal/peso/contenido y no se invocan los setters heredados
+  marcados RestrictedApi por tvprovider 1.1.0. No hay supresiones ni baseline de Lint.
 - Cada clave de programa es SHA-256 del ID estable del catálogo dentro de un namespace
   propio. No publica Telegram URL ni ID de mensaje como clave/enlace de apertura.
 - La imagen real usa sólo backdrop/fondo publicado. Si falta, genera una PNG horizontal
@@ -151,7 +158,7 @@ aplicables y Lint; se inspeccionan las tres APK. Se comprueba que los componente
 permiso sólo están en tvDebug y que tvprovider no figura en las dependencias de Release
 ni Mobile. No se debilitan los contratos de la versión estable: la nueva comprobación
 compara byte a byte todas las fuentes, tests, recursos y herramientas previas.
-Los resultados finales se agregarán tras recuperar CI.
+Los resultados finales están al final de este informe y en TV_GOOGLE_HOME_PROBE_CI.json.
 
 ## Windows: conservar tu trabajo local y probar sin editar código
 
@@ -232,3 +239,73 @@ Una APK debug de CI tiene firma temporal y carece de configuración Telegram pri
 no se garantiza actualización compatible con la instalación del usuario. La release
 y Mobile son sólo artefactos de verificación de aislamiento y no se publican como
 nuevas versiones. No hay despliegue de producción ni alta de un proveedor Google.
+
+## Resultado final comprobado
+
+CI aprobada: https://github.com/DarioDevia/Miflix/actions/runs/41368218105
+
+Código compilado: `cea12df85f2ed9a85914d04e6819e95f725138c5`.
+Los commits posteriores de esta entrega sólo incorporan resultados documentales.
+Artefacto: `TV-HomeProbe-validacion-nivel1`, ID `13108435709`.
+
+| Comprobación | Resultado |
+| --- | --- |
+| Tests TV Debug | 293 aprobados, 0 fallos, 0 omitidos (281 existentes + 12 nuevos) |
+| Tests Mobile Debug | 281 aprobados, 0 fallos, 0 omitidos |
+| Contratos de aislamiento | 6 aprobados; fuentes/recursos/tests/herramientas anteriores idénticos |
+| Lint TV Debug | 0 errores, 20 advertencias |
+| Lint TV Release | 0 errores, 17 advertencias |
+| Lint Mobile Debug | 0 errores, 14 advertencias |
+| assembleTvDebug / assembleTvRelease / assembleMobileDebug | Correctos; BUILD SUCCESSFUL en 5m49s |
+| Manifiesto y dependencias reales | Sonda y EPG sólo en tvDebug; tvprovider ausente en Release/Mobile |
+| TDLib real en TV Debug y Release | ARM32, ARM64, x86, x86_64 con ELF/hash/size originales |
+| Intro/QR/exclusión de backup de biblioteca | Preservados en debug inspeccionado |
+| testOnly | false en APK debug inspeccionado |
+| Instalación/registro/programas/Home/clic en dispositivo | NO ejecutados desde Work |
+
+Las advertencias heredadas permanecen (incluido el verificador personalizado obsoleto
+de Compose, una limitación previa de cobertura de sus detectores). Las tres nuevas
+de tvDebug son ExportedContentProvider (1) y SetTextI18n (2). El proveedor es público
+exclusivamente para PNG generadas de prueba; la ruta de lectura está limitada y no
+permite escribir ni servir archivos privados. Los dos textos fijos pertenecen sólo a
+la pantalla diagnóstica. No se suprime Lint ni se crea baseline para ocultar alertas.
+
+Incidencias detectadas y corregidas antes de esta ejecución aprobada:
+1. Configuración tvDebugImplementation no creada: declaración explícita del source set.
+2. Nueve RestrictedApi de setters heredados de tvprovider: metadatos por columnas
+   públicas de TvContract, sin llamar esos métodos ni ocultar la comprobación.
+3. Permiso READ_EPG_DATA aportado por el manifiesto de la dependencia: exclusión
+   explícita. La inspección final confirma únicamente WRITE_EPG_DATA además de los
+   permisos originales. No se relajó la lista de permisos aceptados.
+
+### Nivel realmente alcanzado
+
+**Esta entrega: nivel 1.** No se ejecutó la sonda en Android y no hay logs propios
+CANAL_CREADO/PROGRAMAS_VERIFICADOS ni captura de LauncherX de esta compilación.
+El nivel 2 anterior sigue sustentado únicamente por los logs que aportó el usuario
+para su prototipo local. Niveles 3 y 4 pendientes. El nivel 5 completo tampoco está
+implementado: abrir MiFlix es una prueba intermedia, no la ficha específica.
+
+Por tanto **no está demostrado que MiFlix aparezca en Google TV Home**. Tampoco se
+concluye que sea imposible sin ejecutar la prueba en esa configuración concreta.
+Las alternativas oficiales de Google requieren evaluar sus programas/requisitos;
+no se simula admisión ni se accede a privilegios para forzar el launcher.
+
+### Artefacto disponible
+
+`MiFlix-TV-0.1.14-HomeProbe-CI-debug.apk`, 114711452 bytes.
+SHA-256:
+`7c8f555ce65900794fba28d951b346bc37a003da4451b30555ce5351c282bee3`.
+Certificado debug temporal de CI, SHA-256:
+`60b50ad70de4554a69dc3fb9e6facf22b78a1e2a306cd8a9c8881672e2f153cd`.
+No se ha comparado con el certificado original del usuario. Sin configuración
+Telegram privada; no es una actualización familiar compatible verificada.
+
+ZIP del artefacto, SHA-256 verificado tras descargar:
+`f860c0350513ac6114f9f1ac817a7c22c0a2d47a035d4e7b6d1c168fea744154`.
+
+La prueba siguiente, necesaria y fuera del acceso de Work, es ejecutar el script
+Windows sobre el emulador existente con firma/configuración locales. Confirmar canal
+estable, cinco programas, segunda ejecución sin duplicados; luego solicitar visibilidad
+y observar Home. Si no aparecen, conservar los resultados y detener ese camino en
+nivel 3, sin volver a crear canales ni tocar reproducción, permisos privilegiados o datos.
