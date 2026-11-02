@@ -1,0 +1,10 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="com.android.providers.tv.permission.WRITE_EPG_DATA" />
+    <application>
+        <activity android:name=".TvHomeProbeActivity" android:exported="true"
+            android:label="MiFlix Home — experimento" android:screenOrientation="landscape" />
+        <!-- Read-only, public test artwork only; never serves library, cache, sessions or arbitrary paths. -->
+        <provider android:name=".TvHomeProbeImages" android:authorities="${applicationId}.homeprobe.images"
+            android:exported="true" android:grantUriPermissions="false" />
+    </application>
+</manifest>

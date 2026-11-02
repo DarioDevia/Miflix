@@ -1,0 +1,51 @@
+name: Compilar sonda Home TV (sin validación de launcher)
+on:
+  push:
+    branches: [experiment/tv-google-home-probe-work]
+    paths: ['app/**', 'tools/**', '.github/workflows/tv-home-probe.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Contrato de aislamiento
+        run: python3 tools/check_tv_home_probe_contract.py
+      - name: Tests, Lint y compilación (no emulador)
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:testTvDebugUnitTest :app:testMobileDebugUnitTest :app:lintTvDebug :app:lintTvRelease :app:lintMobileDebug :app:assembleTvDebug :app:assembleTvRelease :app:assembleMobileDebug --console=plain '-Pandroid.injected.testOnly=false' '-Pandroid.injected.build.abi=armeabi-v7a,arm64-v8a,x86,x86_64'
+      - name: Aislamiento real del manifest y empaquetado
+        run: |
+          set -euo pipefail
+          mkdir -p home-probe-delivery
+          apk=$(python3 tools/locate_tv_apk.py)
+          release=$(python3 tools/locate_tv_apk.py --variant tvRelease)
+          mobile=$(python3 tools/locate_tv_apk.py --variant mobileDebug)
+          signer=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          python3 tools/inspect_tv_home_probe_apk.py --debug "$apk" --release "$release" --mobile "$mobile" --apksigner "$signer" > home-probe-delivery/packaging.json
+          "$signer" verify --print-certs "$apk" > home-probe-delivery/ci-certificate.txt
+          cp "$apk" home-probe-delivery/MiFlix-TV-0.1.14-HomeProbe-CI-debug.apk
+          sha256sum home-probe-delivery/*.apk > home-probe-delivery/SHA256SUMS.txt
+          ./gradlew :app:dependencies --configuration tvReleaseRuntimeClasspath --console=plain > home-probe-delivery/release-dependencies.txt
+          ./gradlew :app:dependencies --configuration mobileDebugRuntimeClasspath --console=plain > home-probe-delivery/mobile-dependencies.txt
+          ! grep -q 'androidx.tvprovider:tvprovider' home-probe-delivery/release-dependencies.txt
+          ! grep -q 'androidx.tvprovider:tvprovider' home-probe-delivery/mobile-dependencies.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TV-HomeProbe-validacion-nivel1
+          path: |
+            app/build/reports/
+            home-probe-delivery/
+          if-no-files-found: warn
