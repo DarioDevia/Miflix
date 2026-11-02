@@ -8,10 +8,17 @@ def components(path):
     with ZipFile(path) as z:
         return [(tag,attrs) for tag,attrs in manifest_elements(z.read('AndroidManifest.xml'))
             if tag in ('activity','provider','receiver','service') and 'TvHomeProbe' in attrs.get('name','')]
+def main_launch_mode(path):
+    with ZipFile(path) as z:
+        return next(attrs.get('launchMode',0) for tag,attrs in manifest_elements(z.read('AndroidManifest.xml'))
+            if tag=='activity' and attrs.get('name','').endswith('.MainActivity'))
 def main():
     p=argparse.ArgumentParser();p.add_argument('--debug',type=Path,required=True);p.add_argument('--release',type=Path,required=True)
     p.add_argument('--mobile',type=Path,required=True);p.add_argument('--apksigner',type=Path,required=True);args=p.parse_args()
     debug=inspect_apk(args.debug)
+    assert main_launch_mode(args.debug)==2  # singleTask is tvDebug-only
+    assert main_launch_mode(args.release)==0
+    assert main_launch_mode(args.mobile)==0
     assert EPG in debug['permissions']
     stable={**debug,'permissions':[x for x in debug['permissions'] if x!=EPG]}
     errors=packaging_errors(stable,json.loads(PROVENANCE.read_text()))

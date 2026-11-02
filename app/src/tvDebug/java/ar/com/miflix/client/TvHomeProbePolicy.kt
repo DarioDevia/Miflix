@@ -8,7 +8,7 @@ internal fun homeProbeHash(value: String): String = MessageDigest.getInstance("S
     .digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 255) }
 
 internal data class HomeProbeCard(val key: String, val title: String, val description: String,
-    val type: String, val image: String?, val synthetic: Boolean)
+    val type: String, val image: String?, val synthetic: Boolean, val titleId: String? = null)
 
 internal data class HomeProbeStored(val id: Long, val key: String?, val payload: Map<String, String?>)
 internal data class HomeProbeDesired(val key: String, val payload: Map<String, String?>)

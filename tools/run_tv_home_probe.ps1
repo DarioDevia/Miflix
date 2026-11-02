@@ -34,7 +34,7 @@ try {
     & $adb -s $Serial shell am start -n 'ar.com.miflix.client.tv/ar.com.miflix.client.TvHomeProbeActivity' --es probe_action publish
     if ($LASTEXITCODE -ne 0) { throw 'No se pudo abrir la sonda.' }
     Write-Host 'Consultar sólo el tag de sonda, sin volcar Logcat global:'
-    Write-Host "& '$adb' -s '$Serial' logcat -d -s MiFlixHomeProbe:I '*:S'"
+    Write-Host "& '$adb' -s '$Serial' logcat -d -s MiFlixHomeEntry:I MiFlixHomeProbe:I '*:S'"
     Write-Host 'Cuando aparezca PROGRAMAS_VERIFICADOS, solicitar visibilidad desde la sonda y abrir Home.'
     Write-Host 'Publicar una segunda vez debe dar upserts=0 y duplicados=0 si el catálogo y la fecha de corte no cambiaron.'
     Write-Host 'Se aceptan year/anio sin inventar días. SELECCION_VACIA_CONSERVADA mantiene las tarjetas anteriores.'

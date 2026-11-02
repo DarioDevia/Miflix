@@ -1,3 +1,5 @@
+> Apertura directa experimental: ver [TV_GOOGLE_HOME_DIRECT_DETAILS.md](TV_GOOGLE_HOME_DIRECT_DETAILS.md). La selección y su protección se mantienen.
+
 > **Corrección vigente: años válidos y conservación de tarjetas.** La política estricta descrita más abajo es histórica y queda reemplazada por esta sección.
 
 ## Selección corregida

@@ -81,6 +81,6 @@ internal fun homeProbeCards(snapshot:HomeProbeCatalog,today:LocalDate):HomeProbe
     val cards=dated.take(HOME_PROBE_LIMIT).map { (title,_,_) -> HomeProbeCard(
         HOME_PROBE_PREFIX+homeProbeHash("catalog:"+title.id),title.titulo,
         title.sinopsis?.takeIf(String::isNotBlank)?.take(1000) ?: "Abre MiFlix. No inicia reproducción.",
-        title.tipo,tvDetailArtwork(title).backgrounds.firstOrNull(),false) }
+        title.tipo,tvDetailArtwork(title).backgrounds.firstOrNull(),false,title.id) }
     return HomeProbeSelection(cards,missing,invalid,conflicting,future,mismatches,today)
 }

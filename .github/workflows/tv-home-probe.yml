@@ -31,7 +31,7 @@ jobs:
       - name: Tests, Lint y compilación (no emulador)
         run: |
           chmod +x gradlew
-          ./gradlew :app:testTvDebugUnitTest :app:testMobileDebugUnitTest :app:lintTvDebug :app:lintTvRelease :app:lintMobileDebug :app:assembleTvDebug :app:assembleTvRelease :app:assembleMobileDebug --console=plain '-Pandroid.injected.testOnly=false' '-Pandroid.injected.build.abi=armeabi-v7a,arm64-v8a,x86,x86_64'
+          ./gradlew :app:testTvDebugUnitTest :app:testTvReleaseUnitTest :app:testMobileDebugUnitTest :app:lintTvDebug :app:lintTvRelease :app:lintMobileDebug :app:assembleTvDebug :app:assembleTvRelease :app:assembleMobileDebug --console=plain '-Pandroid.injected.testOnly=false' '-Pandroid.injected.build.abi=armeabi-v7a,arm64-v8a,x86,x86_64'
       - name: Aislamiento real del manifest y empaquetado
         run: |
           set -euo pipefail

@@ -100,10 +100,14 @@ class TvHomeProbeActivity : ComponentActivity() {
             } finally { controls.forEach { it.isEnabled=true } }
         }
     }
-    private fun appIntent(cardKey: String? = null): Intent = Intent(this,MainActivity::class.java)
+    private fun appIntent(titleId: String? = null): Intent = Intent(this,MainActivity::class.java)
         .setAction(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-        .apply { if(cardKey!=null) putExtra("miflix_home_probe_key",cardKey) }
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        .apply { if(titleId!=null) {
+            check(homeEntryId(HOME_DETAIL_ACTION,titleId)!=null)
+            action=HOME_DETAIL_ACTION
+            putExtra(HOME_DETAIL_EXTRA,titleId)
+        } }
 
     private data class OwnChannel(val id:Long,val name:String?,val marker:String?,val browsable:Boolean)
     private fun ownChannels(): List<OwnChannel> {
@@ -220,7 +224,7 @@ class TvHomeProbeActivity : ComponentActivity() {
                 put(TvContract.PreviewPrograms.COLUMN_SHORT_DESCRIPTION,card.description)
                 put(TvContract.PreviewPrograms.COLUMN_POSTER_ART_URI,image(card).toString())
                 put(TvContract.PreviewPrograms.COLUMN_POSTER_ART_ASPECT_RATIO,TvContract.PreviewPrograms.ASPECT_RATIO_16_9)
-                put(TvContract.PreviewPrograms.COLUMN_INTENT_URI,appIntent(card.key).toUri(Intent.URI_INTENT_SCHEME))
+                put(TvContract.PreviewPrograms.COLUMN_INTENT_URI,appIntent(requireNotNull(card.titleId)).toUri(Intent.URI_INTENT_SCHEME))
                 put(TvContract.PreviewPrograms.COLUMN_INTERNAL_PROVIDER_ID,card.key)
             }
         }

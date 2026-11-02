@@ -3,6 +3,8 @@
     <!-- tvprovider declares this legacy read permission; API 26+ does not need it. -->
     <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" tools:node="remove" />
     <application>
+        <!-- Explicit existing launcher Activity; no new exported receiver/filter. -->
+        <activity android:name=".MainActivity" android:launchMode="singleTask" />
         <activity android:name=".TvHomeProbeActivity" android:exported="true"
             android:label="MiFlix Home — experimento" android:screenOrientation="landscape" />
         <!-- Read-only, public test artwork only; never serves library, cache, sessions or arbitrary paths. -->
