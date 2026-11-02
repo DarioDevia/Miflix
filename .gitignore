@@ -25,3 +25,10 @@ telegram.local.properties
 local.properties
 .gradle/
 **/build/
+
+# Local signing identities and APKs (may contain legacy embedded configuration).
+*.jks
+*.keystore
+*.apk
+signing.local.properties
+tools/__pycache__/

@@ -83,8 +83,10 @@ $adb="$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 $tools=Get-ChildItem "$env:LOCALAPPDATA\Android\Sdk\build-tools" -Directory | Where-Object { $_.Name -match '^\d+\.\d+\.\d+$' } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
 $signer=Join-Path $tools.FullName 'apksigner.bat'
 $remote=(& $adb -s emulator-5554 shell pm path ar.com.miflix.client.tv | Where-Object { $_ -match '/base.apk' } | Select-Object -First 1) -replace '^package:',''
-& $adb -s emulator-5554 pull $remote.Trim() .\installed-tv.apk
-& $signer verify --print-certs .\installed-tv.apk
+$installedApk=Join-Path $env:TEMP ('MiFlix-installed-'+[guid]::NewGuid().ToString()+'.apk')
+& $adb -s emulator-5554 pull $remote.Trim() $installedApk
+& $signer verify --print-certs $installedApk
+Remove-Item $installedApk
 $apk=py -3 tools/locate_tv_apk.py
 & $signer verify --print-certs $apk
 ```
@@ -121,3 +123,14 @@ No ejecutar la sonda ni comandos publish. Abrir MiFlix/cargar catálogo basta pa
 - Firma familiar y actualización real comprobadas; no distribuir definitivamente hasta autorización expresa.
 
 Las pruebas JVM/políticas no equivalen a Activity, TvProvider ni DPAD reales. Work no dispone del PC, Android Studio ni emulador del propietario. Esta entrega mantiene la denominación candidata mientras falten esas comprobaciones.
+
+## Referencias y resguardo de firma
+
+- Android Preview Channels: https://developer.android.com/training/tv/discovery/recommendations-channel
+- Firma Android: https://developer.android.com/studio/publish/app-signing
+- Compatibilidad de actualizaciones: https://developer.android.com/google/play/app-updates
+- API Telegram: https://core.telegram.org/api/obtaining_api_id
+
+El aprovisionamiento individual es la solución elegida para esta candidata sin credenciales del desarrollador, no una afirmación de que Telegram exija un API ID por cada usuario final. Requiere asistencia si el familiar no sabe obtenerlo; no se declara resuelta una instalación familiar sin configuración.
+
+Resguardar la clave de firma original en al menos dos copias cifradas separadas y conservar alias/huella pública y el procedimiento de recuperación. No guardar sus contraseñas junto a la única copia ni subir keystores o APK antiguas configuradas al repositorio. Restaurar la identidad original antes de compilar una actualización; Work no posee una copia para recuperarla.

@@ -47,6 +47,22 @@ def manifest_elements(data):
             yield name,attrs
         offset+=size
 
+def backup_xml(apk, preferred_path, root_tag):
+    """AAPT may shorten Release resource paths. Require one matching compiled XML root, never skip it."""
+    candidates=[preferred_path] if preferred_path in apk.namelist() else [
+        p for p in apk.namelist() if p.startswith('res/') and p.endswith('.xml')]
+    matches=[]
+    for path in candidates:
+        data=apk.read(path)
+        try:
+            first=next(manifest_elements(data),None)
+        except (ValueError,IndexError,struct.error,UnicodeError):
+            continue
+        if first and first[0]==root_tag:matches.append(data)
+    if len(matches)!=1:
+        raise ValueError('Expected unique compiled '+root_tag+' resource')
+    return matches[0]
+
 INTRO_PATH = "assets/miflix_tv_intro.mp4"
 INTRO_SHA256 = "ecede13d1d994ba31de549b7d3ca557e64d69c4f3518bbae07caae5841423b17"
 INTRO_SIZE = 2134895
@@ -81,10 +97,13 @@ def inspect_apk(path):
         qr = apk.read(REQUESTS_QR_PATH) if REQUESTS_QR_PATH in apk.namelist() else None
         backup_local = True
         for resource, count in (("res/xml/backup_rules.xml",1),("res/xml/data_extraction_rules.xml",2)):
-            if resource not in apk.namelist():
-                backup_local = False
+            root_tag="full-backup-content" if count==1 else "data-extraction-rules"
+            try:
+                xml=backup_xml(apk,resource,root_tag)
+            except ValueError:
+                backup_local=False
                 continue
-            exclusions = [a for n,a in manifest_elements(apk.read(resource)) if n == "exclude"]
+            exclusions = [a for n,a in manifest_elements(xml) if n == "exclude"]
             backup_local = backup_local and sum(a.get("domain")=="sharedpref" and
                 a.get("path")=="miflix_tv_library.xml" for a in exclusions) >= count
         return {

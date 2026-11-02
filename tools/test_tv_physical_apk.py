@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from zipfile import ZipFile
-from verify_tv_physical_apk import INTRO_SHA256, INTRO_SIZE, REQUESTS_QR_SHA256, REQUESTS_QR_SIZE, PROVENANCE, packaging_errors, inspect_apk, verify_signature
+from verify_tv_physical_apk import INTRO_SHA256, INTRO_SIZE, REQUESTS_QR_SHA256, REQUESTS_QR_SIZE, PROVENANCE, packaging_errors, inspect_apk, verify_signature, backup_xml
 
 class PackagingPolicyTest(unittest.TestCase):
     def setUp(self):
@@ -62,6 +62,30 @@ class PackagingPolicyTest(unittest.TestCase):
                     z.writestr('AndroidManifest.xml',b'invalid')
                     z.writestr('AndroidManifest.xml',b'invalid')
             with self.assertRaisesRegex(ValueError,'Duplicate'): inspect_apk(p)
+
+class OptimizedBackupResourcesTest(unittest.TestCase):
+    def fake_xml(self,data):
+        if data==b'backup':yield ('full-backup-content',{})
+        elif data==b'transfer':yield ('data-extraction-rules',{})
+        else:yield ('other',{})
+    def archive(self,entries):
+        from io import BytesIO
+        stream=BytesIO()
+        with ZipFile(stream,'w') as z:
+            for key,value in entries.items():z.writestr(key,value)
+        stream.seek(0)
+        return ZipFile(stream)
+    def test_shortened_release_paths_keep_backup_checks(self):
+        with self.archive({'res/A.xml':b'backup','res/B.xml':b'transfer'}) as z, patch('verify_tv_physical_apk.manifest_elements',self.fake_xml):
+            self.assertEqual(b'backup',backup_xml(z,'res/xml/backup_rules.xml','full-backup-content'))
+            self.assertEqual(b'transfer',backup_xml(z,'res/xml/data_extraction_rules.xml','data-extraction-rules'))
+    def test_missing_or_ambiguous_backup_resources_are_rejected(self):
+        for entries in ({'res/A.xml':b'other'},{'res/A.xml':b'backup','res/B.xml':b'backup'}):
+            with self.archive(entries) as z, patch('verify_tv_physical_apk.manifest_elements',self.fake_xml):
+                with self.assertRaises(ValueError):backup_xml(z,'res/xml/backup_rules.xml','full-backup-content')
+    def test_named_debug_resource_is_also_checked_for_its_root(self):
+        with self.archive({'res/xml/backup_rules.xml':b'other'}) as z, patch('verify_tv_physical_apk.manifest_elements',self.fake_xml):
+            with self.assertRaises(ValueError):backup_xml(z,'res/xml/backup_rules.xml','full-backup-content')
 
 class FrozenSourcesTest(unittest.TestCase):
     def test_protected_sources_and_progress_remain_exact(self):

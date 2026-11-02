@@ -1,8 +1,8 @@
 """TV 0.1.15 candidate evidence: inspect real APKs, never private files or signing keys."""
-import argparse,json,re
+import argparse,json,re,subprocess
 from pathlib import Path
 from zipfile import ZipFile
-from verify_tv_physical_apk import inspect_apk,packaging_errors,verify_signature,manifest_elements,PROVENANCE
+from verify_tv_physical_apk import inspect_apk,packaging_errors,verify_signature,manifest_elements,backup_xml,PROVENANCE
 EPG='com.android.providers.tv.permission.WRITE_EPG_DATA'
 def elements(path):
     with ZipFile(path) as z:
@@ -25,7 +25,8 @@ def inspect_candidate(debug,release,mobile,signer,generated):
             assert not providers[0].get('grantUriPermissions',False)
             with ZipFile(path) as z:
                 for resource,count in [('res/xml/backup_rules.xml',1),('res/xml/data_extraction_rules.xml',2)]:
-                    rules=list(manifest_elements(z.read(resource)))
+                    root_tag='full-backup-content' if count==1 else 'data-extraction-rules'
+                    rules=list(manifest_elements(backup_xml(z,resource,root_tag)))
                     for domain,value in [('sharedpref','miflix_telegram.xml'),('file','tdlib/')]:
                         assert sum(tag=='exclude' and attrs.get('domain')==domain and attrs.get('path')==value for tag,attrs in rules)>=count
             policy=dict(report);policy['debuggable']=True
@@ -39,6 +40,8 @@ def inspect_candidate(debug,release,mobile,signer,generated):
             assert not any('TvHomeImages' in a.get('name','') for _,a in elems)
         reports[variant]=report
     verify_signature(signer,debug)
+    release_verification=subprocess.run([str(signer),'verify','--print-certs',str(release)],capture_output=True,text=True)
+    assert release_verification.returncode!=0,'Expected unsigned Release, do not relabel a signed artifact'
     # Read only generated TV configs (whose flavor forcibly supplies empty credentials), never Mobile or local properties.
     configs=[p for p in generated.rglob('BuildConfig.java') if any(part.lower() in ('tv','tvdebug','tvrelease') for part in p.parts)]
     assert len(configs)==2,'Expected both generated TV BuildConfigs'
@@ -55,6 +58,7 @@ def signing_input(path):
     normalized=dict(report);normalized['debuggable']=True
     assert not packaging_errors(normalized,json.loads(PROVENANCE.read_text()))
     assert EPG in report['permissions']
+    assert not report['debuggable'],'Signing workflow expects the Release candidate'
     elems=elements(path)
     assert not any('TvHomeProbe' in a.get('name','') for _,a in elems)
     assert any(tag=='provider' and a.get('name','').endswith('.TvHomeImages') for tag,a in elems)
