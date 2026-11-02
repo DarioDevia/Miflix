@@ -27,11 +27,12 @@ jobs:
       - name: Sintaxis PowerShell sin claves ni ADB
         shell: pwsh
         run: |
-          foreach ($script in @('tools/build_tv_physical_debug.ps1','tools/sign_tv_candidate.ps1')) {
+          foreach ($script in @('tools/build_tv_physical_debug.ps1','tools/sign_tv_candidate.ps1','tools/tv_certificate.ps1','tools/test_tv_certificate.ps1')) {
             $tokens=$null; $parseErrors=$null
             [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $script),[ref]$tokens,[ref]$parseErrors) | Out-Null
             if ($parseErrors.Count) { $parseErrors | Format-List; exit 1 }
           }
+          & ./tools/test_tv_certificate.ps1
       - name: Tests Lint y compilaciones sin credenciales
         run: |
           chmod +x gradlew

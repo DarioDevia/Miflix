@@ -23,8 +23,9 @@ if ($LASTEXITCODE -ne 0) { throw 'Candidate identity/packaging inspection failed
 if ($LASTEXITCODE -ne 0) { throw 'Signing failed. Do not install.' }
 $cert=& $signer verify --print-certs $OutputApk
 if ($LASTEXITCODE -ne 0) { throw 'Signature verification failed.' }
-$line=$cert | Where-Object { $_ -match '^Signer #1 certificate SHA-256 digest:' } | Select-Object -First 1
-$actual=($line -replace '^.*digest:\s*','' -replace '[:\s]','').ToLowerInvariant()
+. (Join-Path $PSScriptRoot 'tv_certificate.ps1')
+try { $actual=Get-MiFlixCertificateDigest -Lines $cert }
+catch { Remove-Item $OutputApk; throw 'Cannot verify one signing identity; candidate discarded.' }
 if ($actual -ne $expected) {
     Remove-Item $OutputApk
     throw 'Certificate does not match the installed application. Candidate discarded; do not uninstall the previous app.'

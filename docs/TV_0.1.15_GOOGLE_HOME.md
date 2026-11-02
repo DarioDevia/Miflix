@@ -57,11 +57,12 @@ El artefacto Debug CI es una candidata de laboratorio, no actualización compati
 Crear otra carpeta sin sobrescribir trabajos locales:
 
 ```powershell
-cd C:\Users\devia\StudioProjects\Miflix-TV-HomeDetails-Work
+# Desde la terminal de tu proyecto MiFlix actual, en la raíz del repositorio:
 git status --short
 git fetch origin
 git worktree add ..\Miflix-TV-015 origin/feature/tv-0.1.15-google-home
 cd ..\Miflix-TV-015
+$env:ANDROID_HOME=Join-Path $env:LOCALAPPDATA 'Android\Sdk'
 .\tools\build_tv_physical_debug.ps1
 ```
 
@@ -91,7 +92,7 @@ $apk=py -3 tools/locate_tv_apk.py
 & $signer verify --print-certs $apk
 ```
 
-Comparar públicamente Signer #1 certificate SHA-256 digest. También confirmar package/version con el inspector; no basta el nombre del archivo. Si difieren, NO desinstalar. Buscar/restaurar la clave original.
+Comparar públicamente certificate SHA-256 digest. También confirmar package/version con el inspector; no basta el nombre del archivo. Si difieren, NO desinstalar. Buscar/restaurar la clave original.
 
 Para firmar la release, tools/sign_tv_candidate.ps1 exige rutas explícitas, alias y huella pública esperada. Usa contraseñas en variables de entorno MIFLIX_KS_PASS/MIFLIX_KEY_PASS, nunca argumentos de texto/archivos versionados. Cargarlas desde Read-Host -AsSecureString en una consola local si se requiere, sin pegar contraseñas en el historial; eliminarlas al finalizar. El script sólo llama al apksigner local, no crea claves, y descarta la salida si el certificado no coincide con la huella suministrada.
 
