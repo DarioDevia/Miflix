@@ -135,3 +135,80 @@ Las pruebas JVM/políticas no equivalen a Activity, TvProvider ni DPAD reales. W
 El aprovisionamiento individual es la solución elegida para esta candidata sin credenciales del desarrollador, no una afirmación de que Telegram exija un API ID por cada usuario final. Requiere asistencia si el familiar no sabe obtenerlo; no se declara resuelta una instalación familiar sin configuración.
 
 Resguardar la clave de firma original en al menos dos copias cifradas separadas y conservar alias/huella pública y el procedimiento de recuperación. No guardar sus contraseñas junto a la única copia ni subir keystores o APK antiguas configuradas al repositorio. Restaurar la identidad original antes de compilar una actualización; Work no posee una copia para recuperarla.
+
+## Resultado final automático y artefactos
+
+Código validado: `f0a3a10921bbb51e77e08671a3264fd91a92bd77`.
+CI aprobada: https://github.com/DarioDevia/Miflix/actions/runs/41394280394 .
+El commit posterior de cierre sólo añade este informe y su recibo JSON; no modifica app, herramientas ni workflow.
+
+| Variante | Tests JVM | Fallos / ignorados | Errores Lint | Advertencias Lint |
+| --- | ---: | --- | ---: | ---: |
+| TV Debug | 336 | 0 / 0 | 0 | 18 |
+| TV Release | 336 | 0 / 0 | 0 | 18 |
+| Mobile Debug | 281 | 0 / 0 | 0 | 14 |
+
+Se reutilizaron 45 pruebas TV de selección/reconciliación/navegación del experimento y se añadieron 10 de conservación/error/caché/identidad/provisión: 55 pruebas TV específicas, disponibles para Debug y Release. Además aprobaron 27 tests Python (contratos/packaging/recursos/locator) y seis casos PowerShell de lectura del certificado público. Ninguno prueba DPAD o TvProvider reales.
+
+Gradle BUILD SUCCESSFUL in 5m 29s; assembleTvDebug, assembleTvRelease y assembleMobileDebug aprobadas. Lint no se deshabilita. Las 18 advertencias TV incluyen el proveedor de carátulas exportado necesario para el launcher; Mobile conserva sus 14 advertencias. Los adaptadores Mobile inactivos también pueden producir avisos Kotlin de parámetros no usados.
+
+Inspección real aprobada en ambas APK TV: ar.com.miflix.client.tv, 0.1.15-diagnostico / 16, minSdk 26, targetSdk 34, testOnly=false, modo singleTask, integración normal y proveedor sólo de imágenes; sin TvHomeProbeActivity. Debug debuggable=true con firma CI; Release debuggable=false y sin firma, verificado con apksigner. ABI armeabi-v7a, arm64-v8a, x86 y x86_64 presentes con sus ELF/hash/size originales de core:0.1.1. Intro y QR originales conservados. Los dos BuildConfig TV generados no incorporan API ID/hash del desarrollador. Mobile permanece 0.9.2-diagnostico / 26 y sin tvprovider/permisos/componentes Home.
+
+Artefacto final: https://github.com/DarioDevia/Miflix/actions/runs/41394280394/artifacts/13119310668 . Contiene dos candidatas, informes tests/Lint, inspección y certificados públicos:
+
+- MiFlix-TV-0.1.15-candidate-CI-debug.apk — laboratorio; no se afirma compatibilidad con la firma instalada.
+- MiFlix-TV-0.1.15-candidate-unsigned.apk — Release SIN FIRMA; no instalable hasta firmarla localmente.
+
+SHA-256 de las APK:
+
+```text
+Debug CI: 673210723ea38088b8486fc64d12d26a3f31ce59099691e1e7d19500de2ee002
+Release unsigned: 61c497f6aef9d4592e5bf7a988a09bb5b1ba7945986579db67708c3fdf9d9e67
+```
+
+Certificado público Debug CI (NO el familiar comprobado): 91810cb62023f222c2ca2f6f661f676918ce189f01e6afaff7264f0bb29492b5.
+ZIP descargado y hash verificado: 1631a471b633ad719b9d9645f5d9a4c470fbc8984803b8668c2f386ad60895cc. No confundir el hash del ZIP con el de las APK.
+
+El primer intento aprobó aplicación/tests/Lint pero falló el inspector al buscar una ruta XML literal abreviada por el empaquetador Release. Se corrigió para exigir una regla compilada única con el root correcto; las reglas ausentes/ambiguas siguen fallando. La prueba PowerShell de dos identidades también detectó una concatenación incorrecta en su fixture, corregida antes de esta ejecución final. No se ocultó ningún error ni se modificó la aplicación para sortearlos.
+
+### Pendiente antes de estabilidad/distribución final
+
+No hay validación física de 0.1.15 en Work. Faltan certificado instalado y prueba de actualización sin borrado, aprovisionamiento personal efectivo en equipos existentes/nuevos, publicación automática y DPAD/reproducción en Google TV y Android TV ARM representativos. La validación del nivel 5 del experimento procede del propietario y no se traslada automáticamente a esta candidata. No hay autorización de distribución familiar definitiva ni una clave Release nueva creada por Work.
+
+### Inventario exacto frente a la base estable
+
+- `.github/workflows/tv015-home-validation.yml`
+- `.gitignore`
+- `CHANGELOG_TV.md`
+- `README.md`
+- `app/build.gradle.kts`
+- `app/src/main/java/ar/com/miflix/client/MainActivity.kt`
+- `app/src/main/java/ar/com/miflix/client/PlaybackScreen.kt`
+- `app/src/mobile/java/ar/com/miflix/client/TvHomeIntegration.kt`
+- `app/src/testTv/java/ar/com/miflix/client/TvHomeEntryTest.kt`
+- `app/src/testTv/java/ar/com/miflix/client/TvHomeProbePolicyTest.kt`
+- `app/src/testTv/java/ar/com/miflix/client/TvHomeProbeReleasesTest.kt`
+- `app/src/testTv/java/ar/com/miflix/client/TvHomeSyncPolicyTest.kt`
+- `app/src/tv/AndroidManifest.xml`
+- `app/src/tv/java/ar/com/miflix/client/TvHomeArtwork.kt`
+- `app/src/tv/java/ar/com/miflix/client/TvHomeCredentials.kt`
+- `app/src/tv/java/ar/com/miflix/client/TvHomeEntryPolicy.kt`
+- `app/src/tv/java/ar/com/miflix/client/TvHomeImages.kt`
+- `app/src/tv/java/ar/com/miflix/client/TvHomeIntegration.kt`
+- `app/src/tv/java/ar/com/miflix/client/TvHomePolicy.kt`
+- `app/src/tv/java/ar/com/miflix/client/TvHomeReleases.kt`
+- `app/src/tv/java/ar/com/miflix/client/TvHomeSync.kt`
+- `app/src/tv/java/ar/com/miflix/client/TvHomeSyncPolicy.kt`
+- `app/src/tv/res/xml/backup_rules.xml`
+- `app/src/tv/res/xml/data_extraction_rules.xml`
+- `docs/TV_0.1.15_CI.json`
+- `docs/TV_0.1.15_GOOGLE_HOME.md`
+- `tools/build_tv_physical_debug.ps1`
+- `tools/check_tv015_home_contract.py`
+- `tools/inspect_tv015_apks.py`
+- `tools/sign_tv_candidate.ps1`
+- `tools/summarize_tv015_validation.py`
+- `tools/test_tv_certificate.ps1`
+- `tools/test_tv_physical_apk.py`
+- `tools/tv_certificate.ps1`
+- `tools/verify_tv_physical_apk.py`
