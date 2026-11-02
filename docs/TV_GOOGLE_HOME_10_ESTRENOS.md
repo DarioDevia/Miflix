@@ -141,7 +141,7 @@ Se preservan exactamente los bloques existentes de imagen y apertura mediante co
 CI ejecuta tests TV/Mobile, Lint TV Debug/TV Release/Mobile, compilaciones de las tres
 variantes, sintaxis PowerShell y el inspector de aislamiento de manifiestos/ABI/firma.
 Sin baseline ni supresiones. No inicia emuladores ni prueba visualmente LauncherX.
-Los resultados finales se incorporarán al cerrar la ejecución.
+Los resultados finales están a continuación y en TV_GOOGLE_HOME_10_CI.json.
 
 ## Windows: no sobrescribir el worktree con tu corrección local
 
@@ -186,3 +186,51 @@ Home con el mando; Google TV decide su presentación. No declarar nivel 5 por ab
 Si la fila queda vacía por falta de fechas, el bloqueo está documentado: poblar esos
 datos requerirá una tarea de catálogo/Admin fuera de este alcance, o cambiar la regla
 con autorización. Esta entrega no modifica producción para saltarse esa limitación.
+
+## Resultados finales de esta entrega
+
+CI aprobada: https://github.com/DarioDevia/Miflix/actions/runs/41379860970
+
+Código compilado: `243a0b5edcbef25c4b823b581b9ba772726ab9a0`.
+Los commits posteriores de esta entrega sólo registran resultados; no cambian el código
+compilado. Artefacto `TV-Home10-validacion`, ID `13113296746`.
+
+| Comprobación | Resultado real |
+| --- | --- |
+| Tests JVM TV | 310 aprobados, 0 fallos, 0 omitidos |
+| Tests JVM Mobile | 281 aprobados, 0 fallos, 0 omitidos |
+| Nuevos tests | 17 añadidos; cinco expectativas de selección actualizadas a la regla estricta |
+| Contratos de protección | 8 aprobados; fuentes estables y bloques de imágenes/enlaces conservados |
+| Lint TV Debug | 0 errores, 20 advertencias |
+| Lint TV Release | 0 errores, 17 advertencias |
+| Lint Mobile Debug | 0 errores, 14 advertencias |
+| Sintaxis PowerShell | Aprobada por el parser; no ejecutó ADB ni leyó configuración privada |
+| Compilación | TV Debug, TV Release y Mobile Debug correctas; BUILD SUCCESSFUL en 5m04s |
+| Inspección APK/dependencias | Componentes/permiso EPG/tvprovider sólo en tvDebug |
+| ABI reales | ARM32, ARM64, x86, x86_64, ELF/hash/tamaño originales |
+| Package/versión | ar.com.miflix.client.tv / 0.1.14-diagnostico / 15, sin cambios |
+| testOnly | false en el APK debug inspeccionado |
+| Logcat de la nueva selección / observación visual | Pendientes; Work no accede al emulador del usuario |
+
+Las advertencias conservan cantidades e IDs de la sonda anterior: incluyen el detector
+personalizado obsoleto de Compose (limitación previa de su cobertura), proveedor público
+de PNG de prueba y textos diagnósticos fijos. No se introdujeron supresiones ni baseline.
+El nuevo algoritmo no añade permisos, dependencias ni modificaciones a Release/Mobile.
+
+APK de CI: `MiFlix-TV-0.1.14-Home10-CI-debug.apk`, 114715548 bytes.
+SHA-256: `ea147c03549d15e5e5105b1604f92a235131727d4987b9d35fd099478ce13b06`.
+Firma debug temporal de CI, certificado SHA-256:
+`9492e013f46f522a557e4b115012c6d38c251dc09d4181380cfe13767e347907`.
+No incluye configuración privada Telegram ni se comparó con la firma del usuario.
+Compilar localmente para actualizar conservando configuración e identidad existentes;
+no instalar el artefacto CI como si fuera una actualización familiar compatible.
+
+Archivo del artefacto descargado y verificado, SHA-256:
+`0d743b2bb50c8e85aeeec476e180a343e8626192ea5edde8e29453de4672680c`.
+Informes originales HTML/XML y la inspección están en esa ejecución de GitHub Actions.
+
+Estado: integración anterior nivel 4 confirmada por el usuario; selección nueva
+implementada y comprobada automáticamente, sin validación de Logcat/Home desde Work.
+Nivel 5 no declarado. **Mostrar diez estrenos queda condicionado a que el catálogo
+aporte al menos diez fechas completas elegibles.** No se declara resuelto ese bloqueo
+mediante fechas inventadas ni modificaciones a producción fuera de alcance.
