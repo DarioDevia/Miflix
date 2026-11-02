@@ -34,6 +34,18 @@ Actualizar el catálogo desde MiFlix y sincronizar la sonda. Revisar `PROGRAMAS_
 
 El nivel 4 previamente observado se conserva como antecedente. La nueva selección no está observada en el emulador de Work, no se declaran diez tarjetas visibles ni nivel 5. El launcher controla la presentación.
 
+## Resultado automático de esta corrección
+
+CI https://github.com/DarioDevia/Miflix/actions/runs/41382075815 aprobada para el commit `6b6550303e775070bc06b195042f07dd35dedaa9` (código funcional en `459f32f8d746e12fb2d47a332cf48769c00f1ff9`).
+
+- Ocho contratos Python y sintaxis PowerShell: aprobados.
+- `testTvDebugUnitTest` y `testMobileDebugUnitTest`: aprobados. Cuatro pruebas nuevas de años/formatos mixtos/protección de cinco tarjetas y actualización de los casos anteriores.
+- `lintTvDebug`, `lintTvRelease`, `lintMobileDebug`: aprobados sin deshabilitar controles; no se afirma ausencia de advertencias.
+- `assembleTvDebug`, `assembleTvRelease`, `assembleMobileDebug`: aprobados.
+- Inspección real de manifiestos, dependencias y empaquetado: aprobada; experimento aislado de Release/Mobile y ARM conservado.
+- APK debug de CI disponible en el artefacto `TV-Home10-validacion` de esa ejecución; no se ha comprobado su certificado contra la instalación del usuario. Usar compilación local con la clave existente para actualizar sin borrar datos.
+- No se ejecutó ADB, Logcat ni validación visual nueva. El caso de cinco tarjetas conservadas está probado en JVM y protegido en el flujo real antes de toda escritura; queda pendiente confirmarlo con el proveedor del emulador.
+
 ---
 
 # MiFlix Google TV Home — hasta 10 estrenos con fecha completa
