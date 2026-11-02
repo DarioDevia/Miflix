@@ -14,7 +14,8 @@ def main():
     debug=inspect_apk(args.debug)
     assert EPG in debug['permissions']
     stable={**debug,'permissions':[x for x in debug['permissions'] if x!=EPG]}
-    assert not packaging_errors(stable,json.loads(PROVENANCE.read_text()))
+    errors=packaging_errors(stable,json.loads(PROVENANCE.read_text()))
+    assert not errors, errors
     assert len(components(args.debug))==2
     assert all(a.get('exported') is True for _,a in components(args.debug))
     assert not any('READ_EPG' in x or 'SECURE_SETTINGS' in x or 'READ_TV_LISTINGS' in x for x in debug['permissions'])

@@ -1,6 +1,7 @@
 """Experimental tvDebug only: stable TV/Mobile source and resources remain exact."""
 import subprocess
 import unittest
+from xml.etree import ElementTree as ET
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 BASE='e20be389c79e0176fc9fa068fd1c91354f824641'
@@ -14,6 +15,14 @@ class ProbeContract(unittest.TestCase):
             after=(ROOT/path).read_bytes()
             if path=='app/build.gradle.kts':after=after.decode().replace(ADDITION,'').replace(SOURCE_SET,'').encode()
             self.assertEqual(before,after,path)
+    def test_only_required_epg_write_permission_survives_library_manifest(self):
+        root=ET.parse(ROOT/'app/src/tvDebug/AndroidManifest.xml').getroot()
+        android='{http://schemas.android.com/apk/res/android}';tools='{http://schemas.android.com/tools}'
+        permissions=root.findall('uses-permission')
+        self.assertEqual(2,len(permissions))
+        self.assertEqual('com.android.providers.tv.permission.WRITE_EPG_DATA',permissions[0].get(android+'name'))
+        self.assertEqual('com.android.providers.tv.permission.READ_EPG_DATA',permissions[1].get(android+'name'))
+        self.assertEqual('remove',permissions[1].get(tools+'node'))
     def test_dependency_is_scoped_to_tv_debug_only(self):
         s=(ROOT/'app/build.gradle.kts').read_text()
         self.assertEqual(1,s.count(ADDITION))

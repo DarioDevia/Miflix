@@ -33,9 +33,9 @@ jobs:
           release=$(python3 tools/locate_tv_apk.py --variant tvRelease)
           mobile=$(python3 tools/locate_tv_apk.py --variant mobileDebug)
           signer=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          cp "$apk" home-probe-delivery/MiFlix-TV-0.1.14-HomeProbe-CI-debug.apk
           python3 tools/inspect_tv_home_probe_apk.py --debug "$apk" --release "$release" --mobile "$mobile" --apksigner "$signer" > home-probe-delivery/packaging.json
           "$signer" verify --print-certs "$apk" > home-probe-delivery/ci-certificate.txt
-          cp "$apk" home-probe-delivery/MiFlix-TV-0.1.14-HomeProbe-CI-debug.apk
           sha256sum home-probe-delivery/*.apk > home-probe-delivery/SHA256SUMS.txt
           ./gradlew :app:dependencies --configuration tvReleaseRuntimeClasspath --console=plain > home-probe-delivery/release-dependencies.txt
           ./gradlew :app:dependencies --configuration mobileDebugRuntimeClasspath --console=plain > home-probe-delivery/mobile-dependencies.txt
