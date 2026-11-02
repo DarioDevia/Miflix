@@ -49,6 +49,7 @@ internal class ExperimentalHomeEntry {
             val loaded = withTimeoutOrNull(HOME_DETAIL_WAIT_MS) {
                 snapshotFlow { latestReady }.first { it }
             } != null
+            if(inbox.serial != request.serial) return@LaunchedEffect
             if(!loaded) {
                 inbox = inbox.consume(request.serial)
                 Log.i("MiFlixHomeEntry", "CATALOGO_ESPERA_AGOTADA")

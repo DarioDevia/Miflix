@@ -54,7 +54,7 @@ class ProbeContract(unittest.TestCase):
         self.assertNotIn('requestPlayback',hook)
         adapter=(root/'tvDebug/java/ar/com/miflix/client/ExperimentalHomeEntry.kt').read_text()
         for marker in ('withTimeoutOrNull(HOME_DETAIL_WAIT_MS)','saved.getString(savedKey)',
-            'inbox.consume(request.serial)','snapshotFlow { latestAuthorized }'):
+            'inbox.consume(request.serial)','inbox.serial != request.serial','snapshotFlow { latestAuthorized }'):
             self.assertIn(marker,adapter)
         manifest=ET.parse(root/'tvDebug/AndroidManifest.xml').getroot()
         android='{http://schemas.android.com/apk/res/android}'
