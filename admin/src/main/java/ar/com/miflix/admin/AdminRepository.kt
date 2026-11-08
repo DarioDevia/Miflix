@@ -166,6 +166,7 @@ class AdminRepository(private val store: StateStore) {
     }
     fun draft(): JsonObject?=state.get("draft")?.takeIf { it.isJsonObject }?.asJsonObject?.deepCopy()
     fun persistDraft(draft: JsonObject?,verifiedPaths:Set<String> = emptySet()) {
+        if(verifiedPaths.isEmpty() && draft == this.draft()) return
         val next=if(draft!=null && verifiedPaths.isNotEmpty()) RetiredMetadata.verified(state,draft,verifiedPaths) else state.deepCopy()
         if(draft==null) next.remove("draft") else next.add("draft",draft.deepCopy());commit(next)
     }
@@ -178,7 +179,7 @@ class AdminRepository(private val store: StateStore) {
         val before=backup.getAsJsonObject("before")
         val same=if(item.text("id").isNotBlank()) before.text("id")==item.text("id") else
             item.text("_admin_metadata_recovery").isNotBlank() && item.text("_admin_metadata_recovery")==before.text("_admin_metadata_recovery")
-        return same && runCatching {MetadataRecovery.undo(item,backup);true}.getOrDefault(false)
+        return same && runCatching {MetadataRecovery.validateUndo(item,backup);true}.getOrDefault(false)
     }
     fun undoRecovery(draft: JsonObject): JsonObject {
         check(writable) {"El catálogo está en solo lectura."}

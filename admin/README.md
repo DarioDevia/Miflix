@@ -1,3 +1,11 @@
+# MiFlix Admin Android 0.1.12-diagnostico / 13
+
+Edición en memoria, autoguardado del borrador tras 500 ms de pausa y escrituras ordenadas fuera del hilo principal. Guardar y Sincronizar siguen siendo acciones manuales separadas. Conserva el formato local y las funciones de 0.1.11. Sin cambios de Worker ni clientes.
+
+Ver [causa, pruebas, rendimiento y límites de recuperación](0.1.12-editor-persistence.md). Actualizar con la firma original, sin desinstalar ni borrar datos. Validación física en Samsung pendiente; no se garantiza conservar los últimos cambios aún no escritos ante una muerte abrupta del proceso.
+
+## Antecedente 0.1.11
+
 # MiFlix Admin Android 0.1.11-diagnostico / 12
 
 Sincronización manual de colecciones mediante el Worker de producción: consulta, comparación por ID/campos, confirmación de reemplazos y vacíos, recuperación selectiva con respaldo. Se reutiliza el token Cloudflare existente. No hay publicación automática ni cambios del Worker o clientes. Se conservan las funciones de 0.1.10 y las colecciones/sagas locales.

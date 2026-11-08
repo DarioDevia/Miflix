@@ -23,6 +23,7 @@ import java.io.File
 class AdminSeriesFlowTest {
     private lateinit var app:Application
     private lateinit var server:MockWebServer
+    private val models=androidx.lifecycle.ViewModelStore()
     private lateinit var vm:AdminViewModel
     private lateinit var remoteCatalog:JsonObject
     private var published:JsonObject?=null
@@ -67,9 +68,11 @@ class AdminSeriesFlowTest {
         server.start()
         vm=newModel()
     }
-    @After fun teardown(){server.shutdown();Dispatchers.resetMain()}
+    @After fun teardown(){if(::vm.isInitialized) runBlocking {vm.awaitLocalWrites()};models.clear();server.shutdown();Dispatchers.resetMain()}
     private fun newModel():AdminViewModel {
+        if(::vm.isInitialized) runBlocking {vm.awaitLocalWrites()}
         val model=AdminViewModel(app)
+        models.put(java.util.UUID.randomUUID().toString(),model)
         // Only replace encrypted credential setup; all workflow methods/providers remain production.
         @Suppress("UNCHECKED_CAST")
         val config=AdminViewModel::class.java.getDeclaredField("config\$delegate").apply {isAccessible=true}.get(model) as MutableState<AdminConfig?>
@@ -91,45 +94,45 @@ class AdminSeriesFlowTest {
     @Test fun tmdbSeriesWithEpisodeOnlyLinksAdvancesOnConfirmedSaveAndSurvivesSyncRestart(){
         searchAndReview();episode(1,first);episode(2,last)
         assertNull(vm.checkpoint("serie"));assertEquals("",vm.draft!!.text("telegram_url"))
-        vm.save();assertEquals("home",vm.screen);assertSeriesPoint();assertTrue(vm.pending)
+        vm.save();await();assertEquals("home",vm.screen);assertSeriesPoint();assertTrue(vm.pending)
         val saved=CatalogRules.items(vm.catalog!!).single();assertEquals("",saved.text("telegram_url"))
         assertEquals(listOf(first,last),saved.array("temporadas")[0].asJsonObject.array("episodios").map {it.asJsonObject.text("telegram_url")})
         vm.sync();await();assertFalse(vm.pending);assertNotNull(published);assertFalse(published!!.has("checkpoints"))
         assertSeriesPoint(newModel())
     }
-    @Test fun seriesRootLinkFlowStillAdvancesOnlySeries(){searchAndReview(root=last);assertNull(vm.checkpoint("serie"));vm.save();assertSeriesPoint()}
-    @Test fun metadataOrEpisodeTitleEditDoesNotReprocessOldPublication(){searchAndReview();episode(1,first);vm.save();val before=vm.checkpoint("serie")!!;vm.edit(CatalogRules.items(vm.catalog!!).single());vm.field("titulo","Título corregido");vm.episodeField(1,1,"titulo","Nombre corregido");vm.save();assertEquals(before,vm.checkpoint("serie"));assertEquals("Título corregido",CatalogRules.items(vm.catalog!!).single().text("titulo"))}
+    @Test fun seriesRootLinkFlowStillAdvancesOnlySeries(){searchAndReview(root=last);assertNull(vm.checkpoint("serie"));vm.save();await();assertSeriesPoint()}
+    @Test fun metadataOrEpisodeTitleEditDoesNotReprocessOldPublication(){searchAndReview();episode(1,first);vm.save();await();val before=vm.checkpoint("serie")!!;vm.edit(CatalogRules.items(vm.catalog!!).single());vm.field("titulo","Título corregido");vm.episodeField(1,1,"titulo","Nombre corregido");vm.save();await();assertEquals(before,vm.checkpoint("serie"));assertEquals("Título corregido",CatalogRules.items(vm.catalog!!).single().text("titulo"))}
     @Test fun matchedExistingSeriesAlsoRecordsExplicitEpisodePublication(){
         remoteCatalog.add("items",JsonArray().apply {add(JsonParser.parseString("""{"id":"serie-imdb-tt42","tipo":"serie","titulo":"The Wonderfools","temporadas":[{"numero":1,"episodios":[]}],"unknown":"keep"}"""))})
-        vm.refresh();await();searchAndReview();assertFalse(vm.isNew);episode(1,last);vm.save();assertSeriesPoint()
+        vm.refresh();await();searchAndReview();assertFalse(vm.isNew);episode(1,last);vm.save();await();assertSeriesPoint()
         assertEquals("keep",CatalogRules.items(vm.catalog!!).single().text("unknown"))
     }
     @Test fun episodeDraftDoesNotAdvanceUntilResumedReviewIsSaved(){
         searchAndReview();episode(1,last);assertNull(vm.checkpoint("serie"))
         vm=newModel();assertNull(vm.checkpoint("serie"));vm.resumeDraft();assertEquals("review",vm.screen)
-        vm.save();assertSeriesPoint()
+        vm.save();await();assertSeriesPoint()
     }
-    @Test fun lastPublicationEnteredWinsRatherThanHighestEpisodeNumber(){searchAndReview();episode(7,first);episode(2,last);vm.save();assertSeriesPoint()}
-    @Test fun discardingEpisodeDraftLeavesAllCheckpointsUntouched(){searchAndReview();episode(1,last);vm.discardDraft();assertNull(vm.checkpoint("serie"));assertEquals(moviePoint,vm.checkpoint("pelicula"));assertNull(vm.checkpoint("anime"));assertEquals(0,CatalogRules.items(vm.catalog!!).size)}
-    @Test fun clearingEpisodeLinkDoesNotInventProcessedPublication(){searchAndReview();episode(1,last);vm.episodeField(1,1,"telegram_url","");vm.save();assertEquals("home",vm.screen);assertNull(vm.checkpoint("serie"));assertEquals(moviePoint,vm.checkpoint("pelicula"))}
-    @Test fun invalidEpisodeLinkCannotSaveCatalogOrCheckpoint(){searchAndReview();episode(1,"https://invalid.test/2");vm.save();assertEquals("review",vm.screen);assertEquals(0,CatalogRules.items(vm.catalog!!).size);assertNull(vm.checkpoint("serie"));assertFalse(vm.pending)}
-    @Test fun movieFlowStillUsesOriginalRootPublication(){vm.openCategory("pelicula");vm.newItem();vm.changeTelegramLink(last);vm.query="Película nueva";vm.search();await();vm.use(vm.results.single());await();vm.save();assertEquals("home",vm.screen);assertEquals(last,vm.checkpointLink("pelicula"));assertNull(vm.checkpoint("serie"));assertNull(vm.checkpoint("anime"))}
-    @Test fun sharedAnimeEpisodeEditorUsesSameSaveIntegration(){vm.openCategory("anime");vm.newItem();vm.field("titulo","Anime de prueba");vm.addSeason(1);episode(1,last);assertNull(vm.checkpoint("anime"));vm.save();assertEquals("home",vm.screen);assertEquals(last,vm.checkpointLink("anime"));assertEquals(moviePoint,vm.checkpoint("pelicula"));assertNull(vm.checkpoint("serie"))}
+    @Test fun lastPublicationEnteredWinsRatherThanHighestEpisodeNumber(){searchAndReview();episode(7,first);episode(2,last);vm.save();await();assertSeriesPoint()}
+    @Test fun discardingEpisodeDraftLeavesAllCheckpointsUntouched(){searchAndReview();episode(1,last);vm.discardDraft();await();assertNull(vm.checkpoint("serie"));assertEquals(moviePoint,vm.checkpoint("pelicula"));assertNull(vm.checkpoint("anime"));assertEquals(0,CatalogRules.items(vm.catalog!!).size)}
+    @Test fun clearingEpisodeLinkDoesNotInventProcessedPublication(){searchAndReview();episode(1,last);vm.episodeField(1,1,"telegram_url","");vm.save();await();assertEquals("home",vm.screen);assertNull(vm.checkpoint("serie"));assertEquals(moviePoint,vm.checkpoint("pelicula"))}
+    @Test fun invalidEpisodeLinkCannotSaveCatalogOrCheckpoint(){searchAndReview();episode(1,"https://invalid.test/2");vm.save();await();assertEquals("review",vm.screen);assertEquals(0,CatalogRules.items(vm.catalog!!).size);assertNull(vm.checkpoint("serie"));assertFalse(vm.pending)}
+    @Test fun movieFlowStillUsesOriginalRootPublication(){vm.openCategory("pelicula");vm.newItem();vm.changeTelegramLink(last);vm.query="Película nueva";vm.search();await();vm.use(vm.results.single());await();vm.save();await();assertEquals("home",vm.screen);assertEquals(last,vm.checkpointLink("pelicula"));assertNull(vm.checkpoint("serie"));assertNull(vm.checkpoint("anime"))}
+    @Test fun sharedAnimeEpisodeEditorUsesSameSaveIntegration(){vm.openCategory("anime");vm.newItem();vm.field("titulo","Anime de prueba");vm.addSeason(1);episode(1,last);assertNull(vm.checkpoint("anime"));vm.save();await();assertEquals("home",vm.screen);assertEquals(last,vm.checkpointLink("anime"));assertEquals(moviePoint,vm.checkpoint("pelicula"));assertNull(vm.checkpoint("serie"))}
     @Test fun dateIsAssignedOnlyAfterRealReviewIsConfirmedAndSurvivesEditSyncRestart(){
         searchAndReview("pelicula",last)
         assertFalse(vm.draft!!.has("fecha_agregado"));assertTrue(CatalogRules.items(vm.catalog!!).isEmpty())
         vm=newModel();vm.resumeDraft();assertFalse(vm.draft!!.has("fecha_agregado"))
-        val before=java.time.Instant.now();vm.save();assertEquals("home",vm.screen)
+        val before=java.time.Instant.now();vm.save();await();assertEquals("home",vm.screen)
         val saved=CatalogRules.items(vm.catalog!!).single();val date=saved.text("fecha_agregado")
         assertTrue(date.endsWith("Z"));assertFalse(java.time.Instant.parse(date).isBefore(before))
-        vm.edit(saved);vm.field("titulo","Título corregido");vm.save();vm.sync();await()
+        vm.edit(saved);vm.field("titulo","Título corregido");vm.save();await();vm.sync();await()
         assertEquals(date,CatalogRules.items(published!!).single().text("fecha_agregado"))
         assertEquals(date,CatalogRules.items(newModel().catalog!!).single().text("fecha_agregado"))
     }
     @Test fun existingUndatedSeriesMatchedByMetadataDoesNotBecomeNew(){
         remoteCatalog.add("items",JsonArray().apply {add(JsonParser.parseString("""{"id":"serie-imdb-tt42","tipo":"serie","titulo":"The Wonderfools","temporadas":[{"numero":1,"episodios":[]}]}"""))})
         vm.refresh();await();searchAndReview();assertFalse(vm.isNew)
-        episode(1,last);vm.save();vm.sync();await()
+        episode(1,last);vm.save();await();vm.sync();await()
         assertFalse(CatalogRules.items(published!!).single().has("fecha_agregado"))
     }
     private fun recoveryFixture(slow: Boolean=false) {
@@ -143,17 +146,17 @@ class AdminSeriesFlowTest {
         }}
     }
     @Test fun selectiveRecoveryQueriesDoNotPersistAndOnlyConfirmedFieldsReachPublication(){
-        searchAndReview();episode(1,first);vm.save();val before=vm.catalog!!.deepCopy();val cp=vm.checkpoint("serie")!!.deepCopy()
+        searchAndReview();episode(1,first);vm.save();await();val before=vm.catalog!!.deepCopy();val cp=vm.checkpoint("serie")!!.deepCopy()
         vm.edit(CatalogRules.items(vm.catalog!!).single());val initialDraft=vm.draft!!.deepCopy();recoveryFixture()
         vm.startRecovery("TMDB",1);vm.searchRecovery();await();vm.retrieveRecovery(vm.recoveryCandidates.single());await()
         assertEquals(before,vm.catalog);assertEquals(initialDraft,vm.draft);assertNull(published)
-        vm.confirmRecoveryMapping("1/1",true);vm.recoverySelection=setOf("1/1/sinopsis");vm.applyRecovery()
+        vm.confirmRecoveryMapping("1/1",true);vm.recoverySelection=setOf("1/1/sinopsis");vm.applyRecovery();await()
         assertEquals(before,vm.catalog);assertEquals("Episodio 1",vm.draft!!.array("temporadas")[0].asJsonObject.array("episodios")[0].asJsonObject.text("titulo"));assertTrue(vm.canUndoRecovery)
-        vm.save();vm.sync();await();val saved=CatalogRules.items(published!!).single()
+        vm.save();await();vm.sync();await();val saved=CatalogRules.items(published!!).single()
         assertEquals(before.array("items")[0].asJsonObject.get("fecha_agregado"),saved.get("fecha_agregado"))
         val e=saved.array("temporadas")[0].asJsonObject.array("episodios")[0].asJsonObject
         assertEquals(first,e.text("telegram_url"));assertEquals("An actual synopsis",e.text("sinopsis"));assertEquals(cp,vm.checkpoint("serie"))
-        vm=newModel();vm.edit(CatalogRules.items(vm.catalog!!).single());assertTrue(vm.canUndoRecovery);vm.undoRecovery();assertEquals("",vm.draft!!.array("temporadas")[0].asJsonObject.array("episodios")[0].asJsonObject.text("sinopsis"))
+        vm=newModel();vm.edit(CatalogRules.items(vm.catalog!!).single());assertTrue(vm.canUndoRecovery);vm.undoRecovery();await();assertEquals("",vm.draft!!.array("temporadas")[0].asJsonObject.array("episodios")[0].asJsonObject.text("sinopsis"))
     }
     @Test fun cancellingPreviewKeepsSavedAndDraftRecordsExactly(){
         searchAndReview();episode(1,first);val before=vm.catalog!!.deepCopy();val draft=vm.draft!!.deepCopy();recoveryFixture()
@@ -166,9 +169,9 @@ class AdminSeriesFlowTest {
     }
     @Test fun newManualRecordBackupRemainsUsableAfterFirstSaveAssignsItsId(){
         vm.openCategory("serie");vm.newItem();vm.field("titulo","Manual");vm.addSeason(1);episode(1,first);recoveryFixture()
-        vm.startRecovery("TMDB");vm.searchRecovery();await();vm.retrieveRecovery(vm.recoveryCandidates.single());await();vm.confirmRecoveryMapping("1/1",true);vm.recoverySelection=setOf("1/1/titulo");vm.applyRecovery()
-        assertTrue(vm.canUndoRecovery);vm.save();val stored=CatalogRules.items(vm.catalog!!).single();assertTrue(stored.text("id").isNotBlank());assertFalse(stored.toString().contains("_admin_metadata_recovery"))
-        vm.edit(stored);assertTrue(vm.canUndoRecovery);vm.undoRecovery();assertEquals("Episodio 1",vm.draft!!.array("temporadas")[0].asJsonObject.array("episodios")[0].asJsonObject.text("titulo"));assertEquals(stored.get("fecha_agregado"),vm.draft!!.get("fecha_agregado"))
+        vm.startRecovery("TMDB");vm.searchRecovery();await();vm.retrieveRecovery(vm.recoveryCandidates.single());await();vm.confirmRecoveryMapping("1/1",true);vm.recoverySelection=setOf("1/1/titulo");vm.applyRecovery();await()
+        assertTrue(vm.canUndoRecovery);vm.save();await();val stored=CatalogRules.items(vm.catalog!!).single();assertTrue(stored.text("id").isNotBlank());assertFalse(stored.toString().contains("_admin_metadata_recovery"))
+        vm.edit(stored);assertTrue(vm.canUndoRecovery);vm.undoRecovery();await();assertEquals("Episodio 1",vm.draft!!.array("temporadas")[0].asJsonObject.array("episodios")[0].asJsonObject.text("titulo"));assertEquals(stored.get("fecha_agregado"),vm.draft!!.get("fecha_agregado"))
     }
     @Test fun traditionalTmdbButtonProtectsAnAlreadyPopulatedSeasonByOpeningComparison(){
         searchAndReview();episode(1,first);val before=vm.draft!!.deepCopy();recoveryFixture();vm.seasonNumber=1;vm.fetchSeason();await()
@@ -177,18 +180,18 @@ class AdminSeriesFlowTest {
     private fun assertArtwork(item:JsonObject){assertEquals(HttpMetadata.image("/poster.jpg"),item.text("poster_url"));assertEquals(HttpMetadata.image("/back.jpg"),item.text("backdrop_url"));assertEquals(HttpMetadata.image("/logo.png"),item.text("logo_url"))}
     @Test fun movieVisualsSurviveRealReviewDraftSaveEditSyncAndRestart(){
         searchAndReview("pelicula",last);assertArtwork(vm.draft!!);assertEquals(0,CatalogRules.items(vm.catalog!!).size)
-        vm=newModel();vm.resumeDraft();assertArtwork(vm.draft!!);vm.save();assertArtwork(CatalogRules.items(vm.catalog!!).single())
-        val cp=vm.checkpoint("pelicula")!!.deepCopy();vm.edit(CatalogRules.items(vm.catalog!!).single());vm.field("titulo","Corregida");vm.save()
+        vm=newModel();vm.resumeDraft();assertArtwork(vm.draft!!);vm.save();await();assertArtwork(CatalogRules.items(vm.catalog!!).single())
+        val cp=vm.checkpoint("pelicula")!!.deepCopy();vm.edit(CatalogRules.items(vm.catalog!!).single());vm.field("titulo","Corregida");vm.save();await()
         assertEquals(cp,vm.checkpoint("pelicula"));vm.sync();await();assertArtwork(CatalogRules.items(published!!).single());assertEquals("1",published!!.text("schema_version"));assertArtwork(CatalogRules.items(newModel().catalog!!).single())
     }
     @Test fun seriesVisualsSurviveRealEpisodeSaveAndSyncWithoutChangingOtherCheckpoints(){
-        searchAndReview();assertArtwork(vm.draft!!);episode(1,first);episode(2,last);vm.save();assertSeriesPoint();vm.sync();await()
+        searchAndReview();assertArtwork(vm.draft!!);episode(1,first);episode(2,last);vm.save();await();assertSeriesPoint();vm.sync();await()
         val item=CatalogRules.items(published!!).single();assertArtwork(item);assertEquals(listOf(first,last),item.array("temporadas")[0].asJsonObject.array("episodios").map {it.asJsonObject.text("telegram_url")});assertSeriesPoint(newModel())
     }
-    @Test fun absentVisualsDoNotBlockConfirmedSave(){artwork=false;searchAndReview(root=last);assertFalse(vm.draft!!.has("backdrop_url"));assertFalse(vm.draft!!.has("logo_url"));vm.save();assertEquals("home",vm.screen);assertSeriesPoint();assertTrue(vm.pending)}
-    @Test fun unavailableImagesRelayDoesNotBlockConfirmedSave(){imagesStatus=400;searchAndReview(root=last);assertFalse(vm.draft!!.has("logo_url"));assertEquals(HttpMetadata.image("/back.jpg"),vm.draft!!.text("backdrop_url"));vm.save();assertSeriesPoint()}
-    @Test fun existingVisualsSurviveMetadataRefreshWithoutImages(){searchAndReview(root=last);vm.save();vm.edit(CatalogRules.items(vm.catalog!!).single());artwork=false;vm.query="The Wonderfools";vm.search();await();vm.use(vm.results.single());await();assertArtwork(vm.draft!!);vm.field("sinopsis","Corregida");vm.save();assertArtwork(CatalogRules.items(vm.catalog!!).single())}
-    @Test fun existingBackgroundEditorKeepsCanonicalReferenceConsistent(){searchAndReview(root=last);vm.field("fondo_url","https://fixture.test/custom.jpg");assertEquals(vm.draft!!.text("fondo_url"),vm.draft!!.text("backdrop_url"));assertEquals(HttpMetadata.image("/logo.png"),vm.draft!!.text("logo_url"));vm.field("fondo_url","");assertFalse(vm.draft!!.has("backdrop_url"));vm.save();assertSeriesPoint()}
+    @Test fun absentVisualsDoNotBlockConfirmedSave(){artwork=false;searchAndReview(root=last);assertFalse(vm.draft!!.has("backdrop_url"));assertFalse(vm.draft!!.has("logo_url"));vm.save();await();assertEquals("home",vm.screen);assertSeriesPoint();assertTrue(vm.pending)}
+    @Test fun unavailableImagesRelayDoesNotBlockConfirmedSave(){imagesStatus=400;searchAndReview(root=last);assertFalse(vm.draft!!.has("logo_url"));assertEquals(HttpMetadata.image("/back.jpg"),vm.draft!!.text("backdrop_url"));vm.save();await();assertSeriesPoint()}
+    @Test fun existingVisualsSurviveMetadataRefreshWithoutImages(){searchAndReview(root=last);vm.save();await();vm.edit(CatalogRules.items(vm.catalog!!).single());artwork=false;vm.query="The Wonderfools";vm.search();await();vm.use(vm.results.single());await();assertArtwork(vm.draft!!);vm.field("sinopsis","Corregida");vm.save();await();assertArtwork(CatalogRules.items(vm.catalog!!).single())}
+    @Test fun existingBackgroundEditorKeepsCanonicalReferenceConsistent(){searchAndReview(root=last);vm.field("fondo_url","https://fixture.test/custom.jpg");assertEquals(vm.draft!!.text("fondo_url"),vm.draft!!.text("backdrop_url"));assertEquals(HttpMetadata.image("/logo.png"),vm.draft!!.text("logo_url"));vm.field("fondo_url","");assertFalse(vm.draft!!.has("backdrop_url"));vm.save();await();assertSeriesPoint()}
 
     private fun seedRetiredHistory() {
         freshSynopsis="Texto sintético que TMDB también devuelve de forma independiente y verificable"
@@ -198,13 +201,13 @@ class AdminSeriesFlowTest {
     }
     @Test fun freshTraditionalTmdbMetadataIsNotFalselyRemovedWhenTextMatchesRetiredHistory() {
         seedRetiredHistory();searchAndReview("pelicula",last)
-        assertEquals(freshSynopsis,vm.draft!!.text("sinopsis"));vm.save();vm.sync();await()
+        assertEquals(freshSynopsis,vm.draft!!.text("sinopsis"));vm.save();await();vm.sync();await()
         val movie=CatalogRules.items(published!!).single {it.text("tipo")=="pelicula"};assertEquals(freshSynopsis,movie.text("sinopsis"));assertEquals("TMDB",movie.text("fuente_principal"))
     }
     @Test fun freshInitialTmdbSeasonAlsoKeepsIndependentlyRecoveredMatchingText() {
         seedRetiredHistory();searchAndReview("serie");vm.seasonNumber=1;vm.fetchSeason();await()
         assertEquals(freshSynopsis,vm.draft!!.array("temporadas")[0].asJsonObject.array("episodios")[0].asJsonObject.text("sinopsis"))
-        episode(1,last);vm.save();vm.sync();await();val series=CatalogRules.items(published!!).single {it.text("id")!="retired-local"}
+        episode(1,last);vm.save();await();vm.sync();await();val series=CatalogRules.items(published!!).single {it.text("id")!="retired-local"}
         assertEquals(freshSynopsis,series.array("temporadas")[0].asJsonObject.array("episodios")[0].asJsonObject.text("sinopsis"))
     }
     @Test fun ordinaryTmdbLookupPreservesTvmazeCreditsOfUntouchedEpisodes() {
@@ -213,11 +216,12 @@ class AdminSeriesFlowTest {
         LegacyFixtures.target(draft,path).addProperty("sinopsis","Texto propio de TVmaze que esta consulta TMDB no reemplaza")
         draft.add("fuentes_metadata",LegacyFixtures.obj("""{"recuperacion_selectiva":{"1/1/sinopsis":{"fuente":"TVmaze","url":"https://www.tvmaze.com/episodes/1","licencia":"https://creativecommons.org/licenses/by-sa/4.0/","atribucion":"TVmaze"}}}"""))
         val record=draft.getAsJsonObject("fuentes_metadata").getAsJsonObject("recuperacion_selectiva").get(path).deepCopy()
+        runBlocking {vm.awaitLocalWrites()}
         val state=AndroidStateStore(app);val raw=state.read()!!.deepCopy().apply {add("draft",draft)};state.write(raw);vm=newModel();vm.resumeDraft()
         vm.query="The Wonderfools";vm.search();await();vm.use(vm.results.single());await()
         assertEquals(record,vm.draft!!.getAsJsonObject("fuentes_metadata").getAsJsonObject("recuperacion_selectiva").get(path))
         assertEquals("Texto propio de TVmaze que esta consulta TMDB no reemplaza",LegacyFixtures.target(vm.draft!!,path).text("sinopsis"))
-        vm.save();vm.sync();await();assertEquals(record,CatalogRules.items(published!!).single().getAsJsonObject("fuentes_metadata").getAsJsonObject("recuperacion_selectiva").get(path))
+        vm.save();await();vm.sync();await();assertEquals(record,CatalogRules.items(published!!).single().getAsJsonObject("fuentes_metadata").getAsJsonObject("recuperacion_selectiva").get(path))
     }
     @Test fun removedProviderCannotBeStartedOrQueried() {
         searchAndReview();episode(1,first);val before=vm.draft!!.deepCopy()
@@ -225,6 +229,45 @@ class AdminSeriesFlowTest {
         vm.startRecovery("TheTVDB",1,"spa")
         assertEquals(before,vm.draft);assertEquals(0,calls);assertEquals("review",vm.screen)
         assertTrue(vm.message.contains("no disponible"))
+    }
+
+    @Test fun rapidTelegramTypingDoesNotWriteOrPublishUntilFlushed() {
+        searchAndReview(root=first);runBlocking {vm.awaitLocalWrites()}
+        val file=File(app.filesDir,"admin-state.json");val before=file.readText()
+        val remoteBefore=remoteCatalog.deepCopy()
+        repeat(80) {vm.changeTelegramLink("https://t.me/synthetic/${1000+it}")}
+        assertEquals(before,file.readText());assertNull(published);assertEquals(remoteBefore,remoteCatalog)
+        assertEquals("https://t.me/synthetic/1079",vm.draft!!.text("telegram_url"))
+        runBlocking {vm.awaitLocalWrites()}
+        val recovered=AdminRepository(AndroidStateStore(app)).draft()!!
+        assertEquals(vm.draft,recovered);assertNull(vm.checkpoint("serie"))
+    }
+    @Test fun leavingAndResumingEditorKeepsUnflushedValuesAndEditIdentity() {
+        searchAndReview(root=first);vm.save();await()
+        val saved=CatalogRules.items(vm.catalog!!).single()
+        vm.edit(saved);vm.field("sinopsis","Edición aún no confirmada")
+        vm.screen="home";vm.resumeDraft()
+        assertFalse(vm.isNew);assertEquals("Edición aún no confirmada",vm.draft!!.text("sinopsis"))
+        runBlocking {vm.awaitLocalWrites()}
+        assertEquals(saved,CatalogRules.items(vm.catalog!!).single());assertTrue(vm.pending)
+    }
+    @Test fun backgroundFlushRecoversLatestWithoutPublishingOrChangingCheckpoint() {
+        searchAndReview(root=first);val cp=vm.checkpoint("pelicula")
+        vm.field("titulo","Título editado");vm.episodeField(1,1,"sinopsis","Sin episodio no crea uno")
+        vm.background();runBlocking {vm.awaitLocalWrites()}
+        assertEquals("Título editado",AdminRepository(AndroidStateStore(app)).draft()!!.text("titulo"))
+        assertEquals(cp,vm.checkpoint("pelicula"));assertNull(published);assertFalse(vm.pending)
+    }
+    @Test fun discardDuringPendingTypingDoesNotRestoreOldDraft() {
+        searchAndReview(root=first);vm.field("sinopsis","Pendiente")
+        vm.discardDraft();await();runBlocking {vm.awaitLocalWrites()}
+        assertNull(vm.draft);assertNull(AdminRepository(AndroidStateStore(app)).draft());assertNull(published)
+    }
+
+    @Test fun missingEpisodeLinkCannotChangeDraftOrAdvanceCheckpoint() {
+        searchAndReview();val before=vm.draft!!.deepCopy()
+        vm.episodeField(99,99,"telegram_url",last)
+        assertEquals(before,vm.draft);vm.save();await();assertNull(vm.checkpoint("serie"))
     }
 
 }

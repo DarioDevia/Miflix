@@ -39,12 +39,19 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
     val collections=CollectionController(app,viewModelScope,{config},{catalog})
     private val repo=AdminRepository(AndroidStateStore(app))
     var config by mutableStateOf(secure.load()); private set
-    var screen by mutableStateOf("startup")
+    private val persistenceScope=CoroutineScope(SupervisorJob()+Dispatchers.Main.immediate)
+    private val persistence=DraftPersistence(persistenceScope,save={value,paths -> repo.persistDraft(value,paths)},onError={error ->
+        persistenceScope.launch(Dispatchers.Main.immediate) {message="No se pudo conservar el borrador: ${error.message.orEmpty()}. La edición sigue en memoria; reintentá antes de cerrar."}
+    })
+    private var screenState by mutableStateOf("startup")
+    var screen: String
+        get()=screenState
+        set(value) {if(value!=screenState) persistence.flushSoon();screenState=value}
     var category by mutableStateOf("pelicula")
     var busy by mutableStateOf(false);private set
     var message by mutableStateOf("");private set
     var revision by mutableStateOf(0);private set
-    var draft by mutableStateOf(repo.draft());private set
+    var draft by mutableStateOf(repo.draft(),referentialEqualityPolicy());private set
     var selected by mutableStateOf<JsonObject?>(null)
     var duplicate by mutableStateOf<JsonObject?>(null);private set
     var deletion by mutableStateOf<DeletionRequest?>(null);private set
@@ -95,7 +102,7 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
         if(busy) return
         busy=true;message=""
         viewModelScope.launch {
-            try { withContext(Dispatchers.IO) {task()};revision++;success() }
+            try { persistence.command {task()};revision++;success() }
             catch(e:Exception) {message=e.message ?: "No se pudo completar la operación.";revision++}
             finally {busy=false;if(screen=="startup") screen="home"}
         }
@@ -134,15 +141,15 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
         category=item.text("tipo");draft=item.deepCopy();isNew=false;updateMultimedia=false;original="";query=item.text("titulo");source=if(category=="anime" && item.number("anilist_id")!=null) "AniList" else "TMDB";persist();screen="review"
     }
     fun resumeDraft() {
-        draft=repo.draft() ?: return
+        draft=draft ?: repo.draft() ?: return
         original=draft?.text("_admin_original").orEmpty();isNew=draft?.text("_admin_is_new")!="false";updateMultimedia=draft?.text("_admin_update_version")=="true"
         category=draft!!.text("tipo");query=draft!!.text("titulo");source=if(category=="anime") "AniList" else "TMDB";screen="review"
     }
     private fun persist(verifiedPaths:Set<String> = emptySet()) {
         val copy=draft?.let(::draftEnvelope)
-        repo.persistDraft(copy,verifiedPaths);draft=repo.draft();revision++
+        draft=copy;persistence.offer(copy,verifiedPaths)
     }
-    private fun draftEnvelope(item: JsonObject)=item.deepCopy().apply {addProperty("_admin_original",original);addProperty("_admin_is_new",isNew);addProperty("_admin_update_version",updateMultimedia)}
+    private fun draftEnvelope(item: JsonObject)=EditorDraft.root(item).apply {addProperty("_admin_original",original);addProperty("_admin_is_new",isNew);addProperty("_admin_update_version",updateMultimedia)}
     fun startRecovery(source: String,season: Long?=null,language: String="en-US") {
         if(!writable || draft==null) return
         if(source !in setOf("TMDB","TVmaze")) {message="Proveedor de recuperación no disponible.";return}
@@ -155,7 +162,7 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
         if(busy) return
         val generation=++recoveryGeneration;busy=true;message=""
         recoveryJob=viewModelScope.launch {
-            try {withContext(Dispatchers.IO) {task()};if(generation==recoveryGeneration) {success();revision++}}
+            try {persistence.command {task()};if(generation==recoveryGeneration) {success();revision++}}
             catch(e:CancellationException) {throw e}
             catch(e:Exception) {if(generation==recoveryGeneration) message=e.message ?: "No se pudo recuperar información."}
             finally {if(generation==recoveryGeneration) busy=false}
@@ -203,26 +210,31 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
                 backup.getAsJsonObject("before").addProperty("_admin_metadata_recovery",token)
                 backup.add("after",result.deepCopy())
             }
-            repo.stageRecovery(draftEnvelope(result),backup,plan.selected(recoverySelection).map {it.path.key}.toSet())
-            draft=result;recoveryPlan=null;recoveryProvider=null;screen="review";revision++
-            message="Datos seleccionados aplicados a la revisión. Falta confirmar y guardar; no se sincronizó. Respaldo local disponible."
+            val envelope=draftEnvelope(result)
+            val paths=plan.selected(recoverySelection).map {it.path.key}.toSet()
+            work({repo.stageRecovery(envelope,backup,paths)},{
+                draft=repo.draft();recoveryPlan=null;recoveryProvider=null;screen="review"
+                message="Datos seleccionados aplicados a la revisión. Falta confirmar y guardar; no se sincronizó. Respaldo local disponible."
+            })
         } catch(e:Exception) {message=e.message ?: "No se pudo aplicar. Conservamos la revisión anterior."}
     }
     fun undoRecovery() {
         if(!writable) return
-        try {draft=repo.undoRecovery(draftEnvelope(draft ?: return));revision++;message="Recuperación revertida en la revisión. Confirmá y guardá para actualizar el catálogo; no se sincronizó."}
-        catch(e:Exception) {message=e.message ?: "No se pudo revertir; los datos se conservaron."}
+        val envelope=draftEnvelope(draft ?: return)
+        var restored:JsonObject?=null
+        work({restored=repo.undoRecovery(envelope)},{draft=restored;message="Recuperación revertida en la revisión. Confirmá y guardá para actualizar el catálogo; no se sincronizó."})
     }
+
     fun changeOriginal(value: String) {original=value;persist()}
     fun changeTelegramLink(value: String) {
         if(!writable) return
-        draft=draft?.let {AdminEdits.telegramLink(it,value)}
+        draft=draft?.let {EditorDraft.field(it,"telegram_url",value).apply {addProperty("_admin_original",value)}}
         original=value;persist()
     }
     fun requestItemDeletion() {
         if(!writable) return
         val item=selected ?: return
-        deletion=DeletionRequest(item.text("id"),item.text("titulo"),clearsDraft=repo.draft()?.text("id")==item.text("id"))
+        deletion=DeletionRequest(item.text("id"),item.text("titulo"),clearsDraft=draft?.text("id")==item.text("id"))
     }
     fun requestPartDeletion(season: Long,episode: Long?=null) {
         if(!writable) return
@@ -235,41 +247,31 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
     fun confirmDeletion() {
         if(!writable) return
         val request=deletion ?: return
-        try {
-            val changedCatalog=request.confirm(repo)
-            if(request.season==null) {
-                draft=repo.draft();selected=null;screen="list"
-            } else {
-                draft=repo.draft()
-                selected=catalog?.let {CatalogRules.items(it).firstOrNull {item ->item.text("id")==request.itemId}}
-            }
-            revision++
+        var changedCatalog=false
+        work({changedCatalog=request.confirm(repo)},{
+            draft=repo.draft()
+            if(request.season==null) {selected=null;screen="list"}
+            else selected=catalog?.let {CatalogRules.items(it).firstOrNull {item ->item.text("id")==request.itemId}}
             message=if(changedCatalog) "Eliminado del catálogo local. Cambios pendientes: tocá Sincronizar." else "Eliminado del borrador. Guardá la revisión para actualizar el catálogo."
             deletion=null
-        } catch(e:Exception) {message=e.message.orEmpty();deletion=null}
+        })
     }
+
     fun field(key: String,value: String) {
         if(!writable) return
-        draft=draft?.deepCopy()?.apply {
-            if(key=="generos") add(key,JsonArray().apply {value.split(',').map(String::trim).filter(String::isNotBlank).forEach {add(it)}})
-            else addProperty(key,value)
-            if(key=="fondo_url") {
-                if(value.isBlank()) remove("backdrop_url") else addProperty("backdrop_url",value.trim())
-            }
-        };persist()
+        draft=draft?.let {EditorDraft.field(it,key,value)};persist()
     }
     fun episodeField(season: Long,episode: Long,key: String,value: String) {
-        if(!writable) return
-        draft=draft?.deepCopy()?.apply {array("temporadas").forEach {s ->if(s.asJsonObject.number("numero")==season) s.asJsonObject.array("episodios").forEach {e ->if(e.asJsonObject.number("numero")==episode) {
-            e.asJsonObject.addProperty(key,value)
-            // Stage the actual episode publication; only the confirmed save advances its category.
-            if(key=="telegram_url" && text("tipo") in setOf("serie","anime")) original=value
-        }}}};persist()
+        if(!writable || draft?.let {AdminEdits.hasPart(it,season,episode)}!=true) return
+        draft=draft?.let {EditorDraft.episode(it,season,episode,key,value)}
+        if(key=="telegram_url" && draft?.text("tipo") in setOf("serie","anime")) original=value
+        persist()
     }
     fun seasonField(number: Long,key: String,value: String) {
         if(!writable) return
-        draft=draft?.deepCopy()?.apply {array("temporadas").forEach {s ->if(s.asJsonObject.number("numero")==number) s.asJsonObject.addProperty(key,value)}};persist()
+        draft=draft?.let {EditorDraft.season(it,number,key,value)};persist()
     }
+
     fun addSeason(number: Int) {
         if(!writable) return
         try {
@@ -355,9 +357,11 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
     fun cancelEnrichment() {enrichment=null;screen="review"}
     fun cancelDuplicate() {duplicate=null;message="Operación cancelada; catálogo y checkpoint conservados.";screen="search"}
     fun keepDuplicate() {
-        try {repo.setCheckpoint(TelegramLinks.checkpoint(duplicate!!,original.ifBlank {draft?.text("telegram_url").orEmpty()}));duplicate=null;repo.persistDraft(null);draft=null;revision++;screen="home";message="Versión actual conservada. Avance de Películas guardado en este teléfono."}
-        catch(e:Exception) {message=e.message.orEmpty()}
+        if(!writable) return
+        val checkpoint=TelegramLinks.checkpoint(duplicate ?: return,original.ifBlank {draft?.text("telegram_url").orEmpty()})
+        work({repo.setCheckpoint(checkpoint);repo.persistDraft(null)},{duplicate=null;draft=null;screen="home";message="Versión actual conservada. Avance de Películas guardado en este teléfono."})
     }
+
     fun updateDuplicate() {
         val old=duplicate ?: return
         draft=old.deepCopy().apply {
@@ -380,10 +384,15 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
             }}
             if(updateMultimedia) item=CatalogRules.updateVersion(item,item.text("telegram_url"),item.text("audio"),item.text("calidad"))
             val cp=AdminCheckpoints.forSave(item,original,isNew,updateMultimedia)
-            repo.saveItem(item,cp);repo.persistDraft(null);draft=null;revision++;screen="home";message="Guardado en el teléfono. Cambios pendientes: tocá Sincronizar."
+            work({repo.saveItem(item,cp);repo.persistDraft(null)},{draft=null;screen="home";message="Guardado en el teléfono. Cambios pendientes: tocá Sincronizar."})
         } catch(e:Exception) {message=e.message.orEmpty()}
     }
-    fun discardDraft() {draft=null;repo.persistDraft(null);revision++;screen="home"}
+    fun discardDraft() {
+        if(busy) return
+        work({repo.persistDraft(null)},{draft=null;screen="home"})
+    }
+    fun background() {persistence.flushSoon()}
+    internal suspend fun awaitLocalWrites() {persistence.command {}}
     fun receive(text: String) {sharedText=text.take(20000)}
     fun consumeShared(link: String) {
         if(!writable) return
@@ -392,5 +401,5 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
         changeTelegramLink(link);sharedText="";screen="search"
     }
     fun dismissShare() {sharedText=""}
-    override fun onCleared() {collections.close();recoveryProvider?.cancel();providerTestCancel?.invoke();super.onCleared()}
+    override fun onCleared() {persistence.finish();collections.close();recoveryProvider?.cancel();providerTestCancel?.invoke();super.onCleared()}
 }

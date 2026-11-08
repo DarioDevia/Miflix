@@ -108,14 +108,25 @@ object MetadataRecovery {
             c.path.season?.let {addProperty("season",it)};c.path.episode?.let {addProperty("episode",it)};addProperty("field",c.path.field)
         })}})
     }
-    fun undo(current: JsonObject, backup: JsonObject): JsonObject {
+    fun validateUndo(current: JsonObject, backup: JsonObject) {
         val before=backup.getAsJsonObject("before");val after=backup.getAsJsonObject("after")
         require(current.text("id")==before.text("id")) {"El respaldo corresponde a otra ficha."}
         require(current.text("id").isNotBlank() || (current.text("_admin_metadata_recovery").isNotBlank() && current.text("_admin_metadata_recovery")==before.text("_admin_metadata_recovery"))) {"El respaldo corresponde a otro borrador."}
+        backup.array("paths").forEach {entry ->
+            val p=entry.asJsonObject;val path=RecoveryPath(p.number("season"),p.number("episode"),p.text("field"))
+            require(target(current,path).get(path.field)==target(after,path).get(path.field)) {"Hay cambios posteriores en un campo recuperado. No se sobrescribieron."}
+            target(before,path)
+        }
+        require(current.get("fuentes_metadata")==after.get("fuentes_metadata")) {"La procedencia cambió después de la recuperación."}
+    }
+    fun undo(current: JsonObject, backup: JsonObject): JsonObject {
+        validateUndo(current,backup)
+        val before=backup.getAsJsonObject("before");val after=backup.getAsJsonObject("after")
         val copy=current.deepCopy()
         backup.array("paths").forEach {entry ->
             val p=entry.asJsonObject;val path=RecoveryPath(p.number("season"),p.number("episode"),p.text("field"))
-            val destination=target(copy,path);require(destination.get(path.field)==target(after,path).get(path.field)) {"Hay cambios posteriores en un campo recuperado. No se sobrescribieron."}
+            val destination=target(copy,path)
+            require(destination.get(path.field)==target(after,path).get(path.field)) {"Hay cambios posteriores en un campo recuperado. No se sobrescribieron."}
             val old=target(before,path).get(path.field)
             if(old==null) destination.remove(path.field) else destination.add(path.field,old.deepCopy())
         }

@@ -32,6 +32,7 @@ class MainActivity: ComponentActivity() {
         if(savedInstanceState==null) receive(intent)
         setContent {MaterialTheme(colorScheme=darkColorScheme(primary=Color(0xFF38BDF8),background=Color(0xFF111827),surface=Color(0xFF1F2937))) {AdminApp(model)}}
     }
+    override fun onStop() {model.background();super.onStop()}
     override fun onNewIntent(intent: Intent) {super.onNewIntent(intent);setIntent(intent);receive(intent)}
     private fun receive(intent: Intent) {
         if(intent.action==Intent.ACTION_SEND && intent.type=="text/plain") model.receive(intent.getStringExtra(Intent.EXTRA_TEXT).orEmpty())
