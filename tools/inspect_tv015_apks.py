@@ -9,7 +9,24 @@ def elements(path):
         names=z.namelist()
         assert not any(n.lower().endswith(('.jks','.keystore','.session','telegram.local.properties')) for n in names)
         return list(manifest_elements(z.read('AndroidManifest.xml')))
-def inspect_candidate(debug,release,mobile,signer,generated):
+def validate_tv_build_configs(generated,mode):
+    assert mode in ('ci-empty','private-preconfigured'),'Unknown credential inspection mode'
+    configs=[p for p in generated.rglob('BuildConfig.java') if any(part.lower() in ('tv','tvdebug','tvrelease') for part in p.parts)]
+    assert len(configs)==2,'Expected both generated TV BuildConfigs'
+    for p in configs:
+        text=p.read_text()
+        id_match=re.search(r'TELEGRAM_API_ID\s*=\s*([0-9]+)\s*;',text)
+        hash_match=re.search(r'TELEGRAM_API_HASH\s*=\s*"([0-9a-fA-F]*)"\s*;',text)
+        assert id_match and hash_match,'Malformed generated TV configuration (values withheld)'
+        configured=int(id_match.group(1))>0 and len(hash_match.group(1))==32
+        empty=int(id_match.group(1))==0 and hash_match.group(1)==''
+        if mode=='ci-empty':
+            assert empty,'Public CI artifact blocked: TV configuration must be empty'
+        else:
+            assert configured,'Private family artifact blocked: valid TV preconfiguration is required'
+    return mode=='private-preconfigured'
+
+def inspect_candidate(debug,release,mobile,signer,generated,telegram_mode="ci-empty"):
     reports={}
     for variant,path in [('tvDebug',debug),('tvRelease',release),('mobileDebug',mobile)]:
         report=inspect_apk(path);elems=elements(path)
@@ -42,14 +59,9 @@ def inspect_candidate(debug,release,mobile,signer,generated):
     verify_signature(signer,debug)
     release_verification=subprocess.run([str(signer),'verify','--print-certs',str(release)],capture_output=True,text=True)
     assert release_verification.returncode!=0,'Expected unsigned Release, do not relabel a signed artifact'
-    # Read only generated TV configs (whose flavor forcibly supplies empty credentials), never Mobile or local properties.
-    configs=[p for p in generated.rglob('BuildConfig.java') if any(part.lower() in ('tv','tvdebug','tvrelease') for part in p.parts)]
-    assert len(configs)==2,'Expected both generated TV BuildConfigs'
-    for p in configs:
-        text=p.read_text()
-        assert re.search(r'TELEGRAM_API_ID\s*=\s*0\s*;',text),'TV API ID must be empty'
-        assert re.search(r'TELEGRAM_API_HASH\s*=\s*""\s*;',text),'TV API hash must be empty'
-    reports.update(tvCredentialsEmbedded=False,privateKeyAvailableInWork=False,
+    # Only the owner's local build may use private-preconfigured mode. Never print the values.
+    configured=validate_tv_build_configs(generated,telegram_mode)
+    reports.update(tvCredentialsEmbedded=configured,credentialInspectionMode=telegram_mode,privateKeyAvailableInWork=False,
         debugSignatureCompatibleWithInstalledDevice='UNKNOWN',releaseSigned=False,
         physicalValidation='PENDING',mobileIntegration=False)
     return reports
@@ -67,10 +79,11 @@ if __name__=='__main__':
     p=argparse.ArgumentParser()
     p.add_argument('--signing-input',type=Path)
     for arg in ('debug','release','mobile','apksigner'):p.add_argument('--'+arg,type=Path)
+    p.add_argument('--telegram-mode',choices=['ci-empty','private-preconfigured'],default='ci-empty')
     p.add_argument('--generated',type=Path,default=Path('app/build/generated/source/buildConfig'))
     a=p.parse_args()
     if a.signing_input:
         print(json.dumps(signing_input(a.signing_input)))
     else:
         assert all((a.debug,a.release,a.mobile,a.apksigner))
-        print(json.dumps(inspect_candidate(a.debug,a.release,a.mobile,a.apksigner,a.generated),indent=2))
+        print(json.dumps(inspect_candidate(a.debug,a.release,a.mobile,a.apksigner,a.generated,a.telegram_mode),indent=2))

@@ -11,7 +11,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 internal fun tvHomeCredentialMessage():String? =
-    "La conexión usa tu configuración personal de Telegram; esta APK no incorpora credenciales del desarrollador."
+    if (BuildConfig.TELEGRAM_API_ID > 0 && BuildConfig.TELEGRAM_API_HASH.isNotBlank()) null
+    else "Esta APK no tiene preconfiguración de Telegram. El formulario es una alternativa; para uso familiar pedí la APK privada configurada."
 
 /** This is provisioning UI only; TDLib authorization and its existing storage are unchanged. */
 @Composable
@@ -22,8 +23,8 @@ internal fun TvHomeCredentials(session:TelegramSession) {
     var problem by remember { mutableStateOf(false) }
     val scope=rememberCoroutineScope()
     Column(Modifier.widthIn(max=640.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        Text("Configuración personal de Telegram")
-        Text("Obtené tu API ID y API hash en my.telegram.org → API development tools. No uses ni compartas las credenciales de otra persona. Podés escribir con el teclado del control remoto o del celular.")
+        Text("Configuración alternativa de Telegram")
+        Text("Esta APK no incluye preconfiguración. Podés solicitar la APK familiar configurada o, como alternativa, ingresar aquí tu API ID y API hash.")
         TvEditableField(id,{ if(it.length<=10 && it.all(Char::isDigit)) id=it },"API ID",Modifier.fillMaxWidth(),type=KeyboardType.Number,initialFocus=true)
         TvEditableField(hash,{ if(it.length<=32) hash=it.trim() },"API hash",Modifier.fillMaxWidth(),type=KeyboardType.Password,password=true)
         if(problem) Text("No se pudo guardar la configuración. Revisá los datos e intentá nuevamente.")

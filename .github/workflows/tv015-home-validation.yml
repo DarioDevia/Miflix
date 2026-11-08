@@ -24,6 +24,7 @@ jobs:
           python3 tools/check_tv015_home_contract.py
           python3 tools/test_tv_physical_apk.py
           python3 tools/test_locate_tv_apk.py
+          python3 tools/test_tv_telegram_policy.py
       - name: Sintaxis PowerShell sin claves ni ADB
         shell: pwsh
         run: |
@@ -33,6 +34,8 @@ jobs:
             if ($parseErrors.Count) { $parseErrors | Format-List; exit 1 }
           }
           & ./tools/test_tv_certificate.ps1
+      - name: Contrato Gradle con propiedades sinteticas no secretas
+        run: python3 tools/check_tv_telegram_build.py
       - name: Tests Lint y compilaciones sin credenciales
         run: |
           chmod +x gradlew
@@ -40,15 +43,17 @@ jobs:
       - name: Inspeccion real y artefactos candidatos
         run: |
           set -euo pipefail
+          test ! -e telegram.local.properties
           mkdir -p tv015-delivery
+          cp telegram-build-contract.json tv015-delivery/
           apk=$(python3 tools/locate_tv_apk.py)
           release=$(python3 tools/locate_tv_apk.py --variant tvRelease)
           mobile=$(python3 tools/locate_tv_apk.py --variant mobileDebug)
           signer=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
-          python3 tools/inspect_tv015_apks.py --debug "$apk" --release "$release" --mobile "$mobile" --apksigner "$signer" > tv015-delivery/packaging-and-security.json
+          python3 tools/inspect_tv015_apks.py --debug "$apk" --release "$release" --mobile "$mobile" --apksigner "$signer" --telegram-mode ci-empty > tv015-delivery/packaging-and-security.json
           python3 tools/summarize_tv015_validation.py > tv015-delivery/validation-summary.json
-          cp "$apk" tv015-delivery/MiFlix-TV-0.1.15-candidate-CI-debug.apk
-          cp "$release" tv015-delivery/MiFlix-TV-0.1.15-candidate-unsigned.apk
+          cp "$apk" tv015-delivery/MiFlix-TV-0.1.15-CI-unconfigured-debug.apk
+          cp "$release" tv015-delivery/MiFlix-TV-0.1.15-CI-unconfigured-unsigned.apk
           "$signer" verify --print-certs "$apk" > tv015-delivery/ci-debug-certificate.txt
           sha256sum tv015-delivery/*.apk > tv015-delivery/SHA256SUMS.txt
           ./gradlew :app:dependencies --configuration mobileDebugRuntimeClasspath --console=plain > tv015-delivery/mobile-dependencies.txt
@@ -56,7 +61,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: TV-0.1.15-candidata-validacion
+          name: TV-0.1.15-Telegram-restored-validacion
           path: |
             app/build/reports/
             tv015-delivery/

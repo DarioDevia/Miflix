@@ -17,6 +17,16 @@ require((telegramIdText.isEmpty() && telegramHash.isEmpty()) ||
     "Configuración Telegram privada incompleta o inválida; revisá telegram.local.properties."
 }
 val telegramId = telegramIdText.toIntOrNull() ?: 0
+// Explicit private-family build: fail before generating an unconfigured APK.
+// Normal/CI builds without this opt-in retain the original empty defaults.
+val tvFamilyBuild = providers.gradleProperty("miflixTvFamilyBuild").orNull == "true"
+require(!tvFamilyBuild || (telegramId > 0 && telegramHash.matches(Regex("[0-9a-fA-F]{32}")))) {
+    "Configuración Telegram familiar ausente o incompleta. Prepará telegram.local.properties en la raíz; no distribuyas esta APK sin preconfiguración."
+}
+
+if (!tvFamilyBuild && telegramId == 0 && gradle.startParameter.taskNames.any { it.contains("tv", ignoreCase = true) }) {
+    logger.warn("MiFlix TV sin preconfiguración Telegram: APK de diagnóstico. Para la APK familiar usá telegram.local.properties y -PmiflixTvFamilyBuild=true.")
+}
 
 android {
     namespace = "ar.com.miflix.client"
@@ -39,10 +49,6 @@ android {
         create("tv") {
             dimension = "device"
             applicationIdSuffix = ".tv"
-            // Private TV candidates never embed developer Telegram credentials, even on a configured PC.
-            // Existing per-device provisioning and stored credentials remain the authentication path.
-            buildConfigField("int", "TELEGRAM_API_ID", "0")
-            buildConfigField("String", "TELEGRAM_API_HASH", "\"\"")
             // These libraries already exist together in core:0.1.1. No native build here.
             ndk { abiFilters += setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64") }
             versionCode = 16

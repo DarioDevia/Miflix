@@ -15,8 +15,11 @@ antiguas como punto de partida para esta candidata.
 
 Rama `feature/tv-0.1.15-google-home`, desde la estable 0.1.14 e20be389.
 Recomendaciones automáticas, canal heredado único y apertura de fichas reutilizan el experimento validado.
-Sin pantalla de sonda ni servicio permanente. TV no incorpora credenciales del desarrollador:
-configuración personal en Conectar Telegram. Firma familiar y validación física pendientes.
+Sin pantalla de sonda ni servicio permanente. Restaurada la preconfiguración Telegram de 0.1.14:
+la APK familiar se compila sólo en el PC del propietario con su archivo local ignorado por Git.
+El familiar usa teléfono/código; el formulario API es únicamente una alternativa sin preconfiguración.
+CI publica sólo APK vacías de credenciales. [Corrección e instrucciones privadas](docs/TV_0.1.15_RESTAURAR_TELEGRAM.md).
+Firma familiar y validación física pendientes.
 [Arquitectura, seguridad, firma, compilación y pruebas](docs/TV_0.1.15_GOOGLE_HOME.md).
 
 ## MiFlix TV 0.1.13: biblioteca personal

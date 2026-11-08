@@ -3,7 +3,8 @@
 - Migra selectivamente Google TV Home a TV Debug/Release: selección validada, reconciliación conservadora y apertura de la ficha existente.
 - Publicación oportunista desde catálogo válido en primer plano, sin otra descarga de catálogo ni servicio periódico; coalescing y espera ante fallos.
 - Canal propio único sin fijar ID 2; imágenes horizontales cacheadas/acotadas y proveedor sólo de PNG públicos.
-- API ID/hash del desarrollador excluidos de TV. Formulario TV personal mediante la autenticación existente; sesiones/credenciales excluidas de backup TV.
+- Corrección de regresión: TV vuelve a heredar API ID/hash de telegram.local.properties mediante BuildConfig, como 0.1.14. Preconfiguración automática, con formulario sólo alternativo. El script familiar exige configuración válida; CI mantiene artefactos sin secretos.
+- Sesiones/credenciales siguen excluidas de backup TV, sin borrar ni cambiar su almacenamiento existente.
 - Preserva reproducción, intro, Hero, biblioteca y catálogo. Mobile permanece funcionalmente aislado.
 - Candidata: firma compatible, aprovisionamiento familiar y validación física requieren comprobación local. No es distribución final autorizada.
 

@@ -1,3 +1,5 @@
+> **Corrección vigente de Telegram:** [restauración del mecanismo 0.1.14](TV_0.1.15_RESTAURAR_TELEGRAM.md). Se elimina la sobrescritura vacía del flavor TV. La APK familiar se compila localmente con configuración; CI sólo entrega diagnósticos sin secretos. No se exige API ID/hash al familiar con APK preconfigurada.
+
 # MiFlix TV 0.1.15-diagnostico / 16 — candidata privada
 
 ## Origen y estado
@@ -36,13 +38,15 @@ Permiso nuevo TV: WRITE_EPG_DATA. READ_EPG_DATA de la biblioteca se elimina en l
 
 Documentación oficial: https://developer.android.com/training/tv/discovery/recommendations-channel . Preview Channels requiere API 26+. La presentación no es universal entre Android TV, Google TV y launchers de TV Box. No se utiliza una segunda API ni se promete presencia en todos.
 
-## Auditoría de credenciales: cambio necesario para distribución
+## Configuración Telegram restaurada
 
-La configuración original carga credenciales de compilación desde un archivo privado y puede incorporarlas a BuildConfig. No se abrió ese archivo ni se leyó una sesión. TV 0.1.15 fuerza API_ID=0 y API_HASH vacío en ambas variantes, aunque el PC esté configurado. CI verifica los dos BuildConfig TV generados; no imprime valores privados. No se publica Mobile como artefacto familiar.
+TV vuelve a heredar el cargador original de telegram.local.properties y los campos BuildConfig de 0.1.14. TelegramSession no cambia: una configuración incorporada válida se usa automáticamente, antes que cualquier alternativa manual. La familia inicia sesión por teléfono/código y 2FA si corresponde.
 
-La UI anterior sólo avisaba que faltaba configuración. Se agrega un formulario TV para ingresar credenciales propias (API ID positivo y hash hexadecimal de 32 caracteres), con los campos DPAD existentes y hash oculto. No se guardan en rememberSaveable ni se registran. Llama a session.configure existente: teléfono/código/2FA, base TDLib y almacenamiento no se reimplementan. Cada familiar obtiene sus credenciales en my.telegram.org → API development tools; el propietario puede asistir en el dispositivo. No hay extracción automática desde el número telefónico ni envío al administrador.
+La política anterior que forzaba valores vacíos en TV fue una regresión y queda reemplazada. El formulario se conserva sólo en APK sin preconfiguración. No se modifican sesiones, base TDLib, favoritos, progreso ni sus mecanismos de almacenamiento. Las exclusiones de backup ya existentes no cambian.
 
-**Bloqueo para distribución sin asistencia:** quien dependía de las credenciales incrustadas necesita aprovisionar unas propias. La versión anterior no necesariamente las guardó en preferencias. La sesión queda en disco, pero no se garantiza que Telegram evite una nueva autorización. Nunca borrar datos para resolverlo. El almacenamiento existente es SharedPreferences privado, no una bóveda cifrada; se excluye del backup TV. No se cambia la implementación de autenticación.
+La compilación familiar local requiere -PmiflixTvFamilyBuild=true; tools/build_tv_physical_debug.ps1 lo aplica de forma predeterminada. Falta o invalidez produce un error genérico sin imprimir valores. CI compila sin archivo y exige constantes vacías antes de copiar APK a artefactos públicos. La prueba de configuración válida usa únicamente datos sintéticos no secretos, elimina su archivo y limpia las salidas antes de la compilación pública.
+
+La APK familiar configurada contiene valores extraíbles: el propietario acepta expresamente ese riesgo para uso privado. No se deben subir esa APK, el archivo local ni las fuentes BuildConfig generadas a GitHub ni a artefactos públicos. Work no abre las credenciales reales.
 
 ## Firma y actualización: no hay clave familiar disponible en Work
 
@@ -66,7 +70,7 @@ $env:ANDROID_HOME=Join-Path $env:LOCALAPPDATA 'Android\Sdk'
 .\tools\build_tv_physical_debug.ps1
 ```
 
-Abrir esa carpeta en Android Studio con JDK 17 y SDK/Build Tools existentes. No hace falta copiar el archivo privado de Telegram para TV. Conservar la clave debug original en su ubicación local; el script se detiene si falta para evitar crear otra identidad sin aviso. No publicar archivos privados en Git.
+Abrir esa carpeta en Android Studio con JDK 17 y SDK/Build Tools existentes. Para la APK familiar, el archivo original telegram.local.properties debe existir en la raíz local; ver el procedimiento seguro de copia en el informe de restauración. Conservar la clave debug original en su ubicación local; el script se detiene si falta para evitar crear otra identidad sin aviso. No publicar archivos privados en Git.
 
 Las rutas se obtienen sin adivinar el nombre:
 
@@ -132,11 +136,11 @@ Las pruebas JVM/políticas no equivalen a Activity, TvProvider ni DPAD reales. W
 - Compatibilidad de actualizaciones: https://developer.android.com/google/play/app-updates
 - API Telegram: https://core.telegram.org/api/obtaining_api_id
 
-El aprovisionamiento individual es la solución elegida para esta candidata sin credenciales del desarrollador, no una afirmación de que Telegram exija un API ID por cada usuario final. Requiere asistencia si el familiar no sabe obtenerlo; no se declara resuelta una instalación familiar sin configuración.
+La exigencia de aprovisionamiento individual de la entrega anterior queda anulada: una APK familiar preconfigurada no requiere ese formulario. La alternativa manual sólo se ofrece cuando falta configuración incorporada.
 
 Resguardar la clave de firma original en al menos dos copias cifradas separadas y conservar alias/huella pública y el procedimiento de recuperación. No guardar sus contraseñas junto a la única copia ni subir keystores o APK antiguas configuradas al repositorio. Restaurar la identidad original antes de compilar una actualización; Work no posee una copia para recuperarla.
 
-## Resultado final automático y artefactos
+## Resultado de la entrega anterior (histórico; antes de restaurar Telegram)
 
 Código validado: `f0a3a10921bbb51e77e08671a3264fd91a92bd77`.
 CI aprobada: https://github.com/DarioDevia/Miflix/actions/runs/41394280394 .
