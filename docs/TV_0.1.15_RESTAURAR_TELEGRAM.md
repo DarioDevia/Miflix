@@ -22,13 +22,13 @@ Desde la terminal PowerShell del proyecto local que contiene tu archivo original
 
 ```powershell
 $miflixOrigen=(Get-Location).Path
+if (-not (Test-Path (Join-Path $miflixOrigen 'telegram.local.properties'))) {
+    throw 'La carpeta de origen no tiene el archivo original. Usa como origen el proyecto 0.1.14 donde compilabas; no crees datos vacios ni los compartas.'
+}
 git status --short
 git fetch origin
 git worktree add ..\Miflix-TV-015-Telegram origin/feature/tv-0.1.15-google-home
 cd ..\Miflix-TV-015-Telegram
-if (-not (Test-Path (Join-Path $miflixOrigen 'telegram.local.properties'))) {
-    throw 'La carpeta de origen no tiene el archivo original. Usa como origen el proyecto 0.1.14 donde compilabas; no crees datos vacios ni los compartas.'
-}
 Copy-Item (Join-Path $miflixOrigen 'telegram.local.properties') .\telegram.local.properties
 git check-ignore telegram.local.properties
 .\tools\build_tv_physical_debug.ps1
@@ -77,3 +77,51 @@ No se genera ni publica una APK con las credenciales del propietario. Las APK de
 En una actualización con certificado compatible: sesión existente conservada; si hace falta autorización, teléfono/código/2FA sin pedir API ID/hash; reproducción manual y datos personales presentes. Google TV Home debe seguir sincronizando, mostrando hasta diez tarjetas y abriendo la ficha correcta. En APK de CI sin configuración puede aparecer la alternativa manual: es deliberado y no corresponde a la entrega familiar.
 
 No se ha ejecutado esta APK en el dispositivo desde Work. La compilación con tu archivo real ocurre sólo en tu PC; no se declara probada aquí. Cualquier estrategia futura distinta de aprovisionamiento se evaluará aparte y con autorización, sin imponerla a los familiares. Opciones futuras: mantener el aprovisionamiento en el equipo del administrador o permitir una configuración alternativa voluntaria; ninguna hace inexpugnables los valores que finalmente llegan al cliente.
+
+## Resultado automático de la corrección
+
+Código probado: `54348c1391407223e837da705fa60f4ca4b9c3e9`.
+CI: https://github.com/DarioDevia/Miflix/actions/runs/42448845114 — success.
+
+- Configuración familiar ausente: rechazada con diagnóstico claro.
+- Configuración parcial sintética: rechazada sin imprimir campos.
+- Configuración válida sintética en telegram.local.properties: compileTvDebugKotlin y compileTvReleaseKotlin aprobadas; los BuildConfig heredaron la preconfiguración. No se ensambló/publicó una APK en esa fase.
+- Archivo de prueba eliminado y salidas limpiadas; valores vacíos de CI verificados antes de compilar/publicar.
+- Tests JVM: 336 TV Debug, 336 TV Release y 281 Mobile; cero fallos/errores/ignorados.
+- Lint: cero errores; 18 advertencias TV Debug, 18 TV Release, 14 Mobile. No se deshabilitan comprobaciones.
+- 33 tests Python y seis casos PowerShell de certificados aprobados.
+- assembleTvDebug, assembleTvRelease y assembleMobileDebug aprobadas. Compilación pública BUILD SUCCESSFUL in 5m 20s, después del contrato configurado sintético.
+- Inspección real: API vacías en TV de CI, testOnly=false, TV 0.1.15 / 16, misma identidad, cuatro ABI TDLib con integridad verificada, integración Home normal preservada y Mobile aislado.
+- El contrato confirma byte por byte que todos los fuentes preexistentes de la aplicación respecto a b4cfe6e permanecen iguales salvo Gradle y el texto de configuración alternativa de TV. TelegramSession también permanece idéntico a 0.1.14. No hay cambios en reproducción ni en publicación/navegación Home.
+
+No se abrió una configuración real del propietario. Su compilación real local, el inicio de sesión por teléfono y la actualización física con sesiones existentes siguen pendientes en su PC/dispositivo; el caso sintético no equivale a una autorización Telegram real.
+
+Artefacto público diagnóstico, **NO APK familiar configurada**:
+https://github.com/DarioDevia/Miflix/actions/runs/42448845114/artifacts/13604723769
+
+Incluye MiFlix-TV-0.1.15-CI-unconfigured-debug.apk y MiFlix-TV-0.1.15-CI-unconfigured-unsigned.apk, informes y el contrato de compilación. Ambos carecen de preconfiguración y pueden mostrar la alternativa manual. La familia debe recibir únicamente TV compilada localmente con el archivo original y firma compatible.
+
+SHA-256 de los diagnósticos públicos (no de la futura APK privada):
+
+```text
+Debug CI: f26ca5e64662f3169b98645c24dc0a23975c5af965380a62067ec48f5c2ea9de
+Release CI unsigned: 72a28e44274910e129e90510c9ef9045b1af56281014e34a3ec10033b33bb8eb
+```
+
+Recibo verificable: TV_0.1.15_TELEGRAM_CI.json. El commit final posterior sólo documenta los resultados: app, herramientas y workflow son idénticos a los que aprobaron CI. La rama estable 0.1.14 no se modifica ni se fusiona.
+
+### Archivos de esta corrección
+
+- `.github/workflows/tv015-home-validation.yml`
+- `CHANGELOG_TV.md`
+- `README.md`
+- `app/build.gradle.kts`
+- `app/src/tv/java/ar/com/miflix/client/TvHomeCredentials.kt`
+- `docs/TV_0.1.15_GOOGLE_HOME.md`
+- `docs/TV_0.1.15_RESTAURAR_TELEGRAM.md`
+- `docs/TV_0.1.15_TELEGRAM_CI.json`
+- `tools/build_tv_physical_debug.ps1`
+- `tools/check_tv015_home_contract.py`
+- `tools/check_tv_telegram_build.py`
+- `tools/inspect_tv015_apks.py`
+- `tools/test_tv_telegram_policy.py`

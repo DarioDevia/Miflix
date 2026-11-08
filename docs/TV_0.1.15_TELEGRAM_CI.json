@@ -1,0 +1,202 @@
+{
+  "validation-summary.json": {
+    "tests": {
+      "TvDebug": {
+        "tests": 336,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "TvRelease": {
+        "tests": 336,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "MobileDebug": {
+        "tests": 281,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    "lint": {
+      "TvDebug": {
+        "errors": 0,
+        "warnings": 18
+      },
+      "TvRelease": {
+        "errors": 0,
+        "warnings": 18
+      },
+      "MobileDebug": {
+        "errors": 0,
+        "warnings": 14
+      }
+    },
+    "androidRuntimeTested": false,
+    "physicalStability": "PENDING"
+  },
+  "packaging-and-security.json": {
+    "tvDebug": {
+      "tvLibraryBackupExcluded": true,
+      "requestsQr": {
+        "sha256": "260478e570101b569de5511987e4c8ceed5ccc5132566c72706688b1918d7c49",
+        "size": 780
+      },
+      "intro": {
+        "sha256": "ecede13d1d994ba31de549b7d3ca557e64d69c4f3518bbae07caae5841423b17",
+        "size": 2134895
+      },
+      "package": "ar.com.miflix.client.tv",
+      "versionName": "0.1.15-diagnostico",
+      "versionCode": 16,
+      "minSdk": 26,
+      "targetSdk": 34,
+      "testOnly": false,
+      "debuggable": true,
+      "leanbackRequired": true,
+      "touchscreenRequired": false,
+      "leanbackLauncher": true,
+      "permissions": [
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.INTERNET",
+        "ar.com.miflix.client.tv.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+        "com.android.providers.tv.permission.WRITE_EPG_DATA"
+      ],
+      "cleartextTraffic": false,
+      "libraries": {
+        "arm64-v8a": {
+          "sha256": "249f325cde35ba778ef019258a40b2ecd2cfbd67d45e534902281c4dfba0f1a4",
+          "size": 22729264,
+          "elf_class": 2,
+          "elf_machine": 183
+        },
+        "armeabi-v7a": {
+          "sha256": "6551a4935f888b8b80adee5e995884765f7047cd32afc64a8c98e540cffcedb6",
+          "size": 16371168,
+          "elf_class": 1,
+          "elf_machine": 40
+        },
+        "x86": {
+          "sha256": "0aa3c3482608cdc02ed8a9883e4c0832e12e1dcbf52b2dcb448edf826b5699d1",
+          "size": 27180944,
+          "elf_class": 1,
+          "elf_machine": 3
+        },
+        "x86_64": {
+          "sha256": "40738f25f9da60125c1b9add0abb55558f02798c5ca291ecacdd5b0cc140f6e0",
+          "size": 25265264,
+          "elf_class": 2,
+          "elf_machine": 62
+        }
+      }
+    },
+    "tvRelease": {
+      "tvLibraryBackupExcluded": true,
+      "requestsQr": {
+        "sha256": "260478e570101b569de5511987e4c8ceed5ccc5132566c72706688b1918d7c49",
+        "size": 780
+      },
+      "intro": {
+        "sha256": "ecede13d1d994ba31de549b7d3ca557e64d69c4f3518bbae07caae5841423b17",
+        "size": 2134895
+      },
+      "package": "ar.com.miflix.client.tv",
+      "versionName": "0.1.15-diagnostico",
+      "versionCode": 16,
+      "minSdk": 26,
+      "targetSdk": 34,
+      "testOnly": false,
+      "debuggable": false,
+      "leanbackRequired": true,
+      "touchscreenRequired": false,
+      "leanbackLauncher": true,
+      "permissions": [
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.INTERNET",
+        "ar.com.miflix.client.tv.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+        "com.android.providers.tv.permission.WRITE_EPG_DATA"
+      ],
+      "cleartextTraffic": false,
+      "libraries": {
+        "arm64-v8a": {
+          "sha256": "249f325cde35ba778ef019258a40b2ecd2cfbd67d45e534902281c4dfba0f1a4",
+          "size": 22729264,
+          "elf_class": 2,
+          "elf_machine": 183
+        },
+        "armeabi-v7a": {
+          "sha256": "6551a4935f888b8b80adee5e995884765f7047cd32afc64a8c98e540cffcedb6",
+          "size": 16371168,
+          "elf_class": 1,
+          "elf_machine": 40
+        },
+        "x86": {
+          "sha256": "0aa3c3482608cdc02ed8a9883e4c0832e12e1dcbf52b2dcb448edf826b5699d1",
+          "size": 27180944,
+          "elf_class": 1,
+          "elf_machine": 3
+        },
+        "x86_64": {
+          "sha256": "40738f25f9da60125c1b9add0abb55558f02798c5ca291ecacdd5b0cc140f6e0",
+          "size": 25265264,
+          "elf_class": 2,
+          "elf_machine": 62
+        }
+      }
+    },
+    "mobileDebug": {
+      "tvLibraryBackupExcluded": false,
+      "requestsQr": null,
+      "intro": null,
+      "package": "ar.com.miflix.client",
+      "versionName": "0.9.2-diagnostico",
+      "versionCode": 26,
+      "minSdk": 26,
+      "targetSdk": 34,
+      "testOnly": false,
+      "debuggable": true,
+      "leanbackRequired": null,
+      "touchscreenRequired": null,
+      "leanbackLauncher": false,
+      "permissions": [
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.INTERNET",
+        "ar.com.miflix.client.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+      ],
+      "cleartextTraffic": false,
+      "libraries": {
+        "armeabi-v7a": {
+          "sha256": "6551a4935f888b8b80adee5e995884765f7047cd32afc64a8c98e540cffcedb6",
+          "size": 16371168,
+          "elf_class": 1,
+          "elf_machine": 40
+        }
+      }
+    },
+    "tvCredentialsEmbedded": false,
+    "credentialInspectionMode": "ci-empty",
+    "privateKeyAvailableInWork": false,
+    "debugSignatureCompatibleWithInstalledDevice": "UNKNOWN",
+    "releaseSigned": false,
+    "physicalValidation": "PENDING",
+    "mobileIntegration": false
+  },
+  "telegram-build-contract.json": {
+    "missingFamilyConfigRejected": true,
+    "incompleteFamilyConfigRejected": true,
+    "configuredTvDebugAndReleaseCompile": true,
+    "syntheticFixtureRemoved": true,
+    "publicDefaultsVerifiedEmpty": true,
+    "realCredentialsRead": false,
+    "realTelegramLoginTested": false
+  },
+  "SHA256SUMS.txt": "f26ca5e64662f3169b98645c24dc0a23975c5af965380a62067ec48f5c2ea9de  tv015-delivery/MiFlix-TV-0.1.15-CI-unconfigured-debug.apk\n72a28e44274910e129e90510c9ef9045b1af56281014e34a3ec10033b33bb8eb  tv015-delivery/MiFlix-TV-0.1.15-CI-unconfigured-unsigned.apk\n",
+  "ci": {
+    "run": 42448845114,
+    "artifact": 13604723769,
+    "sourceCommit": "54348c1391407223e837da705fa60f4ca4b9c3e9",
+    "artifactZipSha256": "677585d4b93d8a3af39edac15678160238af627d937a0e08c0dca0aba10c8e61"
+  }
+}
