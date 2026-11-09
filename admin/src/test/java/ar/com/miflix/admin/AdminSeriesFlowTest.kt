@@ -27,6 +27,8 @@ class AdminSeriesFlowTest {
     private lateinit var vm:AdminViewModel
     private lateinit var remoteCatalog:JsonObject
     private var published:JsonObject?=null
+    private var paginatedSearch=false
+    private var delayedSearch=false
     private var artwork=true
     private var imagesStatus=200
     private var freshSynopsis=""
@@ -47,12 +49,24 @@ class AdminSeriesFlowTest {
         server.dispatcher=object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse {
                 val path=request.path!!.substringBefore('?')
+                if(paginatedSearch && path.endsWith("/search/movie")) {
+                    val page=request.requestUrl!!.queryParameter("page")?.toInt() ?: 1
+                    val body=JsonObject().apply {
+                        addProperty("page",page);addProperty("total_pages",2)
+                        add("results",JsonArray().apply {repeat(if(page==1) 20 else 2) {n ->add(JsonObject().apply {
+                            addProperty("id",if(page==1 && n==14) 42 else page*100+n)
+                            addProperty("title",if(page==1 && n==14) "Camino" else "Otra coincidencia $n")
+                            addProperty("release_date","2008-01-01")
+                        })}})
+                    }
+                    return MockResponse().setBody(body.toString()).apply {if(delayedSearch) setBodyDelay(1,java.util.concurrent.TimeUnit.SECONDS)}
+                }
                 if(path.endsWith("/images")) return MockResponse().setResponseCode(imagesStatus).setBody(if(artwork) """{"logos":[{"file_path":"/logo.png","iso_639_1":"es"}]}""" else """{"logos":[]} """)
                 val body=when {
                     path=="/catalogo.json" -> remoteCatalog.toString()
                     path=="/admin/catalogo" -> {published=JsonParser.parseString(request.body.readUtf8()).asJsonObject;remoteCatalog=published!!.deepCopy();"{\"ok\":true}"}
-                    path.endsWith("/search/tv") -> """{"results":[{"id":42,"name":"The Wonderfools","first_air_date":"2026-01-01"}]}"""
-                    path.endsWith("/search/movie") -> """{"results":[{"id":42,"title":"Película nueva","release_date":"2026-01-01"}]}"""
+                    path.endsWith("/search/tv") -> """{"page":1,"total_pages":1,"results":[{"id":42,"name":"The Wonderfools","first_air_date":"2026-01-01"}]}"""
+                    path.endsWith("/search/movie") -> """{"page":1,"total_pages":1,"results":[{"id":42,"title":"Película nueva","release_date":"2026-01-01"}]}"""
                     path.endsWith("/tv/42") -> """{"id":42,"name":"The Wonderfools","first_air_date":"2026-01-01","genres":[],"seasons":[{"season_number":1,"name":"Temporada 1","episode_count":2}]}"""
                     path.endsWith("/movie/42") -> """{"id":42,"title":"Película nueva","release_date":"2026-01-01","genres":[]}"""
                     path.endsWith("/tv/42/season/1") -> JsonObject().apply {addProperty("season_number",1);addProperty("name","Temporada 1");add("episodes",JsonArray().apply {add(JsonObject().apply {addProperty("id",801);addProperty("episode_number",1);addProperty("name","Nombre recuperado de TMDB");addProperty("overview",freshSynopsis);addProperty("runtime",42)})})}.toString()
@@ -81,7 +95,7 @@ class AdminSeriesFlowTest {
         assertTrue(model.message,model.writable)
         return model
     }
-    private fun await(model:AdminViewModel=vm){runBlocking {withTimeout(10_000){while(model.busy) delay(5)}}}
+    private fun await(model:AdminViewModel=vm){runBlocking {withTimeout(10_000){while(model.busy || model.searching) delay(5)}}}
     private fun searchAndReview(type:String="serie",root:String?=null) {
         vm.openCategory(type);vm.newItem();root?.let {vm.changeTelegramLink(it)};vm.query=if(type=="serie") "The Wonderfools" else "Película nueva"
         vm.search();await();assertEquals(1,vm.results.size)
@@ -268,6 +282,31 @@ class AdminSeriesFlowTest {
         searchAndReview();val before=vm.draft!!.deepCopy()
         vm.episodeField(99,99,"telegram_url",last)
         assertEquals(before,vm.draft);vm.save();await();assertNull(vm.checkpoint("serie"))
+    }
+
+    @Test fun resultAfterTenthCanBeSelectedWithoutChangingCatalogUntilConfirmedSave() {
+        paginatedSearch=true;vm.openCategory("pelicula");vm.newItem();vm.changeTelegramLink(last);vm.query="Camino"
+        runBlocking {vm.awaitLocalWrites()};val catalogBefore=vm.catalog!!.deepCopy();val checkpoints=vm.checkpoint("pelicula")
+        val localBefore=File(app.filesDir,"admin-state.json").readText()
+        val requests=server.requestCount;vm.search();await()
+        assertEquals(10,vm.results.size);assertTrue(vm.results.none {it.id==42L});assertEquals(catalogBefore,vm.catalog);assertNull(published)
+        vm.loadMoreSearch();await();assertEquals(20,vm.results.size);assertEquals(requests+1,server.requestCount)
+        val selected=vm.results.single {it.id==42L};assertEquals("Camino",selected.title)
+        vm.loadMoreSearch();await();assertEquals(22,vm.results.size);assertEquals(requests+2,server.requestCount)
+        assertFalse(vm.metadataSearch.hasMore);assertEquals(catalogBefore,vm.catalog);assertEquals(checkpoints,vm.checkpoint("pelicula"));assertFalse(vm.pending)
+        assertEquals(localBefore,File(app.filesDir,"admin-state.json").readText())
+        vm.use(selected);await();assertEquals(42L,vm.draft!!.number("tmdb_id"));assertEquals(last,vm.draft!!.text("telegram_url"))
+        assertEquals(catalogBefore,vm.catalog);assertNull(published)
+        vm.save();await();assertTrue(vm.pending);assertEquals(42L,CatalogRules.items(vm.catalog!!).single().number("tmdb_id"));assertEquals(last,CatalogRules.items(vm.catalog!!).single().text("telegram_url"));assertNull(published)
+    }
+    @Test fun filterEditCancelsRealHttpSearchAndDropsLateResponseWithoutPublishing() {
+        paginatedSearch=true;delayedSearch=true;vm.openCategory("pelicula");vm.newItem();vm.query="Camino"
+        val before=vm.catalog!!.deepCopy();val requests=server.requestCount;vm.search()
+        runBlocking {withTimeout(5_000) {while(server.requestCount==requests) delay(5)}}
+        vm.query="Otro título";vm.searchYear="2008"
+        await();runBlocking {delay(80)}
+        assertTrue(vm.results.isEmpty());assertEquals("Otro título",vm.query);assertEquals("2008",vm.searchYear)
+        assertFalse(vm.metadataSearch.completed);assertEquals(before,vm.catalog);assertNull(published);assertFalse(vm.pending)
     }
 
 }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -215,26 +216,44 @@ class MainActivity: ComponentActivity() {
     }
 }
 @Composable private fun SearchScreen(vm: AdminViewModel) {
-    ScrollContent {
-        Text("Buscar metadatos",style=MaterialTheme.typography.titleLarge)
-        TelegramField(vm)
-        Text("Pegá el enlace y buscá el título. Después podrás revisar y corregir los datos.",style=MaterialTheme.typography.bodySmall)
-        OutlinedTextField(vm.query,{vm.query=it},label={Text("Título para buscar")},modifier=Modifier.fillMaxWidth(),enabled=vm.writable)
-        if(vm.category=="anime") Row {FilterChip(vm.source=="AniList",{vm.source="AniList"},label={Text("AniList")});Spacer(Modifier.width(8.dp));FilterChip(vm.source=="TMDB",{vm.source="TMDB"},label={Text("TMDB")})}
-        Button(onClick={vm.search()},enabled=vm.writable && vm.query.isNotBlank()) {Text("Buscar en ${vm.source}")}
-        OutlinedButton(onClick={vm.screen="review"},enabled=!vm.busy) {Text(if(vm.draft?.text("titulo").isNullOrBlank()) "Completar datos manualmente" else "Volver a revisar datos")}
-        if(vm.results.isNotEmpty()) {Text("Elegí un resultado",style=MaterialTheme.typography.titleMedium);Text("Tocá la tarjeta para revisar sus datos. Todavía no se guardará.",style=MaterialTheme.typography.bodySmall)}
-        vm.results.forEach {result -> Card(Modifier.fillMaxWidth().clickable(enabled=vm.writable,role=androidx.compose.ui.semantics.Role.Button) {vm.use(result)}) {
-            Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically) {
-                Box(Modifier.width(80.dp)) {Poster(result.poster)}
-                Column(Modifier.weight(1f).padding(start=12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                    Text(result.title,style=MaterialTheme.typography.titleMedium)
-                    if(result.year.isNotBlank()) Text(result.year)
-                    result.originalTitle().takeIf {it.isNotBlank()}?.let {Text(it,style=MaterialTheme.typography.bodySmall)}
-                    Text("${result.source} · Revisar datos",color=MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.bodySmall)
+    val search=vm.metadataSearch
+    val listState=rememberLazyListState()
+    LaunchedEffect(vm.query,vm.searchYear,vm.source,vm.category) {listState.scrollToItem(0)}
+    LazyColumn(state=listState,modifier=Modifier.fillMaxSize().padding(horizontal=16.dp),
+        contentPadding=PaddingValues(vertical=12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        item(key="searchControls") {Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            Text("Buscar metadatos",style=MaterialTheme.typography.titleLarge)
+            TelegramField(vm)
+            Text("Pegá el enlace y buscá el título. Después podrás revisar y corregir los datos.",style=MaterialTheme.typography.bodySmall)
+            OutlinedTextField(vm.query,{vm.query=it},label={Text("Título para buscar")},modifier=Modifier.fillMaxWidth(),enabled=vm.writable)
+            OutlinedTextField(vm.searchYear,{vm.searchYear=it},label={Text("Año (opcional)")},singleLine=true,
+                modifier=Modifier.fillMaxWidth(),enabled=vm.writable,
+                keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(keyboardType=androidx.compose.ui.text.input.KeyboardType.Number))
+            if(vm.category=="anime") Row {FilterChip(vm.source=="AniList",{vm.source="AniList"},enabled=vm.writable,label={Text("AniList")});Spacer(Modifier.width(8.dp));FilterChip(vm.source=="TMDB",{vm.source="TMDB"},enabled=vm.writable,label={Text("TMDB")})}
+            if(vm.source=="AniList") Text("El año filtra el inicio del anime en AniList. Las fechas desconocidas pueden no aparecer.",style=MaterialTheme.typography.bodySmall)
+            Button(onClick={vm.search()},enabled=vm.writable && !vm.searching && vm.query.isNotBlank()) {Text("Buscar en ${vm.source}")}
+            OutlinedButton(onClick={vm.screen="review"},enabled=!vm.busy) {Text(if(vm.draft?.text("titulo").isNullOrBlank()) "Completar datos manualmente" else "Volver a revisar datos")}
+            if(vm.results.isNotEmpty()) {Text("Elegí un resultado · ${vm.results.size}",style=MaterialTheme.typography.titleMedium);Text("Tocá la tarjeta para revisar sus datos. Todavía no se guardará.",style=MaterialTheme.typography.bodySmall)}
+        }}
+        items(vm.results,key={"${vm.category}/${it.source}/${it.id}"}) {result ->
+            Card(Modifier.fillMaxWidth().clickable(enabled=vm.writable,role=androidx.compose.ui.semantics.Role.Button) {vm.use(result)}) {
+                Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically) {
+                    Box(Modifier.width(80.dp)) {Poster(result.poster)}
+                    Column(Modifier.weight(1f).padding(start=12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                        Text(result.title,style=MaterialTheme.typography.titleMedium)
+                        if(result.year.isNotBlank()) Text(result.year)
+                        result.originalTitle().takeIf {it.isNotBlank()}?.let {Text(it,style=MaterialTheme.typography.bodySmall)}
+                        Text("${result.source} · Revisar datos",color=MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
-        } }
+        }
+        item(key="searchFooter") {Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            if(vm.searching) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if(search.error.isNotBlank()) Text(search.error,color=MaterialTheme.colorScheme.error)
+            if(search.hasMore) OutlinedButton(onClick={vm.loadMoreSearch()},enabled=vm.writable && !vm.searching,modifier=Modifier.fillMaxWidth()) {Text("Cargar 10 más")}
+            if(search.completed && !search.hasMore && !vm.searching) Text(if(vm.results.isEmpty()) "No se encontraron coincidencias." else "Fin de los resultados.",style=MaterialTheme.typography.bodySmall)
+        }}
     }
 }
 @Composable private fun TelegramField(vm: AdminViewModel) {

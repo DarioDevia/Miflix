@@ -1,3 +1,11 @@
+# MiFlix Admin Android 0.1.13-diagnostico / 14
+
+Búsqueda manual de metadatos en grupos de diez, paginación real de TMDB/AniList, buffer de páginas TMDB de veinte, año opcional y lista de resultados diferida. Conserva el editor y la persistencia de 0.1.12, cuya mejora física en Samsung fue confirmada por el propietario.
+
+Ver [contratos, pruebas, firma y protocolo Samsung](0.1.13-search-pagination.md). **El relay documentado no admite página/año: para TMDB completo puede ser necesario el token local opcional existente; el cliente explica el rechazo y nunca quita el filtro.** No cambia el Worker. Actualizar con la firma original, sin desinstalar ni borrar datos. 0.1.13 pendiente de validación física.
+
+## Antecedente 0.1.12
+
 # MiFlix Admin Android 0.1.12-diagnostico / 13
 
 Edición en memoria, autoguardado del borrador tras 500 ms de pausa y escrituras ordenadas fuera del hilo principal. Guardar y Sincronizar siguen siendo acciones manuales separadas. Conserva el formato local y las funciones de 0.1.11. Sin cambios de Worker ni clientes.

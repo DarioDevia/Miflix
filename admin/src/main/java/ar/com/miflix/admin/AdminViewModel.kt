@@ -43,11 +43,15 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
     private val persistence=DraftPersistence(persistenceScope,save={value,paths -> repo.persistDraft(value,paths)},onError={error ->
         persistenceScope.launch(Dispatchers.Main.immediate) {message="No se pudo conservar el borrador: ${error.message.orEmpty()}. La edición sigue en memoria; reintentá antes de cerrar."}
     })
+    internal val metadataSearch=MetadataSearchController(viewModelScope,{metadata()})
     private var screenState by mutableStateOf("startup")
     var screen: String
         get()=screenState
-        set(value) {if(value!=screenState) persistence.flushSoon();screenState=value}
-    var category by mutableStateOf("pelicula")
+        set(value) {if(value!=screenState) {if(screenState=="search") metadataSearch.pause();persistence.flushSoon()};screenState=value}
+    private var categoryState by mutableStateOf("pelicula")
+    var category:String
+        get()=categoryState
+        set(value) {if(value!=categoryState) {metadataSearch.invalidate();categoryState=value}}
     var busy by mutableStateOf(false);private set
     var message by mutableStateOf("");private set
     var revision by mutableStateOf(0);private set
@@ -56,9 +60,17 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
     var duplicate by mutableStateOf<JsonObject?>(null);private set
     var deletion by mutableStateOf<DeletionRequest?>(null);private set
     var enrichment by mutableStateOf<JsonObject?>(null);private set
-    var results by mutableStateOf<List<SearchResult>>(emptyList());private set
-    var query by mutableStateOf("")
-    var source by mutableStateOf("TMDB")
+    val results get()=metadataSearch.results
+    val searching get()=metadataSearch.loading
+    var query:String
+        get()=metadataSearch.query
+        set(value) {metadataSearch.query=value}
+    var source:String
+        get()=metadataSearch.source
+        set(value) {metadataSearch.source=value}
+    var searchYear:String
+        get()=metadataSearch.year
+        set(value) {metadataSearch.year=value}
     var original by mutableStateOf("");private set
     var sharedText by mutableStateOf("");private set
     var isNew by mutableStateOf(true);private set
@@ -112,7 +124,7 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
         try {
             val next=AdminConfig(base,token,tmdb).normalized()
             require(!pending || config?.baseUrl==next.baseUrl) {"Sincronizá o descartá explícitamente los pendientes antes de cambiar de servidor."}
-            secure.save(next);config=next;refresh()
+            secure.save(next);metadataSearch.invalidate();config=next;refresh()
         } catch(e:Exception) {message=e.message.orEmpty()}
     }
     fun refresh(discard: Boolean=false) {
@@ -132,13 +144,13 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
         if(!writable) return
         if(draft!=null) {message="Hay una revisión guardada. Continuá o descartá ese borrador antes de crear otro.";screen="home";return}
         draft=JsonObject().apply {addProperty("tipo",category);add("generos",JsonArray());add("temporadas",JsonArray())}
-        isNew=true;updateMultimedia=false;original="";query="";results=emptyList();source=if(category=="anime") "AniList" else "TMDB"
+        isNew=true;updateMultimedia=false;original="";query="";metadataSearch.invalidate();searchYear="";source=if(category=="anime") "AniList" else "TMDB"
         persist();screen="search"
     }
     fun edit(item: JsonObject) {
         if(!writable) return
         if(draft!=null) {message="Hay una revisión guardada. Continuá o descartá ese borrador antes de editar otra ficha.";screen="home";return}
-        category=item.text("tipo");draft=item.deepCopy();isNew=false;updateMultimedia=false;original="";query=item.text("titulo");source=if(category=="anime" && item.number("anilist_id")!=null) "AniList" else "TMDB";persist();screen="review"
+        metadataSearch.invalidate();searchYear="";category=item.text("tipo");draft=item.deepCopy();isNew=false;updateMultimedia=false;original="";query=item.text("titulo");source=if(category=="anime" && item.number("anilist_id")!=null) "AniList" else "TMDB";persist();screen="review"
     }
     fun resumeDraft() {
         draft=draft ?: repo.draft() ?: return
@@ -298,11 +310,11 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
         }
         work({result=metadata().season(id,number)},{draft=CatalogRules.mergeSeason(draft!!,result!!);draft!!.addProperty("fuente_episodios","TMDB");val provided=JsonObject().apply {add("temporadas",JsonArray().apply {add(result!!)})};persist(RetiredMetadata.freshPaths(provided,draft!!));message="Temporada $number obtenida; enlaces anteriores conservados."})
     }
-    fun search() {
-        val q=query;val type=category;val src=source;var found:List<SearchResult> = emptyList()
-        work({found=metadata().search(q,type,src)},{results=found;message="${found.size} resultados."})
-    }
+    fun search() {if(writable) metadataSearch.search(category)}
+    fun loadMoreSearch() {if(writable) metadataSearch.loadMore()}
     fun use(result: SearchResult) {
+        if(!writable || results.none {it.source==result.source && it.id==result.id}) return
+        metadataSearch.pause()
         val base=draft?.deepCopy() ?: return;var detail:JsonObject?=null
         work({detail=metadata().detail(result,category)},{
             val candidate=detail!!
@@ -401,5 +413,5 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
         changeTelegramLink(link);sharedText="";screen="search"
     }
     fun dismissShare() {sharedText=""}
-    override fun onCleared() {persistence.finish();collections.close();recoveryProvider?.cancel();providerTestCancel?.invoke();super.onCleared()}
+    override fun onCleared() {metadataSearch.pause();persistence.finish();collections.close();recoveryProvider?.cancel();providerTestCancel?.invoke();super.onCleared()}
 }

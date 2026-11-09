@@ -10,6 +10,8 @@ import java.util.concurrent.TimeUnit
 data class SearchResult(val source: String,val id: Long,val title: String,val year: String,val poster: String,val raw: JsonObject)
 interface Metadata {
     fun search(query: String,type: String,source: String): List<SearchResult>
+    fun searchPage(query:MetadataQuery,page:Int):MetadataPage = error("Esta fuente no admite búsqueda paginada.")
+    fun cancelSearch() {}
     fun detail(result: SearchResult,type: String): JsonObject
     fun season(id: Long,number: Int): JsonObject
 }
@@ -19,7 +21,7 @@ class HttpMetadata(private val config: AdminConfig,private val client: OkHttpCli
     private val jikanBase: String="https://api.jikan.moe/v4"): Metadata {
     private fun json(request: Request): JsonObject {
         try { return client.newCall(request).execute().use { response ->
-            check(response.isSuccessful) { when(response.code) {401,403 -> "La fuente rechazó la configuración de metadatos.";404 -> "La función de metadatos no está disponible; revisá configuración.";429 -> "La fuente pidió esperar antes de consultar otra vez.";else -> "Metadatos: HTTP ${response.code}."} }
+            check(response.isSuccessful) { when(response.code) {401,403 -> "La fuente rechazó la configuración de metadatos.";404 -> "Metadatos: HTTP 404. La función no está disponible; revisá configuración.";429 -> "HTTP 429: la fuente pidió esperar antes de consultar otra vez.";else -> "Metadatos: HTTP ${response.code}."} }
             val raw=response.body?.string() ?: error("Metadatos vacíos.")
             check(raw.length <= CatalogRules.MAX_BYTES) { "Metadatos demasiado grandes." }
             JsonParser.parseString(raw).asJsonObject
@@ -74,26 +76,69 @@ class HttpMetadata(private val config: AdminConfig,private val client: OkHttpCli
         } catch(e:IllegalStateException) {throw e} catch(_:java.io.IOException) {throw SagaRequestFailure()} catch(_:Exception) {error("No se pudo consultar TMDB.")}
     }
     fun cancelRecovery() { client.dispatcher.cancelAll() }
-    override fun search(query: String,type: String,source: String): List<SearchResult> {
-        require(query.trim().isNotBlank()) { "Escribí un título." }
-        require(query.length <= 200) { "La búsqueda es demasiado larga." }
-        if(source == "AniList") {
-            require(type == "anime") { "AniList es para anime." }
-            val body=JsonObject().apply {
-                addProperty("query",ANILIST_QUERY);add("variables",JsonObject().apply {addProperty("search",query.trim())})
+    override fun cancelSearch() {client.dispatcher.cancelAll()}
+    override fun search(query:String,type:String,source:String)=searchPage(MetadataQuery.create(query,type,source,""),1).items
+    override fun searchPage(query:MetadataQuery,page:Int):MetadataPage {
+        MetadataQuery.create(query.title,query.type,query.source,query.year?.toString().orEmpty())
+        require(page>=1) {"Página inválida."}
+        if(query.source=="AniList") {
+            require(page<=500) {"AniList limita la profundidad a 5.000 resultados. Refiná el título o el año; no se indicó un fin de resultados falso."}
+            val variables=JsonObject().apply {
+                addProperty("search",query.title);addProperty("page",page)
+                if(query.year!=null) addProperty("year","${query.year}%")
             }
-            val data=json(Request.Builder().url(anilistUrl).post(body.toString().toRequestBody("application/json".toMediaType())).build())
-            check(!data.has("errors")) { "AniList informó un error." }
-            return data.getAsJsonObject("data").getAsJsonObject("Page").array("media").map { entry ->
-                val obj=entry.asJsonObject;val titles=obj.getAsJsonObject("title")
-                SearchResult("AniList",obj.number("id")!!, titles.text("english").ifBlank { titles.text("romaji").ifBlank {titles.text("native")} },obj.text("seasonYear"),obj.getAsJsonObject("coverImage").text("extraLarge"),obj)
+            val body=JsonObject().apply {addProperty("query",ANILIST_QUERY);add("variables",variables)}
+            val response=json(Request.Builder().url(anilistUrl).post(body.toString().toRequestBody("application/json".toMediaType())).build())
+            check(!response.has("errors")) {"AniList informó un error. Reintentá; no se avanzó de página."}
+            return parseSearchPage {
+                val data=response.getAsJsonObject("data").getAsJsonObject("Page")
+                val info=data.getAsJsonObject("pageInfo")
+                val current=info.get("currentPage")?.takeUnless {it.isJsonNull}?.let {positivePage(it)} ?: page
+                check(current==page)
+                val more=info.get("hasNextPage")
+                check(more!=null && more.isJsonPrimitive && more.asJsonPrimitive.isBoolean)
+                val media=data.getAsJsonArray("media") ?: error("Falta media")
+                MetadataPage(media.map {entry ->
+                    val obj=entry.asJsonObject;val titles=obj.getAsJsonObject("title")
+                    SearchResult("AniList",positiveId(obj),titles.text("english").ifBlank {titles.text("romaji").ifBlank {titles.text("native")}},
+                        obj.get("startDate")?.takeIf {it.isJsonObject}?.asJsonObject?.text("year").orEmpty().ifBlank {obj.text("seasonYear")},
+                        obj.getAsJsonObject("coverImage").text("extraLarge"),obj)
+                },current,more.asBoolean)
             }
         }
-        val tv=type != "pelicula"
-        return tmdb(if(tv) "/search/tv" else "/search/movie",mapOf("query" to query.trim(),"language" to "es-MX","include_adult" to "false")).array("results").take(10).map { entry ->
-            val obj=entry.asJsonObject
-            SearchResult("TMDB",obj.number("id")!!,obj.text(if(tv) "name" else "title"),obj.text(if(tv) "first_air_date" else "release_date").take(4),image(obj.text("poster_path")),obj)
+        val tv=query.type!="pelicula"
+        val params=mutableMapOf("query" to query.title,"language" to "es-MX","include_adult" to "false")
+        // Legacy relay permits the implicit first page. Subsequent pages use the real page parameter.
+        if(page>1 || config.tmdbToken.isNotBlank()) params["page"]=page.toString()
+        query.year?.let {params[if(tv) "first_air_date_year" else "primary_release_year"]=it.toString()}
+        val response=try {tmdb(if(tv) "/search/tv" else "/search/movie",params)} catch(e:IllegalStateException) {
+            if(config.tmdbToken.isBlank() && (page>1 || query.year!=null) && (e.message.orEmpty().contains("400") || e.message.orEmpty().contains("404")))
+                error("El relay actual no admite página o año. Configurá el TMDB Bearer Token local opcional en Configuración y volvé a buscar. Los resultados anteriores se conservaron.")
+            throw e
         }
+        return parseSearchPage {
+            val current=positivePage(response.get("page"))
+            check(current==page)
+            val total=positivePage(response.get("total_pages"),allowZero=true)
+            val entries=response.getAsJsonArray("results") ?: error("Faltan resultados")
+            check((current<=total) || (current==1 && total==0 && entries.size()==0))
+            MetadataPage(entries.map {entry ->
+                val obj=entry.asJsonObject
+                SearchResult("TMDB",positiveId(obj),obj.text(if(tv) "name" else "title"),obj.text(if(tv) "first_air_date" else "release_date").take(4),image(obj.text("poster_path")),obj)
+            },current,current<total)
+        }
+    }
+    private fun positiveId(obj:JsonObject):Long {
+        val raw=obj.get("id") ?: error("Falta ID")
+        check(raw.isJsonPrimitive && raw.asJsonPrimitive.isNumber && raw.toString().matches(Regex("[1-9][0-9]*")))
+        return (raw.toString().toLongOrNull() ?: error("ID inválido")).also {check(it>0)}
+    }
+    private fun positivePage(value:JsonElement?,allowZero:Boolean=false):Int {
+        check(value!=null && value.isJsonPrimitive && value.asJsonPrimitive.isNumber && value.toString().matches(Regex("[0-9]+")))
+        return (value.toString().toIntOrNull() ?: error("Página inválida")).also {check(it >= (if(allowZero) 0 else 1))}
+    }
+    private fun parseSearchPage(block:()->MetadataPage):MetadataPage = try {block()} catch(_:Exception) {
+        error("La fuente devolvió una página inválida o incompleta. Reintentá; se conservaron los resultados.")
     }
     override fun detail(result: SearchResult,type: String): JsonObject {
         if(result.source == "AniList") return anime(result)
@@ -187,7 +232,7 @@ class HttpMetadata(private val config: AdminConfig,private val client: OkHttpCli
             addProperty("fecha_emision",obj.text("air_date"));addProperty("poster_url",image(obj.text("poster_path")));addProperty("cantidad_episodios",obj.number("episode_count"))
         }
         fun provenance(source: String)=JsonObject().apply {listOf("datos_generales","sinopsis","poster","fondo","trailer","creditos","puntuacion").forEach {addProperty(it,source)}}
-        private const val ANILIST_QUERY="""query (${'$'}search: String!) { Page(page: 1, perPage: 5) { media(search: ${'$'}search, type: ANIME) { id idMal title { romaji english native } seasonYear genres description averageScore episodes coverImage { extraLarge large } trailer { id site } characters(perPage: 6, sort: [ROLE, RELEVANCE]) { edges { role node { name { full } } } } staff(perPage: 15) { edges { role node { name { full } } } } } } }"""
+        private const val ANILIST_QUERY="""query (${'$'}search: String!, ${'$'}page: Int!, ${'$'}year: String) { Page(page: ${'$'}page, perPage: 10) { pageInfo { currentPage hasNextPage } media(search: ${'$'}search, startDate_like: ${'$'}year, type: ANIME) { id idMal title { romaji english native } seasonYear startDate { year } genres description averageScore episodes coverImage { extraLarge large } trailer { id site } characters(perPage: 6, sort: [ROLE, RELEVANCE]) { edges { role node { name { full } } } } staff(perPage: 15) { edges { role node { name { full } } } } } } }"""
     }
 }
 
