@@ -179,12 +179,12 @@ class AdminRepository(private val store: StateStore) {
         val before=backup.getAsJsonObject("before")
         val same=if(item.text("id").isNotBlank()) before.text("id")==item.text("id") else
             item.text("_admin_metadata_recovery").isNotBlank() && item.text("_admin_metadata_recovery")==before.text("_admin_metadata_recovery")
-        return same && runCatching {MetadataRecovery.validateUndo(item,backup);true}.getOrDefault(false)
+        return same && runCatching {if(backup.text("kind")=="direct-metadata-v1") DirectMetadata.validateUndo(item,backup) else MetadataRecovery.validateUndo(item,backup);true}.getOrDefault(false)
     }
     fun undoRecovery(draft: JsonObject): JsonObject {
         check(writable) {"El catálogo está en solo lectura."}
         val backup=state.get("metadata_undo")?.takeIf {it.isJsonObject}?.asJsonObject ?: error("No hay una recuperación para revertir.")
-        val restored=MetadataRecovery.undo(draft,backup)
+        val restored=if(backup.text("kind")=="direct-metadata-v1") DirectMetadata.undo(draft,backup) else MetadataRecovery.undo(draft,backup)
         // Keep the backup if the user later discards this reverted draft before saving.
         val next=state.deepCopy();next.add("draft",restored.deepCopy());commit(next)
         return this.draft() ?: error("No se pudo conservar la revisión restaurada.")

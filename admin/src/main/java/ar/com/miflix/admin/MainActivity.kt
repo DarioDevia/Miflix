@@ -48,6 +48,7 @@ class MainActivity: ComponentActivity() {
     fun open(url: String) { TelegramLinks.valid(url)?.let {try {context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(it)))} catch(_:Exception) { android.widget.Toast.makeText(context,"No hay una aplicación para abrir Telegram.",android.widget.Toast.LENGTH_LONG).show() }} }
     BackHandler(enabled=vm.screen !in setOf("home","startup")) {
         if(vm.screen in setOf("recoverySearch","recoveryPreview")) {vm.cancelRecovery();return@BackHandler}
+        if(vm.screen=="directPreview") {if(!vm.busy) vm.cancelDirectPreview();return@BackHandler}
         if(vm.screen=="providers") {vm.leaveProviders();return@BackHandler}
         if(vm.screen=="collections") {if(vm.collections.page!="list") vm.collections.openList() else vm.screen="home";return@BackHandler}
         if(vm.busy) return@BackHandler
@@ -76,6 +77,7 @@ class MainActivity: ComponentActivity() {
                     "search" -> SearchScreen(vm)
                     "review" -> ReviewScreen(vm,onSave={saveConfirmation=true},onDiscard={discardDraft=true})
                     "enrichment" -> EnrichmentScreen(vm)
+                    "directPreview" -> DirectMetadataScreen(vm)
                     "recoverySearch" -> RecoverySearchScreen(vm)
                     "recoveryPreview" -> RecoveryPreviewScreen(vm)
                     else -> HomeScreen(vm,onRefresh={if(vm.pending) discardRefresh=true else vm.refresh()},onOpen={open(it)})
@@ -223,6 +225,11 @@ class MainActivity: ComponentActivity() {
         if(vm.category=="anime") Row {FilterChip(vm.source=="AniList",{vm.source="AniList"},label={Text("AniList")});Spacer(Modifier.width(8.dp));FilterChip(vm.source=="TMDB",{vm.source="TMDB"},label={Text("TMDB")})}
         Button(onClick={vm.search()},enabled=vm.writable && vm.query.isNotBlank()) {Text("Buscar en ${vm.source}")}
         OutlinedButton(onClick={vm.screen="review"},enabled=!vm.busy) {Text(if(vm.draft?.text("titulo").isNullOrBlank()) "Completar datos manualmente" else "Volver a revisar datos")}
+        HorizontalDivider()
+        Text("Buscar mediante enlace (opcional)",style=MaterialTheme.typography.titleMedium)
+        OutlinedTextField(vm.directUrl,{vm.directUrl=it},label={Text("Enlace de la ficha TMDB o AniList")},singleLine=true,modifier=Modifier.fillMaxWidth(),enabled=vm.writable)
+        Button(onClick={vm.obtainFromLink()},enabled=vm.writable && vm.directUrl.isNotBlank(),modifier=Modifier.fillMaxWidth()) {Text("Obtener datos desde enlace")}
+        Text("No hace falta completar el título. Se consultará la ficha por su ID; después podrás elegir los campos y revisar.",style=MaterialTheme.typography.bodySmall)
         if(vm.results.isNotEmpty()) {Text("Elegí un resultado",style=MaterialTheme.typography.titleMedium);Text("Tocá la tarjeta para revisar sus datos. Todavía no se guardará.",style=MaterialTheme.typography.bodySmall)}
         vm.results.forEach {result -> Card(Modifier.fillMaxWidth().clickable(enabled=vm.writable,role=androidx.compose.ui.semantics.Role.Button) {vm.use(result)}) {
             Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically) {

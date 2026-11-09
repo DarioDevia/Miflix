@@ -1,3 +1,11 @@
+# MiFlix Admin Android 0.1.14-diagnostico / 15
+
+Identificación por enlace oficial TMDB o AniList, comparación y selección de campos, revisión habitual y guardado manual. Parte directamente de 0.1.12, cuya fluidez fue validada en Samsung. La búsqueda tradicional queda intacta: no incorpora paginación ni año de 0.1.13.
+
+Ver [implementación, pruebas, firma y protocolo Samsung](0.1.14-direct-metadata-links.md). Reutiliza el relay de detalles y el token opcional existentes, sin modificar el Worker ni pedir credenciales nuevas cuando el relay es suficiente. Actualizar con la firma original, sin desinstalar ni borrar datos. Validación física de 0.1.14 pendiente.
+
+## Antecedente 0.1.12
+
 # MiFlix Admin Android 0.1.12-diagnostico / 13
 
 Edición en memoria, autoguardado del borrador tras 500 ms de pausa y escrituras ordenadas fuera del hilo principal. Guardar y Sincronizar siguen siendo acciones manuales separadas. Conserva el formato local y las funciones de 0.1.11. Sin cambios de Worker ni clientes.

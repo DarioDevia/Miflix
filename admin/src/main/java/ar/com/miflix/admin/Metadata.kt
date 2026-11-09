@@ -12,24 +12,30 @@ interface Metadata {
     fun search(query: String,type: String,source: String): List<SearchResult>
     fun detail(result: SearchResult,type: String): JsonObject
     fun season(id: Long,number: Int): JsonObject
+    fun direct(link:MetadataLink,type:String):JsonObject = error("Esta fuente no admite identificación directa.")
 }
 class HttpMetadata(private val config: AdminConfig,private val client: OkHttpClient=OkHttpClient.Builder()
     .callTimeout(25,TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).build(),
     private val tmdbBase: String="https://api.themoviedb.org/3",private val anilistUrl: String="https://graphql.anilist.co",
     private val jikanBase: String="https://api.jikan.moe/v4"): Metadata {
-    private fun json(request: Request): JsonObject {
-        try { return client.newCall(request).execute().use { response ->
-            check(response.isSuccessful) { when(response.code) {401,403 -> "La fuente rechazó la configuración de metadatos.";404 -> "La función de metadatos no está disponible; revisá configuración.";429 -> "La fuente pidió esperar antes de consultar otra vez.";else -> "Metadatos: HTTP ${response.code}."} }
+    private fun json(request: Request,noRedirects:Boolean=false): JsonObject {
+        try { return (if(noRedirects) client.newBuilder().followRedirects(false).followSslRedirects(false).build() else client).newCall(request).execute().use { response ->
+            check(response.isSuccessful) { if(noRedirects) when(response.code) {
+                401,403 -> "HTTP ${response.code}: la fuente rechazó la configuración de metadatos."
+                404 -> "No se encontró la ficha o el endpoint de metadatos (HTTP 404)."
+                429 -> "HTTP 429: la fuente pidió esperar antes de consultar otra vez."
+                else -> "Metadatos: HTTP ${response.code}."
+            } else when(response.code) {401,403 -> "La fuente rechazó la configuración de metadatos.";404 -> "La función de metadatos no está disponible; revisá configuración.";429 -> "La fuente pidió esperar antes de consultar otra vez.";else -> "Metadatos: HTTP ${response.code}."} }
             val raw=response.body?.string() ?: error("Metadatos vacíos.")
             check(raw.length <= CatalogRules.MAX_BYTES) { "Metadatos demasiado grandes." }
             JsonParser.parseString(raw).asJsonObject
         } } catch(e:IllegalStateException) {throw e} catch(_:Exception) {error("No se pudieron consultar los metadatos. Reintentá.")}
     }
-    private fun tmdb(path: String,params: Map<String,String> = emptyMap()): JsonObject {
+    private fun tmdb(path: String,params: Map<String,String> = emptyMap(),noRedirects:Boolean=false): JsonObject {
         val direct=config.tmdbToken.isNotBlank()
         val url=(if(direct) tmdbBase+path else config.baseUrl+"/admin/metadata/tmdb"+path).toHttpUrl().newBuilder()
         params.forEach { (key,value) -> url.addQueryParameter(key,value) }
-        return json(Request.Builder().url(url.build()).header("Authorization","Bearer ${if(direct) config.tmdbToken else config.token}").build())
+        return json(Request.Builder().url(url.build()).header("Authorization","Bearer ${if(direct) config.tmdbToken else config.token}").build(),noRedirects)
     }
     // Same fixed upstream/relay and encrypted credentials as the established metadata flow.
     fun recoveryRequest(path: String, language: String): JsonObject {
@@ -95,14 +101,17 @@ class HttpMetadata(private val config: AdminConfig,private val client: OkHttpCli
             SearchResult("TMDB",obj.number("id")!!,obj.text(if(tv) "name" else "title"),obj.text(if(tv) "first_air_date" else "release_date").take(4),image(obj.text("poster_path")),obj)
         }
     }
-    override fun detail(result: SearchResult,type: String): JsonObject {
+    override fun detail(result: SearchResult,type: String): JsonObject = detailInternal(result,type)
+    private fun detailInternal(result:SearchResult,type:String,link:MetadataLink?=null):JsonObject {
         if(result.source == "AniList") return anime(result)
-        val tv=type != "pelicula";val path="/${if(tv) "tv" else "movie"}/${result.id}"
-        val obj=tmdb(path,mapOf("language" to "es-MX"))
-        val external=runCatching {tmdb("$path/external_ids")}.getOrNull()
+        val tv=if(link!=null) link.mediaType=="tv" else type!="pelicula";val path="/${if(tv) "tv" else "movie"}/${result.id}"
+        fun fetch(suffix:String="",params:Map<String,String> = emptyMap())=tmdb(path+suffix,params,link!=null)
+        val obj=fetch(params=mapOf("language" to "es-MX"))
+        if(link!=null) require(DirectMetadata.matchesId(obj,link.id) && obj.text(if(tv) "name" else "title").isNotBlank() && obj.get("genres")?.isJsonArray==true && (!tv || obj.get("seasons")?.isJsonArray==true)) {"TMDB devolvió una ficha incompleta o con otro ID. Se conservó el borrador."}
+        val external=runCatching {fetch("/external_ids")}.getOrNull()
         val imdb=external?.text("imdb_id").orEmpty()
         val item=JsonObject().apply {
-            val id=if(type=="anime") "anime-tmdb-${result.id}" else "$type-${if(imdb.isNotBlank()) "imdb-$imdb" else "tmdb-${result.id}"}"
+            val id=if(type=="anime" && link?.mediaType=="movie") "anime-tmdb-movie-${result.id}" else if(type=="anime") "anime-tmdb-${result.id}" else "$type-${if(imdb.isNotBlank()) "imdb-$imdb" else "tmdb-${result.id}"}"
             addProperty("id",id);addProperty("tipo",type);addProperty("tmdb_id",result.id)
             if(imdb.isNotBlank()) addProperty("imdb_id",imdb)
             addProperty("titulo",obj.text(if(tv) "name" else "title"));addProperty("titulo_original",obj.text(if(tv) "original_name" else "original_title"))
@@ -115,13 +124,13 @@ class HttpMetadata(private val config: AdminConfig,private val client: OkHttpCli
             addProperty("fuente","MANUAL");addProperty("fuente_principal","TMDB")
             add("fuentes_metadata",provenance("TMDB"));add("temporadas",JsonArray())
         }
-        runCatching {tmdb("$path/credits",mapOf("language" to "es-MX"))}.getOrNull()?.let { credits ->
+        runCatching {fetch("/credits",mapOf("language" to "es-MX"))}.getOrNull()?.let { credits ->
             item.addProperty("protagonistas",credits.array("cast").take(5).joinToString(", ") {it.asJsonObject.text("name")})
             item.addProperty("direccion",credits.array("crew").filter { it.asJsonObject.text("job") in setOf("Director","Series Director") }.take(4).map {it.asJsonObject.text("name")}.distinct().joinToString(", "))
         }
         val videos=runCatching {
-            val first=tmdb("$path/videos",mapOf("language" to "es-MX")).array("results")
-            if(first.size()>0) first else tmdb("$path/videos",mapOf("language" to "en-US")).array("results")
+            val first=fetch("/videos",mapOf("language" to "es-MX")).array("results")
+            if(first.size()>0) first else fetch("/videos",mapOf("language" to "en-US")).array("results")
         }.getOrNull()
         videos?.map {it.asJsonObject}?.filter {it.text("site")=="YouTube" && it.text("type")=="Trailer"}
             ?.sortedByDescending {it.text("official")=="true"}?.firstOrNull()?.text("key")?.takeIf {it.isNotBlank()}?.let {item.addProperty("trailer_url","https://www.youtube.com/watch?v=$it")}
@@ -130,8 +139,22 @@ class HttpMetadata(private val config: AdminConfig,private val client: OkHttpCli
             item.addProperty("fuente_episodios","TMDB")
         }
         // Images are optional: an unavailable relay/provider must not block review or erase existing artwork.
-        runCatching {logo(tmdb("$path/images"))}.getOrNull()?.let {item.addProperty("logo_url",it)}
+        runCatching {logo(fetch("/images"))}.getOrNull()?.let {item.addProperty("logo_url",it)}
         return item
+    }
+    override fun direct(link:MetadataLink,type:String):JsonObject {
+        require(MetadataLink.parse(link.canonicalUrl,type)==link) {"Identificación de enlace inválida."}
+        if(link.source=="TMDB") return detailInternal(SearchResult("TMDB",link.id,"","","",JsonObject()),type,link)
+        val body=JsonObject().apply {addProperty("query",ANILIST_DIRECT_QUERY);add("variables",JsonObject().apply {addProperty("id",link.id)})}
+        val response=json(Request.Builder().url(anilistUrl).post(body.toString().toRequestBody("application/json".toMediaType())).build(),true)
+        require(!response.has("errors")) {"AniList informó un error. No se modificó la revisión."}
+        val obj=try {response.getAsJsonObject("data").getAsJsonObject("Media")} catch(_:Exception) {null}
+        require(obj!=null && DirectMetadata.matchesId(obj,link.id) && obj.text("type")=="ANIME" && obj.get("title")?.isJsonObject==true && obj.get("coverImage")?.isJsonObject==true && obj.get("genres")?.isJsonArray==true && obj.get("characters")?.isJsonObject==true && obj.get("staff")?.isJsonObject==true && listOf("idMal","seasonYear","description","averageScore","episodes","trailer").all(obj::has)) {"AniList devolvió una ficha incompleta, inexistente o incompatible. Se conservó el borrador."}
+        val titles=obj.getAsJsonObject("title")
+        val title=titles.text("english").ifBlank {titles.text("romaji").ifBlank {titles.text("native")}}
+        require(title.isNotBlank()) {"AniList no devolvió un título válido."}
+        return try {anime(SearchResult("AniList",link.id,title,obj.text("seasonYear"),obj.getAsJsonObject("coverImage").text("extraLarge"),obj))}
+        catch(_:Exception) {error("AniList devolvió campos incompletos. No se modificó la revisión.")}
     }
     override fun season(id: Long,number: Int): JsonObject {
         require(id>0 && number>=0) { "Temporada inválida." }
@@ -188,6 +211,7 @@ class HttpMetadata(private val config: AdminConfig,private val client: OkHttpCli
         }
         fun provenance(source: String)=JsonObject().apply {listOf("datos_generales","sinopsis","poster","fondo","trailer","creditos","puntuacion").forEach {addProperty(it,source)}}
         private const val ANILIST_QUERY="""query (${'$'}search: String!) { Page(page: 1, perPage: 5) { media(search: ${'$'}search, type: ANIME) { id idMal title { romaji english native } seasonYear genres description averageScore episodes coverImage { extraLarge large } trailer { id site } characters(perPage: 6, sort: [ROLE, RELEVANCE]) { edges { role node { name { full } } } } staff(perPage: 15) { edges { role node { name { full } } } } } } }"""
+        private const val ANILIST_DIRECT_QUERY="""query (${'$'}id: Int!) { Media(id: ${'$'}id, type: ANIME) { type format id idMal title { romaji english native } seasonYear genres description averageScore episodes coverImage { extraLarge large } trailer { id site } characters(perPage: 6, sort: [ROLE, RELEVANCE]) { edges { role node { name { full } } } } staff(perPage: 15) { edges { role node { name { full } } } } } }"""
     }
 }
 

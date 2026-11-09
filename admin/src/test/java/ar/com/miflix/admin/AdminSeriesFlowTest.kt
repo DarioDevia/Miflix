@@ -27,6 +27,7 @@ class AdminSeriesFlowTest {
     private lateinit var vm:AdminViewModel
     private lateinit var remoteCatalog:JsonObject
     private var published:JsonObject?=null
+    private val metadataPaths=java.util.concurrent.CopyOnWriteArrayList<String>()
     private var artwork=true
     private var imagesStatus=200
     private var freshSynopsis=""
@@ -47,6 +48,7 @@ class AdminSeriesFlowTest {
         server.dispatcher=object:Dispatcher() {
             override fun dispatch(request:RecordedRequest):MockResponse {
                 val path=request.path!!.substringBefore('?')
+                metadataPaths.add(path)
                 if(path.endsWith("/images")) return MockResponse().setResponseCode(imagesStatus).setBody(if(artwork) """{"logos":[{"file_path":"/logo.png","iso_639_1":"es"}]}""" else """{"logos":[]} """)
                 val body=when {
                     path=="/catalogo.json" -> remoteCatalog.toString()
@@ -268,6 +270,41 @@ class AdminSeriesFlowTest {
         searchAndReview();val before=vm.draft!!.deepCopy()
         vm.episodeField(99,99,"telegram_url",last)
         assertEquals(before,vm.draft);vm.save();await();assertNull(vm.checkpoint("serie"))
+    }
+
+    @Test fun directMovieStartsWithoutTitleAndRequiresPreviewApplyAndManualSave() {
+        vm.openCategory("pelicula");vm.newItem();vm.changeTelegramLink(last);runBlocking {vm.awaitLocalWrites()}
+        val before=vm.draft!!.deepCopy();val fileBefore=File(app.filesDir,"admin-state.json").readText();vm.directUrl="https://themoviedb.org/movie/42-title"
+        vm.obtainFromLink();await();assertEquals("directPreview",vm.screen);assertEquals(before,vm.draft);assertEquals(fileBefore,File(app.filesDir,"admin-state.json").readText());assertTrue(metadataPaths.none {it.endsWith("/search/movie")});assertFalse(vm.pending);assertNull(published)
+        vm.directConfirmed=true;vm.applyDirectMetadata();await();assertEquals("review",vm.screen);assertEquals(last,vm.draft!!.text("telegram_url"));assertFalse(vm.pending);assertTrue(CatalogRules.items(vm.catalog!!).isEmpty());assertFalse(vm.draft!!.has("fecha_agregado"))
+        vm.save();await();assertTrue(vm.pending);assertEquals(last,CatalogRules.items(vm.catalog!!).single().text("telegram_url"));assertTrue(CatalogRules.items(vm.catalog!!).single().has("fecha_agregado"));assertNull(published)
+    }
+    @Test fun invalidDirectLinkDoesNotModifyDraftOrRequestMetadata() {
+        vm.openCategory("pelicula");vm.newItem();val before=vm.draft!!.deepCopy();val requests=server.requestCount
+        vm.directUrl="https://themoviedb.org.evil.test/movie/42";vm.obtainFromLink();await()
+        assertEquals(before,vm.draft);assertEquals(requests,server.requestCount);assertNull(vm.directPreview);assertFalse(vm.pending)
+    }
+    @Test fun existingSeriesDirectMetadataPreservesEveryEpisodeAndHistoricalValue() {
+        searchAndReview();episode(1,last);vm.save();await();val saved=CatalogRules.items(vm.catalog!!).single().deepCopy();vm.edit(saved)
+        vm.field("sinopsis","Texto local");val before=vm.draft!!.deepCopy();vm.directUrl="https://themoviedb.org/tv/42-name";vm.obtainFromLink();await()
+        assertEquals(before,vm.draft);assertFalse("titulo" in vm.directSelection);assertFalse("sinopsis" in vm.directSelection)
+        vm.directSelection=setOf("titulo");vm.directConfirmed=true;vm.applyDirectMetadata();await()
+        for(key in listOf("id","temporadas","fecha_agregado","telegram_url","sinopsis")) assertEquals(key,before.get(key),vm.draft!!.get(key))
+        assertEquals(saved,CatalogRules.items(vm.catalog!!).single());vm.undoRecovery();await();assertEquals(before.text("titulo"),vm.draft!!.text("titulo"));assertEquals(before.get("temporadas"),vm.draft!!.get("temporadas"))
+    }
+    @Test fun directSeriesDuplicateCannotReplaceExistingEpisodesThroughNewItem() {
+        searchAndReview();episode(1,last);vm.save();await();val saved=vm.catalog!!.deepCopy();vm.newItem();val before=vm.draft!!.deepCopy()
+        vm.directUrl="https://themoviedb.org/tv/42";vm.obtainFromLink();await()
+        assertNull(vm.directPreview);assertEquals(before,vm.draft);assertEquals(saved,vm.catalog);assertTrue(vm.message.contains("Ya existe"))
+    }
+    @Test fun directPreviewCancellationLeavesDraftAndCatalogUntouched() {
+        vm.openCategory("pelicula");vm.newItem();val before=vm.draft!!.deepCopy();val cat=vm.catalog!!.deepCopy();vm.directUrl="https://themoviedb.org/movie/42";vm.obtainFromLink();await();vm.cancelDirectPreview()
+        assertEquals(before,vm.draft);assertEquals(cat,vm.catalog);assertEquals("search",vm.screen);assertNull(published)
+    }
+    @Test fun animeMovieDoesNotRequestTvSeasonsOrTvRecoveryAfterRestart() {
+        vm.openCategory("anime");vm.newItem();vm.directUrl="https://themoviedb.org/movie/42";vm.obtainFromLink();await();vm.directConfirmed=true;vm.applyDirectMetadata();await();assertTrue(DirectMetadata.animeMovie(vm.draft!!))
+        val before=server.requestCount;vm.fetchSeason();vm.startRecovery("TMDB");assertEquals(before,server.requestCount);assertEquals("review",vm.screen)
+        vm.save();await();vm=newModel();vm.edit(CatalogRules.items(vm.catalog!!).single());assertTrue(DirectMetadata.animeMovie(vm.draft!!));val after=server.requestCount;vm.fetchSeason();assertEquals(after,server.requestCount)
     }
 
 }

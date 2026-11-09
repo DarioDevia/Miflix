@@ -57,6 +57,10 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
     var deletion by mutableStateOf<DeletionRequest?>(null);private set
     var enrichment by mutableStateOf<JsonObject?>(null);private set
     var results by mutableStateOf<List<SearchResult>>(emptyList());private set
+    var directUrl by mutableStateOf("")
+    var directPreview by mutableStateOf<DirectMetadataPreview?>(null);private set
+    var directSelection by mutableStateOf<Set<String>>(emptySet())
+    var directConfirmed by mutableStateOf(false)
     var query by mutableStateOf("")
     var source by mutableStateOf("TMDB")
     var original by mutableStateOf("");private set
@@ -132,13 +136,13 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
         if(!writable) return
         if(draft!=null) {message="Hay una revisión guardada. Continuá o descartá ese borrador antes de crear otro.";screen="home";return}
         draft=JsonObject().apply {addProperty("tipo",category);add("generos",JsonArray());add("temporadas",JsonArray())}
-        isNew=true;updateMultimedia=false;original="";query="";results=emptyList();source=if(category=="anime") "AniList" else "TMDB"
+        isNew=true;updateMultimedia=false;original="";query="";directUrl="";directPreview=null;results=emptyList();source=if(category=="anime") "AniList" else "TMDB"
         persist();screen="search"
     }
     fun edit(item: JsonObject) {
         if(!writable) return
         if(draft!=null) {message="Hay una revisión guardada. Continuá o descartá ese borrador antes de editar otra ficha.";screen="home";return}
-        category=item.text("tipo");draft=item.deepCopy();isNew=false;updateMultimedia=false;original="";query=item.text("titulo");source=if(category=="anime" && item.number("anilist_id")!=null) "AniList" else "TMDB";persist();screen="review"
+        directUrl="";directPreview=null;category=item.text("tipo");draft=item.deepCopy();isNew=false;updateMultimedia=false;original="";query=item.text("titulo");source=if(category=="anime" && item.number("anilist_id")!=null) "AniList" else "TMDB";persist();screen="review"
     }
     fun resumeDraft() {
         draft=draft ?: repo.draft() ?: return
@@ -152,6 +156,7 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
     private fun draftEnvelope(item: JsonObject)=EditorDraft.root(item).apply {addProperty("_admin_original",original);addProperty("_admin_is_new",isNew);addProperty("_admin_update_version",updateMultimedia)}
     fun startRecovery(source: String,season: Long?=null,language: String="en-US") {
         if(!writable || draft==null) return
+        if(source=="TMDB" && DirectMetadata.animeMovie(draft!!)) {message="Este anime está identificado como película TMDB. Usá su enlace para los datos de la ficha; no se consultarán temporadas de TV.";return}
         if(source !in setOf("TMDB","TVmaze")) {message="Proveedor de recuperación no disponible.";return}
         recoverySource=source;recoveryLanguage=language;recoveryQuery=draft!!.text("titulo")
         recoverySeasons=draft!!.array("temporadas").mapNotNull {it.asJsonObject.number("numero")}.filter {it>=0 && (season==null || it==season)}.take(20).toSet()
@@ -291,6 +296,7 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
         } catch(e:Exception) {message=e.message.orEmpty()}
     }
     fun fetchSeason() {
+        if(draft?.let(DirectMetadata::animeMovie)==true) {message="El enlace identifica una película de anime, no una serie de TV. Las temporadas existentes se conservaron.";return}
         val id=draft?.number("tmdb_id") ?: run {message="Vinculá un resultado TMDB para consultar episodios; también podés agregarlos manualmente.";return}
         val number=seasonNumber;var result:JsonObject?=null
         if(draft!!.array("temporadas").any {it.asJsonObject.number("numero")==number.toLong() && it.asJsonObject.array("episodios").size()>0}) {
@@ -298,11 +304,56 @@ class AdminViewModel(app: Application): AndroidViewModel(app) {
         }
         work({result=metadata().season(id,number)},{draft=CatalogRules.mergeSeason(draft!!,result!!);draft!!.addProperty("fuente_episodios","TMDB");val provided=JsonObject().apply {add("temporadas",JsonArray().apply {add(result!!)})};persist(RetiredMetadata.freshPaths(provided,draft!!));message="Temporada $number obtenida; enlaces anteriores conservados."})
     }
+    private fun checkDirectCollision(candidate:JsonObject,link:MetadataLink) {
+        val collision=catalog?.let {CatalogRules.items(it).firstOrNull {row ->
+            row.text("tipo")==category && (isNew || row.text("id")!=draft?.text("id")) && (
+                row.text("id")==candidate.text("id") ||
+                (candidate.text("imdb_id").isNotBlank() && row.text("imdb_id")==candidate.text("imdb_id")) ||
+                (link.source=="AniList" && row.number("anilist_id")==link.id) ||
+                (link.source=="TMDB" && row.number("tmdb_id")==link.id && (category!="anime" || DirectMetadata.animeMovie(row)==(link.mediaType=="movie"))))
+        }} ?: return
+        require(isNew && category=="pelicula" && link.source=="TMDB" && collision.number("tmdb_id")==link.id) {"Ya existe una ficha vinculada a ese contenido. Conservá o descartá este borrador y editá la ficha existente; no se reemplazó ni duplicó."}
+    }
+    fun obtainFromLink() {
+        if(!writable || draft==null) return
+        directPreview=null
+        try {
+            val link=MetadataLink.parse(directUrl,category)
+            val before=draft!!.deepCopy();DirectMetadata.checkIdentity(before,link)
+            var candidate:JsonObject?=null
+            work({candidate=metadata().direct(link,before.text("tipo"))},{
+                require(draft==before) {"La revisión cambió durante la consulta. Volvé a obtener los datos."}
+                checkDirectCollision(candidate!!,link)
+                directPreview=DirectMetadataPreview(link,before,candidate!!)
+                directSelection=DirectMetadata.initialSelection(before,candidate!!)
+                directConfirmed=false;screen="directPreview"
+                message="Ficha obtenida. Elegí los campos y confirmá la identificación antes de volver a revisar. No se guardó en el catálogo."
+            })
+        } catch(e:Exception) {message=e.message ?: "No se pudo identificar el enlace. El borrador se conservó."}
+    }
+    fun cancelDirectPreview() {directPreview=null;directSelection=emptySet();directConfirmed=false;screen="search"}
+    fun applyDirectMetadata() {
+        if(!writable) return
+        try {
+            val preview=directPreview ?: return
+            require(draft==preview.before && category==preview.before.text("tipo")) {"La revisión cambió. Volvé a consultar el enlace."}
+            checkDirectCollision(preview.candidate,preview.link)
+            val change=DirectMetadata.apply(preview,directSelection,directConfirmed)
+            val envelope=draftEnvelope(change.after)
+            val paths=RetiredMetadata.freshPaths(preview.candidate,change.after).filter {it.substringAfterLast('/') in change.fields}.toSet()
+            work({repo.stageRecovery(envelope,change.backup(),paths)},{
+                draft=repo.draft();directPreview=null;directSelection=emptySet();screen="review"
+                duplicate=if(category=="pelicula") CatalogRules.duplicate(catalog!!,draft!!,if(isNew) null else draft!!.text("id")) else null
+                message="Campos seleccionados aplicados al borrador con respaldo. Revisá y confirmá el guardado; no se sincronizó. Revertir conserva la identificación aprobada."
+            })
+        } catch(e:Exception) {message=e.message ?: "No se pudo aplicar. Conservamos la revisión anterior."}
+    }
     fun search() {
         val q=query;val type=category;val src=source;var found:List<SearchResult> = emptyList()
         work({found=metadata().search(q,type,src)},{results=found;message="${found.size} resultados."})
     }
     fun use(result: SearchResult) {
+        if(result.source=="TMDB" && draft?.let(DirectMetadata::animeMovie)==true) {message="Esta ficha es una película de anime. Usá el enlace TMDB de la película para no asociarla a una serie de TV.";return}
         val base=draft?.deepCopy() ?: return;var detail:JsonObject?=null
         work({detail=metadata().detail(result,category)},{
             val candidate=detail!!
